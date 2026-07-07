@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -15,7 +16,7 @@ from app.bot.messages import (
     SESSION_EXPIRED_MESSAGE,
     SLOT_NOT_FOUND_MESSAGE,
 )
-from app.services.slot_service import get_slot_by_date
+from app.services.slot_service import get_slot_by_date_sync
 from app.services.order_service import place_buy_order, place_sell_order
 from app.utils.helpers import format_premium, generate_invoice_text
 
@@ -48,8 +49,8 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
     type_str = t("buy", lang) if order_type == BUY else t("sell", lang)
     msg = t("selected_slot", lang).format(type=type_str, date=slot_date)
 
-    slot = await get_slot_by_date(slot_date, order_type)
-    stock = slot.get("stock_kg", 0) if slot else 0
+    slot = await asyncio.to_thread(get_slot_by_date_sync, slot_date, order_type)
+    stock = float(slot.get("stock_kg", 0)) if slot else 0
     logger.info("handle_slot_selection | slot_date=%s | order_type=%s | slot=%s | stock=%s", slot_date, order_type, slot, stock)
 
     if order_type == BUY and stock <= 0:
@@ -77,7 +78,7 @@ async def handle_quantity_selection(query, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(t("session_expired", lang))
         return
 
-    slot = await get_slot_by_date(selected_slot, order_type)
+    slot = await asyncio.to_thread(get_slot_by_date_sync, selected_slot, order_type)
 
     if not slot:
         await query.message.reply_text(t("slot_not_found", lang))
@@ -139,10 +140,9 @@ async def handle_confirm_order(
         context.user_data.clear()
         context.user_data["lang"] = lang
 
-        # Edit the confirmation message in-place to remove the confirmation buttons and show success text
         confirmed_text = t("order_confirmed", lang).strip()
         try:
-            await query.edit_message_text(text=f"{confirmed_text}\n{t('order_id', lang)}: {order.order_id}")
+            await query.edit_message_text(text=f"{confirmed_text}\n{t('order_id', lang)}: {order.order_no}")
         except BadRequest as e:
             if "Message is not modified" not in str(e):
                 raise

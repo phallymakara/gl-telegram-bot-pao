@@ -4,11 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise RuntimeError("BOT_TOKEN is not set in environment")
 
-SPREADSHEET_ID = "1vJfNb4UJJ59_8NCANeLRRSdmNQyxgoYKvThqViTKl5s"
-SERVICE_ACCOUNT_FILE = "service_account.json"
-
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
+DEFAULT_GROUP_NAME = "Telegram Bot"

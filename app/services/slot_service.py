@@ -1,64 +1,73 @@
-import asyncio
 import logging
-from app.services.google_client import slots_sheet, sell_slots_sheet
+from datetime import date, datetime
+
+from app.core.database import SessionLocal
+from app.models.slot_table import SlotTable
+from app.models.slot_row import SlotRow
 
 logger = logging.getLogger(__name__)
 
 
-async def get_active_slots(order_type: str = "BUY"):
-    sheet = sell_slots_sheet if order_type == "SELL" else slots_sheet
-    rows = await asyncio.to_thread(sheet.get_all_records)
-
-    return [
-        row for row in rows
-        if str(row["active"]).upper() == "YES"
-    ]
-
-
-async def get_slot_by_date(slot_date: str, order_type: str = "BUY"):
-    sheet = sell_slots_sheet if order_type == "SELL" else slots_sheet
-    rows = await asyncio.to_thread(sheet.get_all_records)
-
-    target_date = str(slot_date).strip()
-
-    for row in rows:
-        sheet_date = str(row["slot_date"]).strip()
-
-        if sheet_date == target_date:
-            return row
-
-    logger.warning(
-        "Slot not found | target=%r | order_type=%s | available=%s",
-        target_date,
-        order_type,
-        [str(row["slot_date"]).strip() for row in rows],
-    )
-
-    return None
+def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
+    return {
+        "slot_date": slot_row.slot_date.isoformat() if isinstance(slot_row.slot_date, (date, datetime)) else str(slot_row.slot_date),
+        "premium": float(slot_row.premium),
+        "stock_kg": float(slot_table.stock),
+        "min_order": 0,
+        "active": "YES" if slot_table.is_active else "NO",
+    }
 
 
-async def check_stock(slot_date: str, quantity: float):
-    slot = await get_slot_by_date(slot_date)
+def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
+    session = SessionLocal()
+    try:
+        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+        result = []
+        for t in tables:
+            for row in t.rows:
+                result.append(_get_slot_dict(row, t))
+        return result
+    finally:
+        session.close()
 
+
+def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | None:
+    session = SessionLocal()
+    try:
+        target = slot_date.strip()
+        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+        for t in tables:
+            for row in t.rows:
+                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
+                if row_date == target:
+                    return _get_slot_dict(row, t)
+        return None
+    finally:
+        session.close()
+
+
+def check_stock_sync(slot_date: str, quantity: float) -> bool:
+    slot = get_slot_by_date_sync(slot_date)
     if not slot:
         return False
-
     return float(slot["stock_kg"]) >= quantity
 
 
-async def deduct_stock(slot_date: str, quantity: float):
-    rows = await asyncio.to_thread(slots_sheet.get_all_records)
-
-    target_date = str(slot_date).strip()
-
-    for idx, row in enumerate(rows, start=2):
-        sheet_date = str(row["slot_date"]).strip()
-
-        if sheet_date == target_date:
-            current_stock = float(row["stock_kg"])
-            new_stock = current_stock - quantity
-
-            await asyncio.to_thread(slots_sheet.update, f"C{idx}", [[new_stock]])
-            return True
-
-    return False
+def deduct_stock_sync(slot_date: str, quantity: float) -> bool:
+    session = SessionLocal()
+    try:
+        target = slot_date.strip()
+        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+        for t in tables:
+            for row in t.rows:
+                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
+                if row_date == target:
+                    t.stock = float(t.stock) - quantity
+                    session.commit()
+                    return True
+        return False
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

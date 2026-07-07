@@ -5,8 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "google-auth>=2.55.0",
-    "gspread>=6.2.1",
     "python-dotenv>=1.2.2",
     "python-telegram-bot>=22.8",
 

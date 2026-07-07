@@ -12,7 +12,7 @@ class Customer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    telegram_user_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    telegram_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     username: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)

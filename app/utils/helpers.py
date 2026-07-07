@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 def format_premium(premium) -> str:
     try:
         val_str = str(premium).strip()
@@ -16,25 +17,21 @@ def format_premium(premium) -> str:
 
 
 def generate_invoice_text(order, user) -> str:
-    # Use current local time for invoice date/time
     now = datetime.now()
     date_str = now.strftime("%d-%b-%Y")
     time_str = now.strftime("%I:%M %p")
-    
-    # Generate Invoice No: INV-{YYYYMMDD}-{order_suffix}
-    order_suffix = order.order_id.split("-")[-1]
+
+    order_suffix = order.order_no.split("-")[-1]
     invoice_no = f"INV-{now.strftime('%Y%m%d')}-{order_suffix}"
-    
-    # Customer Details - Name is capitalized
+
     full_name = user.first_name or ""
     if user.last_name:
         full_name += f" {user.last_name}"
     full_name = full_name.strip().upper() or "N/A"
-    
+
     username = f"@{user.username}" if user.username else "N/A"
     tg_id = str(user.id)
-    
-    # Parse premium safely
+
     try:
         raw_premium = str(order.premium).strip().replace(",", "")
         is_negative = raw_premium.startswith("-")
@@ -47,21 +44,20 @@ def generate_invoice_text(order, user) -> str:
             unit_price = -unit_price
     except (ValueError, TypeError):
         unit_price = 0.0
-        
-    qty = order.quantity_kg
-    slot = order.slot_date or "N/A"
-    
-    # Format premium price with sign (+ or -)
+
+    qty = float(order.quantity)
+    slot = order.slot_date_str or "N/A"
+
     if unit_price >= 0:
         premium_price_str = f"+${unit_price:,.2f}"
     else:
         premium_price_str = f"-${abs(unit_price):,.2f}"
-    
+
     text = (
         "🧾 INVOICE / វិក្កយបត្រ\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Invoice No : {invoice_no}\n"
-        f"Order ID   : {order.order_id}\n"
+        f"Order ID   : {order.order_no}\n"
         f"Date       : {date_str}\n"
         f"Time       : {time_str}\n\n"
         "Customer Information\n"

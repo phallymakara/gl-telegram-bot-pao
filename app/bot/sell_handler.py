@@ -1,12 +1,13 @@
+import asyncio
 from telegram.ext import ContextTypes
 from app.bot.keyboards import build_slot_keyboard
-from app.services.slot_service import get_active_slots
+from app.services.slot_service import get_active_slots_sync
 from app.utils.translation import t
 
 
 async def handle_sell(query, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "EN")
-    slots = await get_active_slots(order_type="SELL")
+    slots = await asyncio.to_thread(get_active_slots_sync, "SELL")
 
     await query.message.reply_text(
         t("sell_slots_title", lang),
