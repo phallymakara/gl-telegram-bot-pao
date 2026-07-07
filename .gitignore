@@ -1,0 +1,68 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+service_account.json
+.DS_Store
+
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Environment Variables
+.env
+
+# macOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# Logs
+*.log
+
+# Database
+*.db
+*.sqlite3
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# uv
+.python-versionservice_account.json
+persistence.pickle
+
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+
+# macOS
+.DS_Store

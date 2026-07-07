@@ -1,0 +1,28 @@
+[project]
+name = "gold-telegram-bot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "google-auth>=2.55.0",
+    "gspread>=6.2.1",
+    "python-dotenv>=1.2.2",
+    "python-telegram-bot>=22.8",
+
+    # Backend API
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+
+    # Database
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary>=2.9.9",
+
+    # Validation / schemas
+    "pydantic>=2.8.0",
+
+    # Authentication / security
+    "passlib[bcrypt]>=1.7.4",
+    "python-jose[cryptography]>=3.3.0",
+]
