@@ -152,7 +152,6 @@ async def handle_confirm_order(
         await query.message.reply_text(
             success_msg,
             reply_markup=build_main_menu(lang),
-            parse_mode="Markdown"
         )
 
     except SlotNotFoundError as error:

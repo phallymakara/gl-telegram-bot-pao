@@ -236,6 +236,8 @@ export default function PhysicalOrdersPage({
                 Create Physical Order
               </h3>
               <button
+                type="button"
+                aria-label="Close dialog"
                 onClick={() => setIsOpen(false)}
                 className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
               >
@@ -262,6 +264,7 @@ export default function PhysicalOrdersPage({
                     Type *
                   </label>
                   <select
+                    aria-label="Order type"
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

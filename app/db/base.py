@@ -8,3 +8,4 @@ from app.models.slot_row import SlotRow
 from app.models.order import Order
 from app.models.alert import Alert
 from app.models.inventory_transaction import InventoryTransaction
+from app.models.daily_inventory import DailyInventory

@@ -11,18 +11,36 @@ interface SlotsPageProps {
 export default function SlotsPage({ notify }: SlotsPageProps) {
   const [tables, setTables] = useState<SlotTableData[]>([]);
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
+  const [newRowDates, setNewRowDates] = useState<Record<number, string>>({});
 
   useEffect(() => {
     api.get<SlotTableData[]>("/api/slots/").then(setTables).catch(() => notify("Failed to load slots"));
   }, []);
 
+  function tomorrowStr() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  }
+
   function addRow(tableId: number) {
-    const dateStr = new Date().toISOString().split("T")[0];
+    const dateStr = newRowDates[tableId] || tomorrowStr();
     api.post<{ id: number; slot_date: string; premium: number }>(`/api/slots/${tableId}/rows`, { slot_date: dateStr, premium: 300 })
       .then((row) => {
         setTables((ts) => ts.map((t) => t.id === tableId ? { ...t, rows: [...t.rows, row] } : t));
+        setNewRowDates((prev) => ({ ...prev, [tableId]: tomorrowStr() }));
       })
       .catch(() => notify("Failed to add row"));
+  }
+
+  function updateRowDate(tableId: number, rowId: number, date: string) {
+    const row = tables.find((t) => t.id === tableId)?.rows.find((r) => r.id === rowId);
+    if (!row || !date) return;
+    api.put(`/api/slots/${tableId}/rows/${rowId}`, { slot_date: date, premium: row.premium })
+      .then(() => {
+        setTables((ts) => ts.map((t) => t.id === tableId ? { ...t, rows: t.rows.map((r) => r.id === rowId ? { ...r, slot_date: date } : r) } : t));
+      })
+      .catch(() => notify("Failed to update date"));
   }
 
   function delRow(tableId: number, rowId: number) {
@@ -31,7 +49,7 @@ export default function SlotsPage({ notify }: SlotsPageProps) {
         setTables((ts) => ts.map((t) => t.id === tableId ? { ...t, rows: t.rows.filter((r) => r.id !== rowId) } : t));
         notify("Row deleted");
       })
-      .catch(() => notify("Failed to delete row"));
+      .catch((e: Error) => notify(e.message));
   }
 
   function updateRowPremium(tableId: number, rowId: number, premium: number) {
@@ -74,7 +92,7 @@ export default function SlotsPage({ notify }: SlotsPageProps) {
         setTables((ts) => ts.filter((t) => t.id !== tableId));
         notify("Table deleted");
       })
-      .catch(() => notify("Failed to delete table"));
+      .catch((e: Error) => notify(e.message));
   }
 
   async function duplicateTable(tableId: number) {
@@ -134,7 +152,7 @@ export default function SlotsPage({ notify }: SlotsPageProps) {
                   {t.rows.map((r, idx) => (
                     <tr key={r.id} className="border-b border-slate-50">
                       <td className="px-5 py-3 text-slate-400">{idx + 1}</td>
-                      <td className="px-5 py-3 text-slate-600 whitespace-nowrap"><div className="flex items-center gap-2"><Calendar size={13} className="text-slate-300" /> {r.slot_date}</div></td>
+                      <td className="px-5 py-3 text-slate-600 whitespace-nowrap"><div className="flex items-center gap-2"><Calendar size={13} className="text-slate-300" /><input type="date" value={r.slot_date} onChange={(e) => updateRowDate(t.id, r.id, e.target.value)} className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-slate-50/30" /></div></td>
                       <td className="px-5 py-3">
                         <input value={r.premium} onChange={(e) => updateRowPremium(t.id, r.id, +e.target.value.replace(/[^0-9]/g, ""))} className="w-28 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30" />
                       </td>
@@ -154,8 +172,11 @@ export default function SlotsPage({ notify }: SlotsPageProps) {
                 </tbody>
               </table>
             </div>
-            <div className="flex border-t border-slate-100">
-              <button onClick={() => addRow(t.id)} className="flex-1 py-3.5 text-sm text-indigo-600 font-medium hover:bg-indigo-50/50 flex items-center justify-center gap-1.5 border-r border-slate-100"><Plus size={15} /> Add New Row</button>
+            <div className="flex border-t border-slate-100 items-stretch">
+              <div className="flex-1 flex items-center justify-center gap-2 border-r border-slate-100">
+                <input type="date" value={newRowDates[t.id] || tomorrowStr()} onChange={(e) => setNewRowDates((prev) => ({ ...prev, [t.id]: e.target.value }))} className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-slate-50/30" />
+                <button onClick={() => addRow(t.id)} className="text-sm text-indigo-600 font-medium hover:text-indigo-800 flex items-center gap-1.5"><Plus size={15} /> Add New Row</button>
+              </div>
               <button onClick={() => saveTable(t.id)} className="flex-1 py-3.5 text-sm text-emerald-600 font-medium hover:bg-emerald-50/50 flex items-center justify-center gap-1.5"><Save size={15} /> Save Data</button>
             </div>
           </Card>

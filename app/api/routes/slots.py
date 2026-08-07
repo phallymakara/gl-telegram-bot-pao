@@ -1,12 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
 from app.api.schemas import SlotTableCreate, SlotTableResponse, SlotRowCreate, SlotRowResponse
+from app.models.order import Order
 from app.models.slot_table import SlotTable
 from app.models.slot_row import SlotRow
 
 router = APIRouter()
+
+
+def _raise_if_slot_referenced(db: Session, row_id: int) -> None:
+    refs = db.query(Order.id).filter(Order.slot_id == row_id).count()
+    if refs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot delete: {refs} order(s) reference this slot.",
+        )
 
 
 @router.get("/", response_model=list[SlotTableResponse])
@@ -43,9 +54,11 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
 
 @router.delete("/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_table(table_id: int, db: Session = Depends(get_db)):
-    table = db.query(SlotTable).filter(SlotTable.id == table_id).first()
+    table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    for row in table.rows:
+        _raise_if_slot_referenced(db, row.id)
     db.delete(table)
     db.commit()
 
@@ -79,5 +92,6 @@ def delete_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
     row = db.query(SlotRow).filter(SlotRow.id == row_id, SlotRow.slot_table_id == table_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Row not found")
+    _raise_if_slot_referenced(db, row.id)
     db.delete(row)
     db.commit()

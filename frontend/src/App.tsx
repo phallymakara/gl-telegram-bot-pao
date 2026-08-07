@@ -1,11 +1,12 @@
 import React, { useState, useRef } from "react";
-import { TrendingUp, Archive, Users, BarChart3, Send, Shield, Cloud } from "lucide-react";
+import { TrendingUp, Users, BarChart3, Send, Shield, Cloud } from "lucide-react";
 import Sidebar from "./layouts/Sidebar";
 import Topbar from "./layouts/Topbar";
 import DashboardPage from "./pages/DashboardPage";
 import PlatformOrdersPage from "./pages/PlatformOrdersPage";
 import PhysicalOrdersPage from "./pages/PhysicalOrdersPage";
 import SlotsPage from "./pages/SlotsPage";
+import InventoryPage from "./pages/InventoryPage";
 import AlertsPage from "./pages/AlertsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -30,7 +31,6 @@ export default function App() {
 
   const simplePages: Record<string, React.ComponentType<any>> = {
     "gold-prices": TrendingUp,
-    inventory: Archive,
     customers: Users,
     "telegram-bot": Send,
     "audit-logs": Shield,
@@ -65,7 +65,8 @@ export default function App() {
           {page === "discount-promotions" && <AlertsPage mode="promo" notify={notify} />}
           {page === "user-management" && <UsersPage notify={notify} />}
           {page === "slots" && <SlotsPage notify={notify} />}
-          {page !== "platform-orders" && page !== "physical-orders" && page !== "low-stock-alerts" && page !== "discount-promotions" && page !== "user-management" && page !== "slots" && (
+          {page === "inventory" && <InventoryPage notify={notify} />}
+          {page !== "platform-orders" && page !== "physical-orders" && page !== "low-stock-alerts" && page !== "discount-promotions" && page !== "user-management" && page !== "slots" && page !== "inventory" && (
             <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between">
               <div>
                 {page === "dashboard" && <DashboardPage />}

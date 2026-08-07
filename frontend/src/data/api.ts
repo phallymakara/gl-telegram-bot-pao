@@ -12,7 +12,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
+    let message = text || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && parsed.detail) message = String(parsed.detail);
+    } catch {
+      // keep raw text
+    }
+    throw new Error(message);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -113,4 +120,12 @@ export interface CustomerData {
   username: string | null;
   display_name: string | null;
   created_at: string;
+}
+
+export interface InventoryData {
+  id: number;
+  inventory_date: string;
+  stock_kg: number;
+  created_at: string;
+  updated_at: string;
 }

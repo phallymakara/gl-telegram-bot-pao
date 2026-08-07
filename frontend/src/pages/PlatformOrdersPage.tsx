@@ -92,6 +92,7 @@ export default function PlatformOrdersPage({
             placeholder="Search by invoice or customer name…"
           />
           <select
+            aria-label="Order status filter"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
             className="text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-600 focus:outline-none"

@@ -1,17 +1,18 @@
 # Gold Trading Telegram Bot
 
-A robust, multilingual Telegram bot built in Python to facilitate gold buying and selling. It manages daily/weekly trading slots, processes orders, and tracks customer registrations. Google Sheets is used as the database and administrator panel, enabling easy data management and live updates.
+A robust, multilingual Telegram bot built in Python to facilitate gold buying and selling. It manages daily/weekly trading slots, processes orders, and tracks customer registrations. A **FastAPI admin API** and a **React admin panel** provide the management frontend, backed by **PostgreSQL** via SQLAlchemy.
 
 ---
 
 ## Features
 
 - **Multilingual Support**: Supports both **English (EN)** and **Khmer (KH)** languages.
-- **Whitelist Restricted Access**: Access is controlled via a whitelisted group of users specified in a Google Sheet. If a whitelisted user connects, the bot automatically populates their missing Telegram ID.
-- **Inventory/Stock Management**: Users can select active slots, view premiums, and request order quantities. The bot automatically validates slot stock before order confirmation and deducts inventory from Google Sheets when a buy order is placed.
+- **Whitelist Restricted Access**: Access is controlled via a whitelist of Telegram users managed in the database.
+- **Inventory/Stock Management**: Users can select active slots, view premiums, and request order quantities. The bot automatically validates slot stock before order confirmation and deducts inventory when a buy order is placed.
 - **Interactive Session Flow**: A clean, button-based conversational interface prevents typing errors and guides the user step-by-step.
 - **Detailed Invoices**: Generates a formatted invoice complete with transaction ID, customer information, and Khmer translation upon order confirmation.
-- **Scheduled Promotions Broadcaster**: A background loop polls the `Promotions` sheet to broadcast scheduled promotional messages to all registered/active bot users.
+- **Admin API**: REST API for auth, users, orders, slots, dashboard stats, alerts, settings, customers, and inventory.
+- **Scheduled Promotions Broadcaster**: A background loop broadcasts scheduled promotional messages to all registered/active bot users.
 - **Session Persistence**: Uses `PicklePersistence` to keep user configurations (like chosen language) intact across bot restarts.
 
 ---
@@ -20,8 +21,10 @@ A robust, multilingual Telegram bot built in Python to facilitate gold buying an
 
 - **Core Language**: Python 3.11+
 - **Bot Framework**: [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) (v22+)
-- **Sheets Integration**: [gspread](https://github.com/burnash/gspread) & `google-auth`
-- **Configuration & Environment**: `python-dotenv`
+- **Backend API**: [FastAPI](https://fastapi.tiangolo.com/) + `uvicorn`
+- **Database**: PostgreSQL + SQLAlchemy 2.0, `alembic` for migrations
+- **Auth / Security**: `passlib[bcrypt]`, `python-jose` (JWT)
+- **Admin Frontend**: React 18 + Vite + Tailwind CSS (`frontend/`)
 - **Package & Runtime Manager**: `uv` (recommended)
 
 ---
@@ -31,161 +34,221 @@ A robust, multilingual Telegram bot built in Python to facilitate gold buying an
 ```text
 gold-telegram-bot/
 ├── app/
-│   ├── bot/
-│   │   ├── buy_handler.py     # Handles the buy flow entry point
-│   │   ├── sell_handler.py    # Handles the sell flow entry point
-│   │   ├── order_handler.py   # Handles user order histories
-│   │   ├── order_flow.py      # Multi-step order state & quantity selections
-│   │   ├── keyboards.py       # Inline keyboards layouts
-│   │   ├── messages.py        # Error & status messaging constants
-│   │   └── handlers.py        # Central start & button router
+│   ├── api/                    # FastAPI application (app.api:app)
+│   │   ├── __init__.py         # FastAPI instance, CORS, router registration
+│   │   ├── dependencies.py     # DB session dependency
+│   │   ├── schemas.py          # Pydantic request/response models
+│   │   └── routes/
+│   │       ├── auth.py         # POST /api/auth/login, GET /api/auth/me
+│   │       ├── users.py        # /api/users
+│   │       ├── orders.py       # /api/orders
+│   │       ├── slots.py        # /api/slots
+│   │       ├── dashboard.py    # /api/dashboard
+│   │       ├── alerts.py       # /api/alerts
+│   │       ├── settings.py     # /api/settings
+│   │       ├── customers.py    # /api/customers
+│   │       └── inventory.py    # /api/inventory
+│   ├── bot/                    # Telegram bot handlers & flows
+│   │   ├── buy_handler.py      # Buy flow entry point
+│   │   ├── sell_handler.py     # Sell flow entry point
+│   │   ├── order_handler.py    # User order histories
+│   │   ├── order_flow.py       # Multi-step order state & quantity selection
+│   │   ├── keyboards.py        # Inline keyboard layouts
+│   │   ├── messages.py         # Error & status message constants
+│   │   └── handlers.py         # Central start & button router
 │   ├── config/
-│   │   ├── settings.py        # Spreadsheet ID, file references, and API scopes
-│   │   └── logger.py          # Unified logger configuration
+│   │   ├── settings.py         # Bot configuration
+│   │   └── logger.py           # Unified logger configuration
 │   ├── constants/
-│   │   └── callback.py        # Callback query prefix constants
+│   │   ├── callback.py         # Callback query prefix constants
+│   │   └── order.py            # Order-related constants
+│   ├── core/                   # Core backend configuration
+│   │   ├── config.py           # BOT_TOKEN, DATABASE_URL, SECRET_KEY, JWT settings
+│   │   ├── database.py         # SQLAlchemy engine, session, Base
+│   │   ├── security.py         # Password hashing & JWT helpers
+│   │   └── logging.py          # Logging configuration
+│   ├── db/
+│   │   └── base.py             # Registers all SQLAlchemy models
 │   ├── exceptions/
-│   │   └── order_exceptions.py# Custom Exceptions (Stock, SlotNotFound)
-│   ├── models/
-│   │   ├── order.py           # Dataclass structure representing an Order
-│   │   └── slot.py            # Dataclass structure representing a Slot
+│   │   └── order_exceptions.py # Custom exceptions (Stock, SlotNotFound)
+│   ├── models/                 # SQLAlchemy models
+│   │   ├── user.py             # Admin users & roles
+│   │   ├── customer.py         # Customers / whitelist
+│   │   ├── telegram_group.py   # Active telegram groups
+│   │   ├── slot_table.py       # Slot tables (inventory)
+│   │   ├── slot_row.py         # Slot rows (dates & premiums)
+│   │   ├── order.py            # Buy/sell orders
+│   │   ├── alert.py            # Alerts
+│   │   ├── inventory_transaction.py  # Stock movements
+│   │   └── daily_inventory.py  # Daily inventory snapshots
 │   ├── services/
-│   │   ├── google_client.py   # gspread client authentication
-│   │   ├── whitelist_service.py # Handles whitelisted user validation
-│   │   ├── slot_service.py    # Stock check, retrieval, and deduction
-│   │   ├── order_service.py   # Wrappers for placing buy/sell orders
-│   │   ├── order_sheet_service.py # Direct read/write operations for Orders
-│   │   └── promotion_service.py # Promotion broadcasting background routine
+│   │   ├── db.py               # Shared DB helpers
+│   │   ├── order_service.py    # Buy/sell order wrappers
+│   │   ├── slot_service.py     # Stock check, retrieval, deduction
+│   │   ├── whitelist_service.py# Whitelisted user validation
+│   │   └── promotion_service.py# Promotion broadcasting background loop
 │   ├── utils/
-│   │   ├── helpers.py         # Invoices and price formatting
-│   │   └── translation.py     # Localized text and translation helper
-│   └── main.py                # Application entrypoint
-├── pyproject.toml             # Project dependency settings
-├── uv.lock                    # Dependency lockfile
-├── service_account.json       # Google Cloud credential (ignored in git)
-└── .env                       # Local environment variables (ignored in git)
+│   │   ├── helpers.py          # Invoices and price formatting
+│   │   └── translation.py      # Localized text and translation helper
+│   ├── main.py                 # Telegram bot entrypoint
+│   └── seed.py                 # Seed demo data + admin user
+├── frontend/                   # React + Vite + Tailwind admin panel
+├── pyproject.toml              # Project dependency settings
+├── uv.lock                     # Dependency lockfile
+├── .env                        # Environment variables (ignored in git)
+├── docker-compose.yml          # Full stack: db + bot + api + frontend
+└── docker-compose.dev.yml      # Dev: postgres + pgadmin
 ```
 
 ---
 
 ## Prerequisites
 
-Before running the bot, you will need:
-
 1. **Telegram Bot Token**: Created via [@BotFather](https://t.me/BotFather) on Telegram.
-2. **Google Cloud Project & Service Account**:
-   - Enable **Google Drive API** and **Google Sheets API**.
-   - Create a Service Account and download the key file as a JSON.
-   - Save this JSON file in the root directory of the project, renamed to `service_account.json`.
-3. **Google Spreadsheet**:
-   - Create a Google Spreadsheet and capture its ID from the URL (e.g., `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`).
-   - Share the spreadsheet with the `client_email` found in your `service_account.json` (give it Editor access).
-   - Configure the spreadsheet worksheets and columns as described below.
+2. **PostgreSQL**: Running locally, or via Docker Compose.
+3. **Python 3.11+** and [uv](https://docs.astral.sh/uv/) (or pip).
 
 ---
 
-## Google Spreadsheet Schema
+## Environment Variables
 
-The bot communicates with six worksheets inside your spreadsheet. Ensure your Google Sheet contains these sheets with these exact header names (case-sensitive) in the first row:
+Create a `.env` file in the root directory:
 
-### 1. `Whitelist`
-Allows access restriction.
-- **Columns**: `username`, `telegram_id`
-- *Note*: You can manually pre-fill `username`s (without the `@` prefix). When the user initiates a command, the bot automatically fills their `telegram_id`.
+```ini
+BOT_TOKEN=your_telegram_bot_token_here
+DATABASE_URL=postgresql://postgres:password@localhost:5050/gold_bot_db
+SECRET_KEY=change-this-secret
+```
 
-### 2. `Slots` (Buy Slots)
-Inventory options available for purchasing.
-- **Columns**: `slot_date`, `premium`, `stock_kg`, `min_order`, `active`
-- **Values for `active`**: `YES` or `NO`
-
-### 3. `Sell_Slots` (Sell Slots)
-Inventory options available for selling.
-- **Columns**: `slot_date`, `premium`, `stock_kg`, `min_order`, `active`
-- **Values for `active`**: `YES` or `NO`
-
-### 4. `Orders` (Buy Orders)
-Automatically populated by the bot when a buy order is confirmed.
-- **Columns**: `order_id`, `telegram_id`, `username`, `order_type`, `slot_date`, `premium`, `quantity_kg`, `status`, `created_at`
-
-### 5. `Sell Orders`
-Automatically populated by the bot when a sell order is confirmed.
-- **Columns**: `order_id`, `telegram_id`, `username`, `order_type`, `slot_date`, `premium`, `quantity_kg`, `status`, `created_at`
-
-### 6. `Promotions`
-Broadcast scheduler. The bot loops every 60 seconds looking for pending broadcasts.
-- **Columns**: `message`, `date`, `time`, `status`
-- **Format**:
-  - `date`: `YYYY-MM-DD`
-  - `time`: `HH:MM` or `HH:MM:SS` or `HH:MM AM/PM`
-  - `status`: Mark as `PENDING` to enqueue. The bot changes this to `SENDING`, then `SENT` once successfully broadcast to all registered users, or `EXPIRED` if scheduled more than 24 hours in the past.
+| Variable | Description |
+| --- | --- |
+| `BOT_TOKEN` | Telegram bot token (required) |
+| `DATABASE_URL` | PostgreSQL connection string (default `postgresql://postgres:password@localhost:5432/gold_bot_db`) |
+| `SECRET_KEY` | JWT signing secret (default `change-this-secret`) |
 
 ---
 
 ## Installation & Setup
 
 ### 1. Clone the Project
+
 ```bash
 git clone git@github.com:phallymakara/gold-telegram-bot.git
 cd gold-telegram-bot
 ```
 
 ### 2. Configure Environment Variables
-Create a `.env` file in the root directory and add your Telegram bot token:
-```ini
-BOT_TOKEN=your_telegram_bot_token_here
-```
 
-### 3. Set Up Google Credentials
-Place your downloaded Google Cloud service account JSON in the root directory under the filename `service_account.json`.
+Create a `.env` file as described above.
 
-### 4. Set Spreadsheet ID
-Open [app/config/settings.py](file:///Users/macbook/Documents/Project/gold-telegram-bot/app/config/settings.py) and change the `SPREADSHEET_ID` to match your Google Spreadsheet ID:
-```python
-SPREADSHEET_ID = "your_google_spreadsheet_id_here"
-```
+### 3. Install Dependencies
 
-### 5. Install Dependencies
+Using `uv` (recommended):
 
-You can install dependencies using either `uv` or standard Python `pip`.
-
-#### Option A: Using `uv` (Recommended)
-`uv` is extremely fast and will configure the virtual environment automatically.
 ```bash
-# Install uv if you don't have it
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Install dependencies and sync virtual environment
 uv sync
 ```
 
-#### Option B: Using Python `pip`
-Create a virtual environment and install dependencies:
+Using `pip`:
+
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 ```
 
 ---
 
-## Running the Bot
+## Running the Backend API
+
+The admin API is a FastAPI application exposed at `app.api:app`.
+
+Using `uv`:
+
+```bash
+uv run uvicorn app.api:app --host 0.0.0.0 --port 8000
+```
+
+Using the virtual environment directly:
+
+```bash
+.venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000
+```
+
+- API base URL: `http://localhost:8000`
+- Interactive docs (Swagger UI): `http://localhost:8000/docs`
+- Health check: `http://localhost:8000/api/health`
+
+On startup the API creates all database tables automatically (via `Base.metadata.create_all`).
+
+### Seeding Demo Data
+
+```bash
+uv run python -m app.seed
+```
+
+This creates/drops tables and seeds:
+
+- 8 customers
+- 3 slot tables with slot rows
+- 20 orders + inventory transactions
+- Admin user: `admin` / `admin123`
+
+---
+
+## Running the Telegram Bot
 
 To start the polling bot (which also kicks off the background promotions loop):
 
-Using `uv`:
 ```bash
 uv run python -m app.main
 ```
 
-Using Python directly (ensure virtual environment is active):
+---
+
+## Running the Full Stack with Docker Compose
+
+### Production stack (`db` + `bot` + `api` + `frontend`)
+
 ```bash
-python -m app.main
+docker compose up --build
 ```
+
+### Development stack (PostgreSQL + pgAdmin only)
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+| Service | Host | Description |
+| --- | --- | --- |
+| PostgreSQL (dev) | `localhost:5050` | Postgres 16, DB `gold_bot_db`, user/pass `postgres`/`password` |
+| pgAdmin (dev) | `localhost:5051` | `admin@goldsystem.com` / `admin` |
+| API | `localhost:8000` | FastAPI admin API |
+| Frontend | `localhost:80` | React admin panel |
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/auth/login` | Login and get JWT token |
+| GET | `/api/auth/me` | Current user info |
+| GET/POST | `/api/users` | List / create admin users |
+| GET/POST | `/api/orders` | List / create orders |
+| GET/POST | `/api/slots` | List / manage slot tables & rows |
+| GET | `/api/dashboard` | Dashboard statistics |
+| GET/POST | `/api/alerts` | Alerts |
+| GET/POST | `/api/settings` | System settings |
+| GET/POST | `/api/customers` | Customers / whitelist |
+| GET/POST | `/api/inventory` | Inventory & stock movements |
+| GET | `/api/health` | Health check |
 
 ---
 
 ## Development & Customization
 
-- **Edit Translations**: To update button texts, welcome responses, or language strings, modify the dictionaries in [app/utils/translation.py](file:///Users/macbook/Documents/Project/gold-telegram-bot/app/utils/translation.py).
+- **Edit Translations**: To update button texts, welcome responses, or language strings, modify the dictionaries in `app/utils/translation.py`.
 - **Log Levels**: Logs are printed using Python's standard logging module. You can check errors or startup flows via stdout logs.
-- **Cache**: Whitelisted users are cached in memory with a Time-To-Live (TTL) of 5 minutes. To force reload after updating the Whitelist worksheet, restart the bot or wait for the cache TTL to expire.
+- **Whitelist Cache**: Whitelisted users are cached in memory with a Time-To-Live (TTL) of 5 minutes. To force reload after updating customers, restart the bot or wait for the cache TTL to expire.

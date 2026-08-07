@@ -21,29 +21,55 @@ def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
 def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
     session = SessionLocal()
     try:
-        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+        tables = (
+            session.query(SlotTable)
+            .filter(SlotTable.is_active == True)
+            .order_by(SlotTable.display_order)
+            .all()
+        )
+        merged: dict[str, dict] = {}
+        for t in tables:
+            for row in t.rows:
+                slot = _get_slot_dict(row, t)
+                key = slot["slot_date"]
+                if key in merged:
+                    merged[key]["stock_kg"] = float(merged[key]["stock_kg"]) + float(t.stock)
+                else:
+                    merged[key] = slot
+        return list(merged.values())
+    finally:
+        session.close()
+
+
+def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
+    session = SessionLocal()
+    try:
+        target = slot_date.strip()
+        tables = (
+            session.query(SlotTable)
+            .filter(SlotTable.is_active == True)
+            .order_by(SlotTable.display_order)
+            .all()
+        )
         result = []
         for t in tables:
             for row in t.rows:
-                result.append(_get_slot_dict(row, t))
+                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
+                if row_date == target:
+                    result.append(_get_slot_dict(row, t))
         return result
     finally:
         session.close()
 
 
 def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | None:
-    session = SessionLocal()
-    try:
-        target = slot_date.strip()
-        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
-        for t in tables:
-            for row in t.rows:
-                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
-                if row_date == target:
-                    return _get_slot_dict(row, t)
+    slots = _matching_slots_sync(slot_date, order_type)
+    if not slots:
         return None
-    finally:
-        session.close()
+    first = slots[0]
+    total_stock = sum(float(s["stock_kg"]) for s in slots)
+    first["stock_kg"] = total_stock
+    return first
 
 
 def check_stock_sync(slot_date: str, quantity: float) -> bool:
@@ -57,15 +83,35 @@ def deduct_stock_sync(slot_date: str, quantity: float) -> bool:
     session = SessionLocal()
     try:
         target = slot_date.strip()
-        tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+        tables = (
+            session.query(SlotTable)
+            .filter(SlotTable.is_active == True)
+            .order_by(SlotTable.display_order)
+            .all()
+        )
+        remaining = float(quantity)
+        found = False
         for t in tables:
+            if remaining <= 0:
+                break
             for row in t.rows:
                 row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
-                if row_date == target:
-                    t.stock = float(t.stock) - quantity
-                    session.commit()
-                    return True
-        return False
+                if row_date != target:
+                    continue
+                avail = float(t.stock)
+                if avail <= 0:
+                    continue
+                take = min(avail, remaining)
+                t.stock = avail - take
+                remaining -= take
+                found = True
+                if remaining <= 0:
+                    break
+        if not found or remaining > 0:
+            session.rollback()
+            return False
+        session.commit()
+        return True
     except Exception:
         session.rollback()
         raise

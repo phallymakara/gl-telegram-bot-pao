@@ -25,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "physical-orders", label: "Physical Orders", icon: Store },
     ] },
   { id: "slots", label: "Slots", icon: Calendar },
+  { id: "inventory", label: "Inventory", icon: Archive },
   { id: "customers", label: "Customers", icon: Users },
   { id: "user-management", label: "User Management", icon: User },
   { id: "alert-center", label: "Alert Center", icon: Bell, children: [

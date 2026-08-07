@@ -58,6 +58,15 @@ class OrderResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class OrderCreate(BaseModel):
+    order_no: str
+    transaction_type: str
+    quantity: Decimal
+    premium: Decimal
+    customer_name: str | None = None
+    slot_date_str: str | None = None
+
+
 class SlotRowCreate(BaseModel):
     slot_date: date
     premium: Decimal
@@ -113,6 +122,21 @@ class AlertResponse(BaseModel):
     end_at: datetime | None
     is_active: bool
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DailyInventoryCreate(BaseModel):
+    inventory_date: date
+    stock_kg: Decimal
+
+
+class DailyInventoryResponse(BaseModel):
+    id: int
+    inventory_date: date
+    stock_kg: Decimal
+    created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}
 

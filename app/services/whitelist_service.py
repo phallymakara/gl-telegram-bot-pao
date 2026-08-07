@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 _cached_users = set()
 _last_fetch_time = 0
-CACHE_TTL = 300
+CACHE_TTL = 5
 
 
 async def load_whitelist(force_refresh=False) -> set:

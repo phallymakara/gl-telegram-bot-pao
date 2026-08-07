@@ -2,10 +2,61 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
-from app.api.schemas import OrderResponse
+from app.api.schemas import OrderCreate, OrderResponse
+from app.models.customer import Customer
 from app.models.order import Order
 
 router = APIRouter()
+
+
+@router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
+def create_order(body: OrderCreate, db: Session = Depends(get_db)):
+    existing = db.query(Order).filter(Order.order_no == body.order_no).first()
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Order {body.order_no} already exists")
+
+    customer = None
+    if body.customer_name:
+        customer = (
+            db.query(Customer)
+            .filter(Customer.display_name == body.customer_name)
+            .first()
+        )
+        if not customer:
+            customer = Customer(
+                username=body.customer_name,
+                display_name=body.customer_name,
+            )
+            db.add(customer)
+            db.flush()
+
+    order = Order(
+        order_no=body.order_no,
+        customer_id=customer.id if customer else None,
+        quantity=body.quantity,
+        premium=body.premium,
+        premium_amount=body.quantity * body.premium,
+        transaction_type=body.transaction_type.upper(),
+        status="COMPLETED",
+        username=body.customer_name,
+        slot_date_str=body.slot_date_str,
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return OrderResponse(
+        id=order.id,
+        order_no=order.order_no,
+        customer_name=order.customer.display_name if order.customer else None,
+        group_name=order.group.group_name if order.group else None,
+        slot_date=order.slot.slot_date if order.slot else None,
+        quantity=order.quantity,
+        premium=order.premium,
+        premium_amount=order.premium_amount,
+        transaction_type=order.transaction_type,
+        status=order.status,
+        created_at=order.created_at,
+    )
 
 
 @router.get("/", response_model=list[OrderResponse])

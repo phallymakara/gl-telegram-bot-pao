@@ -72,7 +72,6 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN"):
         label = t("slot_format", lang).format(
             date=slot['slot_date'],
             premium=format_premium(slot['premium']),
-            stock=slot['stock_kg']
         )
         keyboard.append([
             InlineKeyboardButton(

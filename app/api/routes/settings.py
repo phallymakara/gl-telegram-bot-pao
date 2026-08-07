@@ -32,7 +32,11 @@ _default = SettingsResponse(
     system=SystemSettings(),
 )
 
-_store = dict(_default)
+_store = {
+    "bot": _default.bot.model_dump(),
+    "security": _default.security.model_dump(),
+    "system": _default.system.model_dump(),
+}
 
 
 @router.get("/", response_model=SettingsResponse)

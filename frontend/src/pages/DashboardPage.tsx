@@ -131,6 +131,7 @@ export default function DashboardPage() {
               Overview
             </h3>
             <select
+              aria-label="Revenue range"
               value={range}
               onChange={(e) => setRange(e.target.value)}
               className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
@@ -391,6 +392,8 @@ export default function DashboardPage() {
                       </td>
                       <td className="py-2 text-right">
                         <button
+                          type="button"
+                          aria-label="Remove customer"
                           onClick={() => removeCustomer(c.id)}
                           className="text-rose-400 hover:text-rose-600 p-1"
                         >

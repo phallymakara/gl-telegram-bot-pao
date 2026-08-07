@@ -34,7 +34,7 @@ def on_startup():
                 pass
 
 
-from app.api.routes import auth, users, orders, slots, dashboard, alerts, settings, customers
+from app.api.routes import auth, users, orders, slots, dashboard, alerts, settings, customers, inventory
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
@@ -44,6 +44,7 @@ app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"]
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(customers.router, prefix="/api/customers", tags=["customers"])
+app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 
 
 @app.get("/api/health")
