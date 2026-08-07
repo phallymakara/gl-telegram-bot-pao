@@ -13,6 +13,9 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:password@localhost:5432/gold_bot_db"
 )
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 
 # secret_key configuration
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret")
