@@ -1,4 +1,4 @@
-import { Eye, Pencil, ShoppingCart, TrendingUp, X } from "lucide-react";
+import { Eye, Pencil, RotateCcw, ShoppingCart, TrendingUp, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
@@ -17,6 +17,8 @@ export default function PlatformOrdersPage({
   const [rows, setRows] = useState<OrderData[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("Order status");
+  const [returnTarget, setReturnTarget] = useState<OrderData | null>(null);
+  const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
 
   useEffect(() => {
     api
@@ -24,6 +26,34 @@ export default function PlatformOrdersPage({
       .then(setRows)
       .catch(() => notify("Failed to load orders"));
   }, []);
+
+  function cancelOrder(o: OrderData) {
+    api
+      .post<OrderData>(`/api/orders/${o.id}/cancel`)
+      .then((updated) => {
+        setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
+        notify(`${o.order_no} cancelled`);
+      })
+      .catch((e: Error) => notify(e.message || "Failed to cancel order"));
+  }
+
+  function submitReturn() {
+    if (!returnTarget || !returnForm.quantity) {
+      notify("Enter a return quantity");
+      return;
+    }
+    api
+      .post(`/api/orders/${returnTarget.id}/return`, {
+        quantity: returnForm.quantity,
+        reason: returnForm.reason || null,
+      })
+      .then(() => {
+        notify(`${returnTarget.order_no} returned — stock updated`);
+        setReturnTarget(null);
+        setReturnForm({ quantity: "", reason: "" });
+      })
+      .catch((e: Error) => notify(e.message || "Failed to return order"));
+  }
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -194,6 +224,22 @@ export default function PlatformOrdersPage({
                         <IconBtn title="More">
                           <Pencil size={15} />
                         </IconBtn>
+                        {r.status !== "CANCELLED" && (
+                          <>
+                            <IconBtn
+                              title="Return"
+                              onClick={() => {
+                                setReturnTarget(r);
+                                setReturnForm({ quantity: "", reason: "" });
+                              }}
+                            >
+                              <RotateCcw size={15} />
+                            </IconBtn>
+                            <IconBtn title="Cancel" tone="danger" onClick={() => cancelOrder(r)}>
+                              <XCircle size={15} />
+                            </IconBtn>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -203,6 +249,60 @@ export default function PlatformOrdersPage({
           </table>
         </div>
       </Card>
+
+      {returnTarget && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <h3 className="font-semibold text-slate-800 text-lg">Return {returnTarget.order_no}</h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => setReturnTarget(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                  Return Quantity (KG) * — max {toNumber(returnTarget.quantity).toFixed(3)}
+                </label>
+                <input
+                  value={returnForm.quantity}
+                  onChange={(e) => setReturnForm({ ...returnForm, quantity: e.target.value.replace(/[^0-9.]/g, "") })}
+                  placeholder="0.00"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Reason</label>
+                <textarea
+                  value={returnForm.reason}
+                  onChange={(e) => setReturnForm({ ...returnForm, reason: e.target.value })}
+                  rows={2}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+              <button
+                onClick={() => setReturnTarget(null)}
+                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReturn}
+                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold shadow-sm transition-colors focus:outline-none"
+              >
+                <RotateCcw size={15} /> Confirm Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

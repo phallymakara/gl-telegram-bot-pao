@@ -6,6 +6,7 @@ import {
   Plus,
   ShoppingCart,
   TrendingUp,
+  XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import Card from "../components/Card";
@@ -64,6 +65,16 @@ export default function PhysicalOrdersPage({
         notify("Order saved");
       })
       .catch(() => notify("Failed to create order"));
+  }
+
+  function cancelOrder(o: OrderData) {
+    api
+      .post<OrderData>(`/api/orders/${o.id}/cancel`)
+      .then((updated) => {
+        setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
+        notify(`${o.order_no} cancelled`);
+      })
+      .catch((e: Error) => notify(e.message || "Failed to cancel order"));
   }
 
   const numericRows = rows.map((r) => ({
@@ -219,6 +230,11 @@ export default function PhysicalOrdersPage({
                       <IconBtn title="More">
                         <Pencil size={15} />
                       </IconBtn>
+                      {r.status !== "CANCELLED" && (
+                        <IconBtn title="Cancel" tone="danger" onClick={() => cancelOrder(r)}>
+                          <XCircle size={15} />
+                        </IconBtn>
+                      )}
                     </div>
                   </td>
                 </tr>

@@ -141,6 +141,95 @@ class DailyInventoryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class SupplierCreate(BaseModel):
+    name: str
+    supplier_type: str
+    contact_person: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    address: str | None = None
+
+
+class SupplierResponse(BaseModel):
+    id: int
+    name: str
+    supplier_type: str
+    contact_person: str | None
+    phone: str | None
+    email: str | None
+    address: str | None
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PurchaseOrderCreate(BaseModel):
+    po_type: str
+    supplier_id: int | None = None
+    slot_table_id: int
+    quantity: Decimal
+    unit_cost: Decimal
+    currency: str = "USD"
+    order_date: date | None = None
+    expected_date: date | None = None
+    notes: str | None = None
+    shipping_method: str | None = None
+    tracking_no: str | None = None
+    customs_fee: Decimal | None = None
+    port_of_origin: str | None = None
+
+
+class PurchaseOrderResponse(BaseModel):
+    id: int
+    po_no: str
+    po_type: str
+    supplier_id: int | None
+    supplier_name: str | None = None
+    slot_table_id: int
+    slot_table_name: str | None = None
+    quantity: Decimal
+    unit_cost: Decimal
+    total_cost: Decimal
+    currency: str
+    status: str
+    order_date: date | None
+    expected_date: date | None
+    received_date: date | None
+    notes: str | None
+    shipping_method: str | None
+    tracking_no: str | None
+    customs_fee: Decimal | None
+    port_of_origin: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class POReturnRequest(BaseModel):
+    quantity: Decimal
+    reason: str | None = None
+
+
+class OrderReturnRequest(BaseModel):
+    quantity: Decimal
+    reason: str | None = None
+
+
+class StockReturnResponse(BaseModel):
+    id: int
+    return_no: str
+    return_type: str
+    purchase_order_id: int | None
+    order_id: int | None
+    slot_table_id: int
+    quantity: Decimal
+    reason: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DashboardStats(BaseModel):
     total_gold: float
     total_orders: int

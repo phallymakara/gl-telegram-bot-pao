@@ -5,6 +5,7 @@ import Topbar from "./layouts/Topbar";
 import DashboardPage from "./pages/DashboardPage";
 import PlatformOrdersPage from "./pages/PlatformOrdersPage";
 import PhysicalOrdersPage from "./pages/PhysicalOrdersPage";
+import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 import SlotsPage from "./pages/SlotsPage";
 import InventoryPage from "./pages/InventoryPage";
 import AlertsPage from "./pages/AlertsPage";
@@ -61,12 +62,14 @@ export default function App() {
         <main className="flex-1 min-w-0 overflow-hidden w-full flex flex-col">
           {page === "platform-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "physical-orders" && <PhysicalOrdersPage notify={notify} />}
+          {page === "po-local" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
+          {page === "po-oversea" && <PurchaseOrdersPage poType="OVERSEA" notify={notify} />}
           {page === "low-stock-alerts" && <AlertsPage mode="stock" notify={notify} />}
           {page === "discount-promotions" && <AlertsPage mode="promo" notify={notify} />}
           {page === "user-management" && <UsersPage notify={notify} />}
           {page === "slots" && <SlotsPage notify={notify} />}
           {page === "inventory" && <InventoryPage notify={notify} />}
-          {page !== "platform-orders" && page !== "physical-orders" && page !== "low-stock-alerts" && page !== "discount-promotions" && page !== "user-management" && page !== "slots" && page !== "inventory" && (
+          {page !== "platform-orders" && page !== "physical-orders" && page !== "po-local" && page !== "po-oversea" && page !== "low-stock-alerts" && page !== "discount-promotions" && page !== "user-management" && page !== "slots" && page !== "inventory" && (
             <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between">
               <div>
                 {page === "dashboard" && <DashboardPage />}

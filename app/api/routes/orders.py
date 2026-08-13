@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
-from app.api.schemas import OrderCreate, OrderResponse
+from app.api.schemas import OrderCreate, OrderResponse, OrderReturnRequest, StockReturnResponse
 from app.models.customer import Customer
 from app.models.order import Order
+from app.services.order_service import cancel_order_sync, return_order_sync
 
 router = APIRouter()
 
@@ -119,3 +120,25 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         status=o.status,
         created_at=o.created_at,
     )
+
+
+@router.post("/{order_id}/cancel", response_model=OrderResponse)
+def cancel_order(order_id: int, db: Session = Depends(get_db)):
+    try:
+        cancel_order_sync(order_id)
+    except ValueError as e:
+        message = str(e)
+        code = 404 if "not found" in message else 409
+        raise HTTPException(status_code=code, detail=message)
+    return get_order(order_id, db)
+
+
+@router.post("/{order_id}/return", response_model=StockReturnResponse)
+def return_order(order_id: int, body: OrderReturnRequest, db: Session = Depends(get_db)):
+    try:
+        stock_return = return_order_sync(order_id, body.quantity, body.reason)
+    except ValueError as e:
+        message = str(e)
+        code = 404 if "not found" in message else 409
+        raise HTTPException(status_code=code, detail=message)
+    return stock_return

@@ -129,3 +129,51 @@ export interface InventoryData {
   created_at: string;
   updated_at: string;
 }
+
+export interface SupplierData {
+  id: number;
+  name: string;
+  supplier_type: string;
+  contact_person: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface PurchaseOrderData {
+  id: number;
+  po_no: string;
+  po_type: string;
+  supplier_id: number | null;
+  supplier_name: string | null;
+  slot_table_id: number;
+  slot_table_name: string | null;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  currency: string;
+  status: string;
+  order_date: string | null;
+  expected_date: string | null;
+  received_date: string | null;
+  notes: string | null;
+  shipping_method: string | null;
+  tracking_no: string | null;
+  customs_fee: number | null;
+  port_of_origin: string | null;
+  created_at: string;
+}
+
+export interface StockReturnData {
+  id: number;
+  return_no: string;
+  return_type: string;
+  purchase_order_id: number | null;
+  order_id: number | null;
+  slot_table_id: number;
+  quantity: number;
+  reason: string | null;
+  created_at: string;
+}

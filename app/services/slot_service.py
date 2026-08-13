@@ -1,9 +1,11 @@
 import logging
 from datetime import date, datetime
+from decimal import Decimal
 
 from app.core.database import SessionLocal
 from app.models.slot_table import SlotTable
 from app.models.slot_row import SlotRow
+from app.models.inventory_transaction import InventoryTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +114,82 @@ def deduct_stock_sync(slot_date: str, quantity: float) -> bool:
             return False
         session.commit()
         return True
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def add_stock_to_table_sync(
+    slot_table_id: int,
+    quantity: Decimal,
+    txn_type: str,
+    remark: str | None = None,
+    order_id: int | None = None,
+) -> SlotTable:
+    session = SessionLocal()
+    try:
+        table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
+        if not table:
+            raise ValueError(f"Slot table {slot_table_id} not found")
+
+        stock_before = table.stock
+        table.stock = stock_before + Decimal(quantity)
+
+        session.add(InventoryTransaction(
+            slot_table_id=table.id,
+            order_id=order_id,
+            transaction_type=txn_type,
+            quantity=Decimal(quantity),
+            stock_before=stock_before,
+            stock_after=table.stock,
+            remark=remark,
+        ))
+
+        session.commit()
+        session.refresh(table)
+        return table
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def deduct_stock_from_table_sync(
+    slot_table_id: int,
+    quantity: Decimal,
+    txn_type: str,
+    remark: str | None = None,
+    order_id: int | None = None,
+) -> SlotTable:
+    session = SessionLocal()
+    try:
+        table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
+        if not table:
+            raise ValueError(f"Slot table {slot_table_id} not found")
+
+        stock_before = table.stock
+        quantity = Decimal(quantity)
+        if stock_before < quantity:
+            raise ValueError(f"Insufficient stock on table {slot_table_id}: has {stock_before}, needs {quantity}")
+
+        table.stock = stock_before - quantity
+
+        session.add(InventoryTransaction(
+            slot_table_id=table.id,
+            order_id=order_id,
+            transaction_type=txn_type,
+            quantity=quantity,
+            stock_before=stock_before,
+            stock_after=table.stock,
+            remark=remark,
+        ))
+
+        session.commit()
+        session.refresh(table)
+        return table
     except Exception:
         session.rollback()
         raise

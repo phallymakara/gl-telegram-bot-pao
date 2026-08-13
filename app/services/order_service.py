@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+from decimal import Decimal
 from uuid import uuid4
 
 from app.core.database import SessionLocal
@@ -9,8 +10,9 @@ from app.models.customer import Customer
 from app.models.telegram_group import TelegramGroup
 from app.models.slot_table import SlotTable
 from app.models.slot_row import SlotRow
+from app.models.purchase_order import StockReturn
 from app.exceptions.order_exceptions import SlotNotFoundError, InsufficientStockError
-from app.services.slot_service import get_slot_by_date_sync, check_stock_sync, deduct_stock_sync
+from app.services.slot_service import get_slot_by_date_sync, check_stock_sync, deduct_stock_sync, add_stock_to_table_sync
 from app.config.settings import DEFAULT_GROUP_NAME
 
 logger = logging.getLogger(__name__)
@@ -122,6 +124,89 @@ async def place_sell_order(
         return await asyncio.to_thread(
             _place_order_sync, telegram_id, username, slot_date, quantity, "SELL"
         )
+
+
+def cancel_order_sync(order_id: int) -> Order:
+    session = SessionLocal()
+    try:
+        order = session.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            raise ValueError(f"Order {order_id} not found")
+        if order.status == "CANCELLED":
+            raise ValueError(f"Order {order_id} is already cancelled")
+
+        slot_table_id = order.slot.slot_table_id if order.slot else None
+        if order.transaction_type == "BUY" and not slot_table_id:
+            raise ValueError(f"Order {order_id} has no associated slot to restock into")
+
+        order.status = "CANCELLED"
+        session.commit()
+        session.refresh(order)
+        transaction_type = order.transaction_type
+        quantity = order.quantity
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+    if transaction_type == "BUY" and slot_table_id:
+        add_stock_to_table_sync(
+            slot_table_id=slot_table_id,
+            quantity=Decimal(quantity),
+            txn_type="ORDER_CANCEL_RESTOCK",
+            remark=f"Cancelled order {order_id}",
+            order_id=order_id,
+        )
+    return order
+
+
+def return_order_sync(order_id: int, quantity: Decimal, reason: str | None) -> StockReturn:
+    session = SessionLocal()
+    try:
+        order = session.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            raise ValueError(f"Order {order_id} not found")
+        if order.transaction_type != "BUY":
+            raise ValueError("Only BUY orders can be returned")
+
+        quantity = Decimal(quantity)
+        if quantity <= 0 or quantity > order.quantity:
+            raise ValueError(f"Return quantity must be between 0 and {order.quantity}")
+
+        if not order.slot:
+            raise ValueError(f"Order {order_id} has no associated slot to restock into")
+        slot_table_id = order.slot.slot_table_id
+    finally:
+        session.close()
+
+    add_stock_to_table_sync(
+        slot_table_id=slot_table_id,
+        quantity=quantity,
+        txn_type="CUSTOMER_RETURN",
+        remark=f"Customer return for order {order_id}: {reason or ''}",
+        order_id=order_id,
+    )
+
+    session = SessionLocal()
+    try:
+        stock_return = StockReturn(
+            return_no=f"RET-{uuid4().hex[:8].upper()}",
+            return_type="CUSTOMER_RETURN",
+            order_id=order_id,
+            slot_table_id=slot_table_id,
+            quantity=quantity,
+            reason=reason,
+        )
+        session.add(stock_return)
+        session.commit()
+        session.refresh(stock_return)
+        return stock_return
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
 
 
 def get_orders_by_telegram_id_sync(telegram_id: str) -> list[dict]:
