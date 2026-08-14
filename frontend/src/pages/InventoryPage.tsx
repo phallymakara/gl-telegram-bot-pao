@@ -4,12 +4,6 @@ import Card from "../components/Card";
 import StatCard from "../components/StatCard";
 import { api, InventoryData, toNumber } from "../data/api";
 
-const MAX_ROWS = 30;
-const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
 interface InventoryPageProps {
   notify: (msg: string) => void;
 }
@@ -17,8 +11,7 @@ interface InventoryPageProps {
 export default function InventoryPage({ notify }: InventoryPageProps) {
   const [rows, setRows] = useState<InventoryData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterMonth, setFilterMonth] = useState<number | "all">("all");
-  const [filterYear, setFilterYear] = useState<number | "all">("all");
+  const [filterDate, setFilterDate] = useState<string>("");
   const [filterType, setFilterType] = useState<"all" | "inflow" | "outflow">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
@@ -44,9 +37,7 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
         if (filterType === "inflow" && stockKg <= 0) return false;
         if (filterType === "outflow" && stockKg >= 0) return false;
 
-        const d = new Date(r.inventory_date + "T00:00:00");
-        if (filterMonth !== "all" && d.getMonth() + 1 !== filterMonth) return false;
-        if (filterYear !== "all" && d.getFullYear() !== filterYear) return false;
+        if (filterDate && !r.inventory_date.startsWith(filterDate)) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const matchesDate = r.inventory_date.toLowerCase().includes(q);
@@ -56,13 +47,7 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
         return true;
       })
       .sort((a, b) => (a.inventory_date < b.inventory_date ? 1 : -1));
-  }, [rows, filterType, filterMonth, filterYear, searchQuery]);
-
-  const years = useMemo(() => {
-    const set = new Set<number>();
-    rows.forEach((r) => set.add(new Date(r.inventory_date + "T00:00:00").getFullYear()));
-    return Array.from(set).sort((a, b) => b - a);
-  }, [rows]);
+  }, [rows, filterType, filterDate, searchQuery]);
 
   const totalStock = rows.reduce((s, r) => s + toNumber(r.stock_kg), 0);
 
@@ -189,28 +174,25 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
               <option value="outflow">Outflow</option>
             </select>
 
-            <select
-              aria-label="Filter by month"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value === "all" ? "all" : +e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none"
-            >
-              <option value="all">All Months</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i + 1}>{m}</option>
-              ))}
-            </select>
-            <select
-              aria-label="Filter by year"
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value === "all" ? "all" : +e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none"
-            >
-              <option value="all">All Years</option>
-              {years.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+            <div className="relative flex items-center gap-1">
+              <input
+                type="date"
+                aria-label="Filter by date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+              {filterDate && (
+                <button
+                  type="button"
+                  onClick={() => setFilterDate("")}
+                  title="Clear date filter"
+                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -231,11 +213,11 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
               {rows.length === 0 ? "No inventory log entries found." : "No rows match the selected filter."}
             </div>
           ) : (
-            <table className="w-full text-sm min-w-[600px]">
+            <table className="w-full text-xs min-w-[600px]">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                   {["#", "Date", "Stock (KG)", "Actions"].map((h) => (
-                    <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                    <th key={h} className="px-4 py-2 font-medium whitespace-nowrap bg-slate-50">
                       {h}
                     </th>
                   ))}
@@ -244,35 +226,35 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
               <tbody>
                 {filtered.map((r, idx) => (
                   <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                    <td className="px-5 py-3 text-slate-400">{idx + 1}</td>
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-1.5 text-slate-400 font-medium">{idx + 1}</td>
+                    <td className="px-4 py-1.5">
                       <div className="flex items-center gap-2">
                         <CalendarDays size={13} className="text-slate-300" />
                         <input
                           type="date"
                           value={r.inventory_date}
                           onChange={(e) => updateRow(r, { inventory_date: e.target.value })}
-                          className="text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-slate-50/30"
+                          className="text-xs border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 bg-slate-50/30"
                         />
                       </div>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-1.5">
                       <input
                         type="number"
                         min="0"
                         step="0.001"
                         value={r.stock_kg}
                         onChange={(e) => updateRow(r, { stock_kg: toNumber(e.target.value) })}
-                        className="w-28 text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        className="w-24 text-xs border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                       />
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-4 py-1.5">
                       <button
                         onClick={() => deleteRow(r.id)}
                         title="Delete row"
-                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   </tr>
