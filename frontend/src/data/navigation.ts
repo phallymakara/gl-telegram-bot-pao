@@ -30,7 +30,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: "gold-out", label: "Gold Out (Selling)", icon: ArrowUpRight, children: [
       { id: "sell-orders", label: "Sell Orders", icon: ShoppingCart },
-      { id: "invoice", label: "Invoice", icon: FileText },
       { id: "delivery-notes", label: "Delivery Notes", icon: Truck },
     ]
   },
@@ -57,7 +56,6 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "buy-back-slots": ["Dashboard", "Slots"],
   "gold-out": ["Dashboard", "Gold Out (Selling)"],
   "sell-orders": ["Dashboard", "Gold Out (Selling)", "Sell Orders"],
-  "invoice": ["Dashboard", "Gold Out (Selling)", "Invoice"],
   "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
   "master-stock": ["Dashboard", "Master & Stock"],
   "inventory-ledger": ["Dashboard", "Master & Stock", "Inventory Ledger"],
@@ -114,7 +112,6 @@ export const PAGE_TITLE: Record<string, string> = {
   "purchase": "Purchase Orders",
   "buy-back-slots": "Slots Management",
   "sell-orders": "Sell Orders",
-  "invoice": "Sales Invoices",
   "delivery-notes": "Delivery Notes",
   "inventory-ledger": "Inventory Ledger",
   "contact": "Contact Directory & Customers",

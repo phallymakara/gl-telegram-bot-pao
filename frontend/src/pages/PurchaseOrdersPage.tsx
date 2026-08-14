@@ -393,41 +393,37 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setSourceFilter("ALL")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    sourceFilter === "ALL"
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "ALL"
                       ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
                       : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   All Sources
                 </button>
                 <button
                   onClick={() => setSourceFilter("OVERSEA")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    sourceFilter === "OVERSEA"
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "OVERSEA"
                       ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
                       : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Oversea
                 </button>
                 <button
                   onClick={() => setSourceFilter("LOCAL")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    sourceFilter === "LOCAL"
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "LOCAL"
                       ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
                       : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Local
                 </button>
                 <button
                   onClick={() => setSourceFilter("BUYBACK")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
-                    sourceFilter === "BUYBACK"
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "BUYBACK"
                       ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
                       : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Buy-back
                 </button>
@@ -515,25 +511,15 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                 className="fixed inset-0 z-20"
                                 onClick={() => setActiveMenuId(null)}
                               />
-                              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200/80 py-1 z-30 text-xs text-left">
+                              <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border border-slate-200/80 py-1 z-30 text-xs text-left">
                                 <button
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     notify(`Opening Purchase Invoice for ${r.po_no}`);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-colors text-left cursor-pointer border-b border-slate-100"
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-colors text-left cursor-pointer"
                                 >
                                   <FileText size={13} /> View Invoice
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    setReturnTarget(r);
-                                    setReturnForm({ quantity: "", reason: "" });
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50 font-medium transition-colors text-left cursor-pointer"
-                                >
-                                  <RotateCcw size={13} /> Return to Supplier
                                 </button>
                               </div>
                             </>
@@ -575,33 +561,30 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "OVERSEA" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                    form.purchase_source === "OVERSEA"
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "OVERSEA"
                       ? "bg-white text-indigo-600 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
-                  }`}
+                    }`}
                 >
                   Oversea
                 </button>
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "LOCAL" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                    form.purchase_source === "LOCAL"
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "LOCAL"
                       ? "bg-white text-indigo-600 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
-                  }`}
+                    }`}
                 >
                   Local
                 </button>
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "BUYBACK" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-                    form.purchase_source === "BUYBACK"
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "BUYBACK"
                       ? "bg-white text-indigo-600 shadow-sm"
                       : "text-slate-500 hover:text-slate-700"
-                  }`}
+                    }`}
                 >
                   Buy-back
                 </button>
@@ -616,11 +599,10 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         key={vt}
                         type="button"
                         onClick={() => setForm({ ...form, vendor_type: vt })}
-                        className={`py-2 text-xs font-medium rounded-lg border transition-all ${
-                          form.vendor_type === vt
+                        className={`py-2 text-xs font-medium rounded-lg border transition-all ${form.vendor_type === vt
                             ? "border-indigo-600 bg-indigo-50/50 text-indigo-600 font-semibold"
                             : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                        }`}
+                          }`}
                       >
                         {vt}
                       </button>
@@ -678,25 +660,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
-                  <input
-                    type="date"
-                    value={form.order_date}
-                    onChange={(e) => setForm({ ...form, order_date: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Date *</label>
-                  <input
-                    type="date"
-                    value={form.expected_date}
-                    onChange={(e) => setForm({ ...form, expected_date: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Receive Date *</label>
+                <input
+                  type="date"
+                  value={form.order_date}
+                  onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
               </div>
 
               <div>

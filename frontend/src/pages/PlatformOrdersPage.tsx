@@ -1,4 +1,4 @@
-import { Eye, MoreHorizontal, Pencil, PhoneCall, Plus, RotateCcw, Send, ShoppingCart, Store, Trash2, X, XCircle } from "lucide-react";
+import { Eye, FileText, MoreHorizontal, Pencil, PhoneCall, Plus, RotateCcw, Send, ShoppingCart, Store, Trash2, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
@@ -308,7 +308,18 @@ export default function PlatformOrdersPage({
                         </button>
 
                         {activeMenuId === r.id && (
-                          <div className="absolute right-0 mt-1 w-28 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 text-left">
+                          <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 text-left">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(null);
+                                notify(`Opening Sales Invoice for ${r.order_no}`);
+                              }}
+                              className="w-full px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 transition-colors cursor-pointer border-b border-slate-100"
+                            >
+                              <FileText size={13} /> View Invoice
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => {

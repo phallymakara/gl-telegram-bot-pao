@@ -89,7 +89,6 @@ export default function App() {
           {page === "purchase" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
           {page === "buy-back-slots" && <SlotsPage mode="buyback" notify={notify} />}
           {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
-          {page === "invoice" && <InvoicePage notify={notify} />}
           {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
           {page === "inventory-ledger" && <InventoryPage notify={notify} />}
           {page === "contact" && <ContactsPage notify={notify} />}
