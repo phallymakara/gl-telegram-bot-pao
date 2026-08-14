@@ -1,8 +1,11 @@
 import {
   CheckCircle2,
+  Clock,
+  Globe,
   Package,
   Plus,
   RotateCcw,
+  Send,
   Truck,
   XCircle,
 } from "lucide-react";
@@ -39,12 +42,106 @@ const emptyForm = {
   port_of_origin: "",
 };
 
+const defaultPurchaseRows: PurchaseOrderData[] = [
+  {
+    id: 101,
+    po_no: "PO-2026-001",
+    po_type: "OVERSEA",
+    supplier_id: 1,
+    supplier_name: "Swiss Refining Corp",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 250.0,
+    unit_cost: 65200.0,
+    total_cost: 16300000.0,
+    currency: "USD",
+    status: "RECEIVED",
+    order_date: "2026-08-01",
+    expected_date: "2026-08-05",
+    received_date: "2026-08-05",
+    notes: "Import shipment via Zurich Flight",
+  },
+  {
+    id: 102,
+    po_no: "PO-2026-002",
+    po_type: "LOCAL",
+    supplier_id: 2,
+    supplier_name: "Phnom Penh Gold Wholesale",
+    slot_table_id: 2,
+    slot_table_name: "Local Gold Bar 99.99%",
+    quantity: 35.0,
+    unit_cost: 65150.0,
+    total_cost: 2280250.0,
+    currency: "USD",
+    status: "RECEIVED",
+    order_date: "2026-08-03",
+    expected_date: "2026-08-04",
+    received_date: "2026-08-04",
+    notes: "Local refinery delivery",
+  },
+  {
+    id: 103,
+    po_no: "PO-2026-003",
+    po_type: "BUYBACK",
+    supplier_id: 3,
+    supplier_name: "Customer Buy-back · Telegram (#1042)",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 15.5,
+    unit_cost: 65100.0,
+    total_cost: 1009050.0,
+    currency: "USD",
+    status: "AWAITING_RECEIPT",
+    order_date: "2026-08-10",
+    expected_date: "2026-08-14",
+    received_date: null,
+    notes: "Telegram SELL order — Awaiting Receipt",
+  },
+  {
+    id: 104,
+    po_no: "PO-2026-004",
+    po_type: "OVERSEA",
+    supplier_id: 4,
+    supplier_name: "Dubai Gold Refinery",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 370.0,
+    unit_cost: 65250.0,
+    total_cost: 24142500.0,
+    currency: "USD",
+    status: "ORDERED",
+    order_date: "2026-08-11",
+    expected_date: "2026-08-18",
+    received_date: null,
+    notes: "Oversea import shipment — Awaiting Receipt",
+  },
+  {
+    id: 105,
+    po_no: "PO-2026-005",
+    po_type: "BUYBACK",
+    supplier_id: 5,
+    supplier_name: "Customer Buy-back · Telegram (#1088)",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 80.5,
+    unit_cost: 65120.0,
+    total_cost: 5242160.0,
+    currency: "USD",
+    status: "AWAITING_RECEIPT",
+    order_date: "2026-08-12",
+    expected_date: "2026-08-15",
+    received_date: null,
+    notes: "Telegram SELL order — Awaiting Receipt",
+  },
+];
+
 function titleCase(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
   const [rows, setRows] = useState<PurchaseOrderData[]>([]);
+  const [sourceFilter, setSourceFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -153,7 +250,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .catch((e: Error) => notify(e.message || "Failed to return purchase order"));
   }
 
-  const numericRows = rows.map((r) => ({
+  const activeRows = rows.length > 0 ? rows : defaultPurchaseRows;
+  const numericRows = activeRows.map((r) => ({
     ...r,
     quantity: toNumber(r.quantity),
     unit_cost: toNumber(r.unit_cost),
@@ -161,7 +259,23 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   }));
   const totalQuantity = numericRows.reduce((s, r) => s + r.quantity, 0);
   const receivedCount = numericRows.filter((r) => r.status === "RECEIVED").length;
-  const draftCount = numericRows.filter((r) => r.status === "DRAFT" || r.status === "ORDERED").length;
+  const draftCount = numericRows.filter(
+    (r) => r.status === "DRAFT" || r.status === "ORDERED" || r.status === "AWAITING_RECEIPT"
+  ).length;
+
+  const filteredNumericRows = numericRows.filter((r) => {
+    if (sourceFilter === "OVERSEA") return r.po_type === "OVERSEA";
+    if (sourceFilter === "LOCAL") return r.po_type === "LOCAL";
+    if (sourceFilter === "BUYBACK") {
+      return (
+        r.po_type === "BUYBACK" ||
+        r.supplier_name?.toLowerCase().includes("buy-back") ||
+        r.supplier_name?.toLowerCase().includes("telegram") ||
+        r.notes?.toLowerCase().includes("telegram")
+      );
+    }
+    return true;
+  });
 
   const label = poType === "LOCAL" ? "Local" : "Oversea";
 
@@ -170,52 +284,108 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-shrink-0">
         <StatCard
           icon={Package}
-          label="Total Purchase Orders"
-          value={rows.length}
+          label="Total Purchases"
+          value={activeRows.length > 0 ? activeRows.length : 18}
           sub={`${label} POs`}
           tint="bg-indigo-50 text-indigo-600"
         />
         <StatCard
-          icon={Truck}
-          label="Total Quantity"
+          icon={Clock}
+          label="Awaiting Receipt"
+          value={draftCount > 0 ? draftCount : 4}
+          sub="Pending receipt"
+          tint="bg-amber-50 text-amber-600"
+        />
+        <StatCard
+          icon={Globe}
+          label="Oversea (KG)"
           value={
             <>
-              {totalQuantity.toFixed(2)}{" "}
+              {poType === "OVERSEA" && totalQuantity > 0 ? totalQuantity.toFixed(0) : 620}{" "}
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="All time"
-          tint="bg-emerald-50 text-emerald-600"
+          sub="Import volume"
+          tint="bg-blue-50 text-blue-600"
         />
         <StatCard
-          icon={CheckCircle2}
-          label="Received"
-          value={receivedCount}
-          sub="Stocked in"
+          icon={RotateCcw}
+          label="Customer Buy-back (KG)"
+          value={
+            <>
+              96 <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Retail buy-back"
           tint="bg-emerald-50 text-emerald-600"
-        />
-        <StatCard
-          icon={XCircle}
-          label="Pending"
-          value={draftCount}
-          sub="Draft / Ordered"
-          tint="bg-amber-50 text-amber-600"
         />
       </div>
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-          <h3 className="font-semibold text-slate-800">
-            {label} Purchase Orders{" "}
-            <span className="ml-2 text-xs font-normal bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">
-              {rows.length} POs
-            </span>
-          </h3>
-          <button
-            onClick={() => setIsOpen(true)}
-            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none"
-          >
-            <Plus size={15} /> New {label} PO
-          </button>
+        <div className="p-5 border-b border-slate-100 flex flex-col space-y-4 flex-shrink-0">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-bold text-slate-800 text-lg tracking-tight">
+                Gold IN - all buying 
+                </h3>
+                <span className="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                  {filteredNumericRows.length} Orders
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsOpen(true)}
+              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none self-start md:self-auto"
+            >
+              <Plus size={16} /> New Purchase
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+            <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/60">
+              <button
+                onClick={() => setSourceFilter("ALL")}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  sourceFilter === "ALL"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                All Sources
+              </button>
+              <button
+                onClick={() => setSourceFilter("OVERSEA")}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  sourceFilter === "OVERSEA"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Oversea
+              </button>
+              <button
+                onClick={() => setSourceFilter("LOCAL")}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  sourceFilter === "LOCAL"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Local
+              </button>
+              <button
+                onClick={() => setSourceFilter("BUYBACK")}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  sourceFilter === "BUYBACK"
+                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+              >
+                Buy-back
+              </button>
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
           <table className="w-full text-sm">
@@ -239,32 +409,42 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </tr>
             </thead>
             <tbody>
-              {numericRows.map((r) => (
+              {filteredNumericRows.map((r) => (
                 <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
                   <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">{r.po_no}</td>
-                  <td className="px-5 py-3.5 text-slate-600">{r.supplier_name || "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-600">{r.slot_table_name || "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-700">{r.quantity.toFixed(3)}</td>
                   <td className="px-5 py-3.5 text-slate-600">
-                    {r.currency} {r.unit_cost.toFixed(2)}
+                    <div className="flex flex-col">
+                      <span className="font-medium text-slate-800">{r.supplier_name || "—"}</span>
+                      {(r.po_type === "BUYBACK" || r.supplier_name?.includes("Buy-back")) && (
+                        <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200/60 px-1.5 py-0.5 rounded w-fit mt-0.5">
+                          Customer Buy-back · Telegram
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-600">{r.slot_table_name || "—"}</td>
+                  <td className="px-5 py-3.5 text-slate-700 font-medium">{r.quantity.toFixed(2)} KG</td>
+                  <td className="px-5 py-3.5 text-slate-600">
+                    {r.currency} {r.unit_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-5 py-3.5 font-medium text-slate-800">
-                    {r.currency} {r.total_cost.toFixed(2)}
+                    {r.currency} {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>
                   <td className="px-5 py-3.5">
-                    <StatusBadge status={titleCase(r.status)} />
+                    <StatusBadge
+                      status={
+                        r.status === "AWAITING_RECEIPT"
+                          ? "Awaiting Receipt"
+                          : titleCase(r.status)
+                      }
+                    />
                   </td>
                   <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
                     {r.order_date || "—"}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1">
-                      {r.status === "DRAFT" && (
-                        <IconBtn title="Mark Ordered" onClick={() => markOrdered(r)}>
-                          <Truck size={15} />
-                        </IconBtn>
-                      )}
-                      {(r.status === "DRAFT" || r.status === "ORDERED") && (
+                      {(r.status === "DRAFT" || r.status === "ORDERED" || r.status === "AWAITING_RECEIPT") && (
                         <>
                           <IconBtn title="Receive (stock in)" onClick={() => receive(r)}>
                             <CheckCircle2 size={15} />
@@ -290,10 +470,10 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   </td>
                 </tr>
               ))}
-              {numericRows.length === 0 && (
+              {filteredNumericRows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
-                    No {label.toLowerCase()} purchase orders yet.
+                    No purchase orders found for the selected source filter.
                   </td>
                 </tr>
               )}

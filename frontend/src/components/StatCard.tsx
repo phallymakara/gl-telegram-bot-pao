@@ -21,10 +21,12 @@ export default function StatCard({
   spark,
   sparkColor
 }: StatCardProps) {
+  const textColor = tint.split(" ").find(c => c.startsWith("text-")) || "text-slate-700";
+
   return (
-    <Card className="p-5 flex items-center gap-4">
-      <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${tint}`}>
-        <Icon size={20} />
+    <Card className="shadow-none p-5 flex items-center gap-4">
+      <div className={`shrink-0 ${textColor}`}>
+        <Icon size={24} />
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm text-slate-500">{label}</div>

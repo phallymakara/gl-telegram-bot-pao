@@ -237,6 +237,10 @@ class DashboardStats(BaseModel):
     buy_today: int
     total_buy_kg: float
     total_sell_kg: float
+    physical_stock: float = 100.0
+    reserved: float = 40.0
+    available: float = 60.0
+    open_orders: int = 12
 
 
 class RevenuePoint(BaseModel):

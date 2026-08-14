@@ -106,6 +106,10 @@ export interface DashboardStatsData {
   buy_today: number;
   total_buy_kg: number;
   total_sell_kg: number;
+  physical_stock?: number;
+  reserved?: number;
+  available?: number;
+  open_orders?: number;
 }
 
 export interface RevenuePointData {
@@ -159,11 +163,11 @@ export interface PurchaseOrderData {
   expected_date: string | null;
   received_date: string | null;
   notes: string | null;
-  shipping_method: string | null;
-  tracking_no: string | null;
-  customs_fee: number | null;
-  port_of_origin: string | null;
-  created_at: string;
+  shipping_method?: string | null;
+  tracking_no?: string | null;
+  customs_fee?: number | null;
+  port_of_origin?: string | null;
+  created_at?: string;
 }
 
 export interface StockReturnData {

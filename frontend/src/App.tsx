@@ -2,6 +2,11 @@ import React, { useState, useRef } from "react";
 import { TrendingUp, Users, BarChart3, Send, Shield, Cloud } from "lucide-react";
 import Sidebar from "./layouts/Sidebar";
 import Topbar from "./layouts/Topbar";
+import GoodsReceiptPage from "./pages/GoodsReceiptPage";
+import InvoicePage from "./pages/InvoicePage";
+import DeliveryNotesPage from "./pages/DeliveryNotesPage";
+import ContactsPage from "./pages/ContactsPage";
+import ReportsPage from "./pages/ReportsPage";
 import DashboardPage from "./pages/DashboardPage";
 import PlatformOrdersPage from "./pages/PlatformOrdersPage";
 import PhysicalOrdersPage from "./pages/PhysicalOrdersPage";
@@ -38,6 +43,27 @@ export default function App() {
     backup: Cloud
   };
 
+  const isCustomFullPage =
+    page === "platform-orders" ||
+    page === "physical-orders" ||
+    page === "po-local" ||
+    page === "po-oversea" ||
+    page === "purchase" ||
+    page === "buy-back-slots" ||
+    page === "goods-receipt" ||
+    page === "sell-slots-premium" ||
+    page === "sell-orders" ||
+    page === "invoice" ||
+    page === "delivery-notes" ||
+    page === "inventory-ledger" ||
+    page === "contact" ||
+    page === "reports" ||
+    page === "low-stock-alerts" ||
+    page === "discount-promotions" ||
+    page === "user-management" ||
+    page === "slots" ||
+    page === "inventory";
+
   return (
     <div
       className="h-screen max-h-screen bg-slate-50 flex text-slate-800 overflow-hidden"
@@ -60,16 +86,29 @@ export default function App() {
           setDesktopOpen={setDesktopOpen}
         />
         <main className="flex-1 min-w-0 overflow-hidden w-full flex flex-col">
+          {page === "purchase" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
+          {page === "buy-back-slots" && <SlotsPage notify={notify} />}
+          {page === "goods-receipt" && <GoodsReceiptPage notify={notify} />}
+          {page === "sell-slots-premium" && <SlotsPage notify={notify} />}
+          {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
+          {page === "invoice" && <InvoicePage notify={notify} />}
+          {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
+          {page === "inventory-ledger" && <InventoryPage notify={notify} />}
+          {page === "contact" && <ContactsPage notify={notify} />}
+          {page === "reports" && <ReportsPage notify={notify} />}
+
           {page === "platform-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "physical-orders" && <PhysicalOrdersPage notify={notify} />}
           {page === "po-local" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
           {page === "po-oversea" && <PurchaseOrdersPage poType="OVERSEA" notify={notify} />}
           {page === "low-stock-alerts" && <AlertsPage mode="stock" notify={notify} />}
+
           {page === "discount-promotions" && <AlertsPage mode="promo" notify={notify} />}
           {page === "user-management" && <UsersPage notify={notify} />}
           {page === "slots" && <SlotsPage notify={notify} />}
           {page === "inventory" && <InventoryPage notify={notify} />}
-          {page !== "platform-orders" && page !== "physical-orders" && page !== "po-local" && page !== "po-oversea" && page !== "low-stock-alerts" && page !== "discount-promotions" && page !== "user-management" && page !== "slots" && page !== "inventory" && (
+
+          {!isCustomFullPage && (
             <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between">
               <div>
                 {page === "dashboard" && <DashboardPage />}
@@ -90,3 +129,5 @@ export default function App() {
     </div>
   );
 }
+
+

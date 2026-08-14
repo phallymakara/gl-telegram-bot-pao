@@ -2,12 +2,20 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   BarChart3,
+  Building2,
+  CheckCircle2,
   Clock,
+  Globe,
+  Lock,
   Package,
+  PhoneCall,
   PieChart,
   Plus,
+  RotateCcw,
   Send,
   Settings as SettingsIcon,
+  ShoppingBag,
+  Store,
   Trash2,
   UserCheck,
 } from "lucide-react";
@@ -27,104 +35,224 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
   const [revenue, setRevenue] = useState<RevenuePointData[]>([]);
   const [range, setRange] = useState("week");
-  const [customers, setCustomers] = useState<CustomerData[]>([]);
-  const [newUserId, setNewUserId] = useState("");
-  const [newUsername, setNewUsername] = useState("");
 
   useEffect(() => {
     api
       .get<DashboardStatsData>("/api/dashboard/stats")
       .then(setStats)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    api
-      .get<CustomerData[]>("/api/customers/")
-      .then(setCustomers)
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
     api
       .get<RevenuePointData[]>(`/api/dashboard/revenue?range=${range}`)
       .then(setRevenue)
-      .catch(() => {});
+      .catch(() => { });
   }, [range]);
 
   const chartData =
+
     revenue.length > 0
       ? revenue
       : [
-          { day: "Sun", buy: 0, sell: 0 },
-          { day: "Mon", buy: 0, sell: 0 },
-          { day: "Tue", buy: 0, sell: 0 },
-          { day: "Wed", buy: 0, sell: 0 },
-          { day: "Thu", buy: 0, sell: 0 },
-          { day: "Fri", buy: 0, sell: 0 },
-          { day: "Sat", buy: 0, sell: 0 },
-        ];
+        { day: "Sun", buy: 0, sell: 0 },
+        { day: "Mon", buy: 0, sell: 0 },
+        { day: "Tue", buy: 0, sell: 0 },
+        { day: "Wed", buy: 0, sell: 0 },
+        { day: "Thu", buy: 0, sell: 0 },
+        { day: "Fri", buy: 0, sell: 0 },
+        { day: "Sat", buy: 0, sell: 0 },
+      ];
 
   const platformTotal = stats ? stats.total_orders : 0;
   const totalKg = toNumber(stats?.total_gold);
   const totalBuyKg = toNumber(stats?.total_buy_kg);
   const totalSellKg = toNumber(stats?.total_sell_kg);
 
-  function addCustomer() {
-    if (!newUsername.trim() && !newUserId.trim()) return;
-    api
-      .post<CustomerData>("/api/customers/", {
-        username: newUsername.trim() || null,
-        telegram_user_id: newUserId.trim() || null,
-      })
-      .then((c) => {
-        setCustomers((prev) => [c, ...prev]);
-        setNewUserId("");
-        setNewUsername("");
-      })
-      .catch(() => {});
-  }
-
-  function removeCustomer(id: number) {
-    api
-      .delete(`/api/customers/${id}`)
-      .then(() => setCustomers((prev) => prev.filter((c) => c.id !== id)))
-      .catch(() => {});
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={Package}
-          label="Total Gold"
+          label="Physical Stock"
           value={
             <>
-              {totalKg.toFixed(2)}{" "}
+              {toNumber(stats?.physical_stock ?? 100.0).toFixed(1)}{" "}
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="Total inventory"
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={ArrowUpRight}
-          label="Sold Today"
-          value={stats?.sold_today ?? 0}
-          sub="Today"
+          sub="Only changes on receipt / delivery"
           tint="bg-blue-50 text-blue-600"
         />
         <StatCard
-          icon={ArrowDownLeft}
-          label="Buy Today"
-          value={stats?.buy_today ?? 0}
-          sub="Today"
+          icon={Lock}
+          label="Reserved"
+          value={
+            <>
+              {toNumber(stats?.reserved ?? 40.0).toFixed(1)}{" "}
+              <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Confirmed orders, not delivered"
+          tint="bg-amber-50 text-amber-600"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Available"
+          value={
+            <>
+              {toNumber(stats?.available ?? 60.0).toFixed(1)}{" "}
+              <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Physical − Reserved"
           tint="bg-emerald-50 text-emerald-600"
+        />
+        <StatCard
+          icon={ShoppingBag}
+          label="Open Orders"
+          value={stats?.open_orders ?? 12}
+          sub="Active orders"
+          tint="bg-purple-50 text-purple-600"
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2 p-6">
+      {/* Main Containers: 2 Columns Layout for Gold IN and Gold OUT */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Column 1: Gold IN — Buying */}
+        <Card className="shadow-none p-6 border border-emerald-100 bg-gradient-to-br from-emerald-50/20 via-white to-white flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-emerald-100/60 mb-5 gap-2">
+              <div className="flex items-center gap-3">
+                <ArrowDownLeft size={22} className="text-emerald-600 shrink-0" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Gold IN — Buying</h3>
+                  <p className="text-xs text-slate-500 font-medium">One module for all buying</p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-3 py-1 rounded-full self-start sm:self-auto">
+                Total Inflow: {totalBuyKg.toFixed(1)} KG
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Globe size={18} className="text-blue-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Oversea PO</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Oversea Vendor</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Import shipments & foreign suppliers</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">25.0 KG</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Building2 size={18} className="text-indigo-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">Local PO</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Local Vendor</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Domestic refinery & wholesale</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">35.0 KG</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <RotateCcw size={18} className="text-emerald-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">Telegram SELL</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Customer Buy-Back</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Retail sell-back slots & bot orders</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">15.5 KG</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Column 2: Gold OUT — Selling */}
+        <Card className="shadow-none p-6 border border-indigo-100 bg-gradient-to-br from-indigo-50/20 via-white to-white flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-indigo-100/60 mb-5 gap-2">
+              <div className="flex items-center gap-3">
+                <ArrowUpRight size={22} className="text-indigo-600 shrink-0" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">Gold OUT — Selling</h3>
+                  <p className="text-xs text-slate-500 font-medium">One module, three channels</p>
+                </div>
+              </div>
+              <span className="text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 px-3 py-1 rounded-full self-start sm:self-auto">
+                Total Outflow: {totalSellKg.toFixed(1)} KG
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Send size={18} className="text-sky-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded">Channel 1</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Telegram BUY</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Direct order placements via Bot</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">18.2 KG</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <PhoneCall size={18} className="text-purple-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">Channel 2</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Phone</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Institutional & phone desk trading</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">12.0 KG</span>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Store size={18} className="text-amber-600 shrink-0" />
+                    <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">Channel 3</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-xs mb-1">Walk-in</h4>
+                  <p className="text-[11px] text-slate-400 mb-3 leading-tight">Counter physical retail sales</p>
+                </div>
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Volume</span>
+                  <span className="font-bold text-slate-800">8.5 KG</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <Card className="shadow-none lg:col-span-2 p-6">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-semibold text-slate-800 flex items-center gap-2">
               <BarChart3 size={16} className="text-indigo-500" /> Revenue
@@ -329,85 +457,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
-              <UserCheck size={16} className="text-indigo-500" /> Whitelist —
-              Allowed Telegram Users
-            </h3>
-            <span className="text-xs bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full font-medium">
-              {customers.length} users
-            </span>
-          </div>
-          <div className="flex items-center gap-2 mb-4">
-            <input
-              value={newUsername}
-              onChange={(e) => setNewUsername(e.target.value)}
-              placeholder="Username (required, without @)"
-              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
-            <input
-              value={newUserId}
-              onChange={(e) => setNewUserId(e.target.value)}
-              placeholder="Telegram ID (optional)"
-              className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            />
-            <button
-              onClick={addCustomer}
-              className="flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium whitespace-nowrap"
-            >
-              <Plus size={15} /> Add
-            </button>
-          </div>
-          <div className="max-h-48 overflow-y-auto">
-            {customers.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-4">
-                No whitelisted users yet. Add a Telegram ID above.
-              </p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200">
-                    <th className="pb-2 font-medium">Username</th>
-                    <th className="pb-2 font-medium">Telegram ID</th>
-                    <th className="pb-2 font-medium">Added</th>
-                    <th className="pb-2 font-medium w-10"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.map((c) => (
-                    <tr
-                      key={c.id}
-                      className="border-b border-slate-50 hover:bg-slate-50/60"
-                    >
-                      <td className="py-2 text-slate-700 font-medium">
-                        {c.username || "—"}
-                      </td>
-                      <td className="py-2 text-slate-400 font-mono text-xs">
-                        {c.telegram_user_id || "—"}
-                      </td>
-                      <td className="py-2 text-slate-400 text-xs">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-2 text-right">
-                        <button
-                          type="button"
-                          aria-label="Remove customer"
-                          onClick={() => removeCustomer(c.id)}
-                          className="text-rose-400 hover:text-rose-600 p-1"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-      </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2 p-6">

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Send, EyeOff, Eye, Shield, Lock, Clock, User, Mail, Camera } from "lucide-react";
+import { Send, EyeOff, Eye, Shield, Lock, Clock, User, Mail, Camera, UserCheck, Plus, Trash2 } from "lucide-react";
 import Toggle from "../components/Toggle";
-import { api } from "../data/api";
+import { api, CustomerData } from "../data/api";
 
 interface SettingsPageProps {
   notify: (msg: string) => void;
 }
 
 export default function SettingsPage({ notify }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "security" | "system">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "allow-user" | "security" | "system">("profile");
   const [showToken, setShowToken] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [openTime, setOpenTime] = useState("08:00");
@@ -16,6 +16,11 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [botUsername, setBotUsername] = useState("GoldSystemBot");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
+
+  // Whitelist / Allow User State
+  const [customers, setCustomers] = useState<CustomerData[]>([]);
+  const [newUserId, setNewUserId] = useState("");
+  const [newUsername, setNewUsername] = useState("");
 
   useEffect(() => {
     api.get<any>("/api/settings/").then((s) => {
@@ -26,6 +31,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
       setOpenTime(s.system.open_time);
       setCloseTime(s.system.close_time);
     }).catch(() => {});
+
+    api.get<CustomerData[]>("/api/customers/").then(setCustomers).catch(() => {});
   }, []);
 
   function saveSettings() {
@@ -36,9 +43,39 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     }).then(() => notify("Settings saved")).catch(() => notify("Failed to save settings"));
   }
 
+  function addCustomer() {
+    if (!newUsername.trim() && !newUserId.trim()) {
+      notify("Please enter a Username or Telegram ID");
+      return;
+    }
+    api
+      .post<CustomerData>("/api/customers/", {
+        username: newUsername.trim() || null,
+        telegram_user_id: newUserId.trim() || null,
+      })
+      .then((c) => {
+        setCustomers((prev) => [c, ...prev]);
+        setNewUserId("");
+        setNewUsername("");
+        notify("Allowed Telegram user added");
+      })
+      .catch((e: Error) => notify(e.message));
+  }
+
+  function removeCustomer(id: number) {
+    api
+      .delete(`/api/customers/${id}`)
+      .then(() => {
+        setCustomers((prev) => prev.filter((c) => c.id !== id));
+        notify("User removed from whitelist");
+      })
+      .catch((e: Error) => notify(e.message));
+  }
+
   const tabs = [
     { id: "profile", label: "User Profile", desc: "Personal info & avatar", icon: User },
     { id: "bot", label: "Telegram Bot", desc: "Bot token & username", icon: Send },
+    { id: "allow-user", label: "Allow User", desc: "Whitelist allowed Telegram users", icon: UserCheck },
     { id: "security", label: "Security Settings", desc: "2FA & timeout configs", icon: Shield },
     { id: "system", label: "Operating Hours", desc: "Store operating times", icon: Clock },
   ] as const;
@@ -51,7 +88,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as any)}
               className={`w-full text-left px-3.5 py-3 rounded-lg transition-all duration-150 flex items-center gap-3 relative focus:outline-none ${isActive ? "bg-slate-100 text-slate-900 font-semibold" : "text-slate-600 hover:bg-slate-50/80 hover:text-slate-900"}`}>
               {isActive && <span className="absolute left-0 top-3 bottom-3 w-1 rounded-r bg-indigo-600" />}
               <Icon size={16} className={`shrink-0 ${isActive ? "text-indigo-600" : "text-slate-400"}`} />
@@ -133,6 +170,92 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           </div>
         )}
 
+        {activeTab === "allow-user" && (
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 md:p-8 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <UserCheck size={18} className="text-indigo-600" /> Whitelist — Allowed Telegram Users
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">Manage Telegram accounts permitted to access and interact with the Telegram bot.</p>
+              </div>
+              <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-semibold">
+                {customers.length} Whitelisted Users
+              </span>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="Username (without @)"
+                  className="flex-1 text-sm border border-slate-200 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <input
+                  value={newUserId}
+                  onChange={(e) => setNewUserId(e.target.value)}
+                  placeholder="Telegram User ID (Optional)"
+                  className="flex-1 text-sm border border-slate-200 rounded-lg px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <button
+                  onClick={addCustomer}
+                  className="flex items-center justify-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shadow-sm transition-all whitespace-nowrap"
+                >
+                  <Plus size={16} /> Add User
+                </button>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 rounded-xl">
+                {customers.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-8">
+                    No whitelisted Telegram users yet. Enter a username or ID above to allow access.
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                        <th className="py-3 px-4 font-medium">Username</th>
+                        <th className="py-3 px-4 font-medium">Telegram ID</th>
+                        <th className="py-3 px-4 font-medium">Date Added</th>
+                        <th className="py-3 px-4 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {customers.map((c) => (
+                        <tr
+                          key={c.id}
+                          className="border-b border-slate-50 hover:bg-slate-50/60"
+                        >
+                          <td className="py-3 px-4 text-slate-800 font-semibold">
+                            {c.username ? `@${c.username}` : "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-500 font-mono text-xs">
+                            {c.telegram_user_id || "—"}
+                          </td>
+                          <td className="py-3 px-4 text-slate-400 text-xs">
+                            {new Date(c.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeCustomer(c.id)}
+                              className="text-rose-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 transition-colors"
+                              title="Remove user"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === "security" && (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-6 md:p-8 border-b border-slate-100">
@@ -197,3 +320,4 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     </div>
   );
 }
+
