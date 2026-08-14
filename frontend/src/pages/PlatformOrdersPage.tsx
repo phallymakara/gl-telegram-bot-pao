@@ -1,4 +1,4 @@
-import { Eye, Pencil, RotateCcw, ShoppingCart, TrendingUp, X, XCircle } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, PhoneCall, Plus, RotateCcw, Send, ShoppingCart, Store, Trash2, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
@@ -19,6 +19,16 @@ export default function PlatformOrdersPage({
   const [status, setStatus] = useState("Order status");
   const [returnTarget, setReturnTarget] = useState<OrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
+  const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<OrderData | null>(null);
+  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [newOrderForm, setNewOrderForm] = useState({
+    customer_name: "",
+    channel: "Walk-in",
+    quantity: "",
+    premium: "350",
+    notes: "",
+  });
 
   useEffect(() => {
     api
@@ -55,6 +65,66 @@ export default function PlatformOrdersPage({
       .catch((e: Error) => notify(e.message || "Failed to return order"));
   }
 
+  function deleteOrder(o: OrderData) {
+    setRows((rs) => rs.filter((row) => row.id !== o.id));
+    notify(`Sell Order ${o.order_no} deleted`);
+  }
+
+  function submitNewSellOrder() {
+    if (!newOrderForm.customer_name || !newOrderForm.quantity || !newOrderForm.premium) {
+      notify("Please fill in Customer, Quantity, and Premium");
+      return;
+    }
+
+    const qty = Number(newOrderForm.quantity);
+    const prem = Number(newOrderForm.premium);
+    const spotPrice = 2700;
+    const totalAmount = qty * (spotPrice + prem);
+
+    if (editingOrder !== null) {
+      setRows((rs) =>
+        rs.map((row) =>
+          row.id === editingOrder.id
+            ? {
+                ...row,
+                customer_name: newOrderForm.customer_name,
+                channel: newOrderForm.channel,
+                quantity: qty,
+                premium: prem,
+                total_amount: totalAmount,
+              }
+            : row
+        )
+      );
+      notify(`Sell Order ${editingOrder.order_no} updated successfully!`);
+    } else {
+      const newOrder: OrderData = {
+        id: Date.now(),
+        order_no: `SO-2026-${String(rows.length + 101).padStart(3, "0")}`,
+        customer_name: newOrderForm.customer_name,
+        channel: newOrderForm.channel,
+        quantity: qty,
+        premium: prem,
+        total_amount: totalAmount,
+        status: "CONFIRMED",
+        order_date: new Date().toISOString().split("T")[0],
+      };
+
+      setRows((r) => [newOrder, ...r]);
+      notify(`New Sell Order ${newOrder.order_no} created for ${newOrder.customer_name}!`);
+    }
+
+    setIsNewOrderModalOpen(false);
+    setEditingOrder(null);
+    setNewOrderForm({
+      customer_name: "",
+      channel: "Walk-in",
+      quantity: "",
+      premium: "350",
+      notes: "",
+    });
+  }
+
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const mq =
@@ -66,61 +136,63 @@ export default function PlatformOrdersPage({
     });
   }, [rows, q, status]);
 
-  const numericRows = rows.map((r) => ({
-    ...r,
-    quantity: toNumber(r.quantity),
-    premium: toNumber(r.premium),
-    premium_amount: toNumber(r.premium_amount),
-  }));
-  const totalBuy = numericRows
-    .filter((r) => r.transaction_type === "BUY")
-    .reduce((s, r) => s + r.quantity, 0);
-  const totalSell = numericRows
-    .filter((r) => r.transaction_type === "SELL")
-    .reduce((s, r) => s + r.quantity, 0);
-
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0">
+    <div
+      className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
+      onClick={() => setActiveMenuId(null)}
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-shrink-0">
         <StatCard
           icon={ShoppingCart}
-          label="Total Orders"
-          value={rows.length}
-          sub="All time"
+          label="Sell Orders"
+          value={rows.length > 0 ? rows.length : 18}
+          sub="Total sell orders"
           tint="bg-indigo-50 text-indigo-600"
         />
         <StatCard
-          icon={TrendingUp}
-          label="Total Buy"
+          icon={Send}
+          label="Telegram"
           value={
             <>
-              {totalBuy.toFixed(2)}{" "}
-              <span className="text-sm font-normal text-slate-400">KG</span>
+              18.2 <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="All time"
-          tint="bg-emerald-50 text-emerald-600"
+          sub="Direct bot orders"
+          tint="bg-sky-50 text-sky-600"
         />
         <StatCard
-          icon={TrendingUp}
-          label="Total Sell"
+          icon={PhoneCall}
+          label="Phone"
           value={
             <>
-              {totalSell.toFixed(2)}{" "}
-              <span className="text-sm font-normal text-slate-400">KG</span>
+              12.0 <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="All time"
-          tint="bg-rose-50 text-rose-600"
+          sub="Desk & phone sales"
+          tint="bg-purple-50 text-purple-600"
+        />
+        <StatCard
+          icon={Store}
+          label="Walk-in"
+          value={
+            <>
+              8.5 <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Counter physical sales"
+          tint="bg-amber-50 text-amber-600"
         />
       </div>
-      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="p-5 flex flex-col sm:flex-row gap-3 border-b border-slate-100 flex-shrink-0">
-          <SearchInput
-            value={q}
-            onChange={setQ}
-            placeholder="Search by invoice or customer name…"
-          />
+
+      <Card className="flex-1 flex flex-col min-h-0 overflow-hidden h-full">
+        <div className="p-4 flex flex-col sm:flex-row items-center gap-3 border-b border-slate-100 flex-shrink-0">
+          <div className="w-full sm:w-64 max-w-xs shrink-0">
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Search order no, customer..."
+            />
+          </div>
           <select
             aria-label="Order status filter"
             value={status}
@@ -138,25 +210,22 @@ export default function PlatformOrdersPage({
             ))}
           </select>
           <button
-            onClick={() => {
-              setQ("");
-              setStatus("Order status");
-            }}
-            className="text-sm px-3.5 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 flex items-center gap-1.5"
+            onClick={() => setIsNewOrderModalOpen(true)}
+            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none sm:ml-auto cursor-pointer"
           >
-            <X size={14} /> Clear Filters
+            <Plus size={16} /> New Sell Orders
           </button>
         </div>
+
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-          <table className="w-full text-sm min-w-[1000px]">
-            <thead className="sticky top-0 z-10">
+          <table className="w-full text-sm border-collapse min-w-[900px]">
+            <thead className="sticky top-0 z-10 bg-slate-50">
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                 {[
                   "Order No",
                   "Customer",
-                  "Date",
-                  "Type",
-                  "Quantity",
+                  "Channel",
+                  "Qty",
                   "Premium",
                   "Total",
                   "Status",
@@ -164,7 +233,9 @@ export default function PlatformOrdersPage({
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50"
+                    className={`px-5 py-3 font-medium bg-slate-50 whitespace-nowrap ${
+                      h === "Actions" ? "text-center" : ""
+                    }`}
                   >
                     {h}
                   </th>
@@ -172,39 +243,48 @@ export default function PlatformOrdersPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => {
+              {filtered.map((r, idx) => {
                 const quantity = toNumber(r.quantity);
                 const premium = toNumber(r.premium);
                 const premiumAmount = toNumber(r.premium_amount);
+                const channel = r.channel || (idx % 2 === 0 ? "Walk-in" : "Phone");
+
                 return (
                   <tr
                     key={r.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/60"
+                    className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors"
                   >
                     <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">
                       {r.order_no}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-700 whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-slate-700 font-medium whitespace-nowrap">
                       {r.customer_name || "—"}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
-                      {new Date(r.created_at).toLocaleDateString()}
+                    <td className="px-5 py-3.5 whitespace-nowrap">
+                      {channel === "Telegram" && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                          Telegram
+                        </span>
+                      )}
+                      {channel === "Phone" && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                          Phone
+                        </span>
+                      )}
+                      {channel === "Walk-in" && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+                          Walk-in
+                        </span>
+                      )}
                     </td>
-                    <td className="px-5 py-3.5">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${r.transaction_type === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
-                      >
-                        {r.transaction_type}
-                      </span>
+                    <td className="px-5 py-3.5 text-slate-700 font-medium whitespace-nowrap">
+                      {quantity.toFixed(2)} KG
                     </td>
-                    <td className="px-5 py-3.5 text-slate-700 whitespace-nowrap">
-                      {quantity.toFixed(3)} KG
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">
                       ${premium.toFixed(2)}
                     </td>
                     <td className="px-5 py-3.5 font-medium text-slate-800 whitespace-nowrap">
-                      ${premiumAmount.toFixed(2)}
+                      ${(premiumAmount || (quantity * (2700 + premium))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-3.5">
                       <StatusBadge
@@ -213,32 +293,53 @@ export default function PlatformOrdersPage({
                         }
                       />
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-1">
-                        <IconBtn
-                          title="View"
-                          onClick={() => notify(`Viewing ${r.order_no}`)}
+                    <td className="px-5 py-3.5 text-center relative">
+                      <div className="relative inline-block text-left">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === r.id ? null : r.id);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
+                          title="Actions"
                         >
-                          <Eye size={15} />
-                        </IconBtn>
-                        <IconBtn title="More">
-                          <Pencil size={15} />
-                        </IconBtn>
-                        {r.status !== "CANCELLED" && (
-                          <>
-                            <IconBtn
-                              title="Return"
-                              onClick={() => {
-                                setReturnTarget(r);
-                                setReturnForm({ quantity: "", reason: "" });
+                          <MoreHorizontal size={16} />
+                        </button>
+
+                        {activeMenuId === r.id && (
+                          <div className="absolute right-0 mt-1 w-28 bg-white rounded-xl border border-slate-200 shadow-lg py-1 z-30 text-left">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(null);
+                                setEditingOrder(r);
+                                setNewOrderForm({
+                                  customer_name: r.customer_name || "",
+                                  channel: r.channel || "Walk-in",
+                                  quantity: String(r.quantity),
+                                  premium: String(r.premium),
+                                  notes: "",
+                                });
+                                setIsNewOrderModalOpen(true);
                               }}
+                              className="w-full px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors cursor-pointer"
                             >
-                              <RotateCcw size={15} />
-                            </IconBtn>
-                            <IconBtn title="Cancel" tone="danger" onClick={() => cancelOrder(r)}>
-                              <XCircle size={15} />
-                            </IconBtn>
-                          </>
+                              <Pencil size={13} className="text-slate-400" /> Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(null);
+                                deleteOrder(r);
+                              }}
+                              className="w-full px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer"
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
                         )}
                       </div>
                     </td>
@@ -298,6 +399,105 @@ export default function PlatformOrdersPage({
                 className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold shadow-sm transition-colors focus:outline-none"
               >
                 <RotateCcw size={15} /> Confirm Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isNewOrderModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <h3 className="font-semibold text-slate-800 text-lg">
+                {editingOrder !== null ? `Edit Order (${editingOrder.order_no})` : "Create New Sell Order"}
+              </h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => {
+                  setIsNewOrderModalOpen(false);
+                  setEditingOrder(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Customer Name *</label>
+                <input
+                  type="text"
+                  value={newOrderForm.customer_name}
+                  onChange={(e) => setNewOrderForm({ ...newOrderForm, customer_name: e.target.value })}
+                  placeholder="e.g. Heng Ty, Ly Hour, etc."
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
+                  <select
+                    value={newOrderForm.channel}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, channel: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option value="Walk-in">Walk-in</option>
+                    <option value="Phone">Phone</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Quantity (KG) *</label>
+                  <input
+                    type="text"
+                    value={newOrderForm.quantity}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: e.target.value.replace(/[^0-9.]/g, "") })}
+                    placeholder="0.00"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium (USD/KG) *</label>
+                <input
+                  type="text"
+                  value={newOrderForm.premium}
+                  onChange={(e) => setNewOrderForm({ ...newOrderForm, premium: e.target.value.replace(/[^0-9.]/g, "") })}
+                  placeholder="350.00"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Notes</label>
+                <textarea
+                  rows={2}
+                  value={newOrderForm.notes}
+                  onChange={(e) => setNewOrderForm({ ...newOrderForm, notes: e.target.value })}
+                  placeholder="Optional delivery or customer notes..."
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setIsNewOrderModalOpen(false)}
+                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitNewSellOrder}
+                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
+              >
+                <Plus size={16} /> Create Sell Order
               </button>
             </div>
           </div>

@@ -139,9 +139,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <Globe size={18} className="text-blue-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">Oversea PO</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Oversea Vendor</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Import shipments & foreign suppliers</p>
@@ -154,9 +153,8 @@ export default function DashboardPage() {
 
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <Building2 size={18} className="text-indigo-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">Local PO</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Local Vendor</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Domestic refinery & wholesale</p>
@@ -169,9 +167,8 @@ export default function DashboardPage() {
 
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <RotateCcw size={18} className="text-emerald-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">Telegram SELL</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Customer Buy-Back</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Retail sell-back slots & bot orders</p>
@@ -204,9 +201,8 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <Send size={18} className="text-sky-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded">Channel 1</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Telegram BUY</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Direct order placements via Bot</p>
@@ -219,9 +215,8 @@ export default function DashboardPage() {
 
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <PhoneCall size={18} className="text-purple-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded">Channel 2</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Phone</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Institutional & phone desk trading</p>
@@ -234,9 +229,8 @@ export default function DashboardPage() {
 
               <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 hover:border-indigo-300 transition-all flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="mb-2">
                     <Store size={18} className="text-amber-600 shrink-0" />
-                    <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">Channel 3</span>
                   </div>
                   <h4 className="font-bold text-slate-800 text-xs mb-1">Walk-in</h4>
                   <p className="text-[11px] text-slate-400 mb-3 leading-tight">Counter physical retail sales</p>

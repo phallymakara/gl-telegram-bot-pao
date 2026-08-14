@@ -87,9 +87,7 @@ export default function App() {
         />
         <main className="flex-1 min-w-0 overflow-hidden w-full flex flex-col">
           {page === "purchase" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
-          {page === "buy-back-slots" && <SlotsPage notify={notify} />}
-          {page === "goods-receipt" && <GoodsReceiptPage notify={notify} />}
-          {page === "sell-slots-premium" && <SlotsPage notify={notify} />}
+          {page === "buy-back-slots" && <SlotsPage mode="buyback" notify={notify} />}
           {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "invoice" && <InvoicePage notify={notify} />}
           {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
@@ -105,7 +103,7 @@ export default function App() {
 
           {page === "discount-promotions" && <AlertsPage mode="promo" notify={notify} />}
           {page === "user-management" && <UsersPage notify={notify} />}
-          {page === "slots" && <SlotsPage notify={notify} />}
+          {page === "slots" && <SlotsPage mode="buyback" notify={notify} />}
           {page === "inventory" && <InventoryPage notify={notify} />}
 
           {!isCustomFullPage && (

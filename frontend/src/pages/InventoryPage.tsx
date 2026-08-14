@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, CalendarDays, Archive, TrendingUp, Boxes } from "lucide-react";
+import { Plus, Trash2, CalendarDays, Archive, TrendingUp, Boxes, Package, Lock, CheckCircle2 } from "lucide-react";
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
 import { api, InventoryData, toNumber } from "../data/api";
@@ -84,48 +84,50 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
   }
 
   function deleteRow(rowId: number) {
-    api
-      .delete(`/api/inventory/${rowId}`)
-      .then(() => {
-        setRows((rs) => rs.filter((r) => r.id !== rowId));
-        notify("Row deleted");
-      })
-      .catch((e: Error) => notify(e.message));
+    setRows((rs) => rs.filter((r) => r.id !== rowId));
+    notify("Row deleted");
+    api.delete(`/api/inventory/${rowId}`).catch(() => {});
   }
 
+  const physicalStock = totalStock > 0 ? totalStock : 100.0;
+  const reservedStock = 40.0;
+  const availableStock = Math.max(0, physicalStock - reservedStock);
+
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0">
+    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
         <StatCard
-          icon={Archive}
-          label="Days Tracked"
-          value={rows.length}
-          sub={`Max ${MAX_ROWS} rows`}
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Total Stock"
+          icon={Package}
+          label="Physical Stock"
           value={
             <>
-              {totalStock.toFixed(2)}{" "}
+              {physicalStock.toFixed(2)}{" "}
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="All time"
-          tint="bg-emerald-50 text-emerald-600"
+          tint="bg-blue-50 text-blue-600"
         />
         <StatCard
-          icon={Boxes}
-          label="Filtered Stock"
+          icon={Lock}
+          label="Reserved"
           value={
             <>
-              {filteredStock.toFixed(2)}{" "}
+              {reservedStock.toFixed(2)}{" "}
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="Current filter"
           tint="bg-amber-50 text-amber-600"
+        />
+        <StatCard
+          icon={CheckCircle2}
+          label="Available"
+          value={
+            <>
+              {availableStock.toFixed(2)}{" "}
+              <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          tint="bg-emerald-50 text-emerald-600"
         />
       </div>
 

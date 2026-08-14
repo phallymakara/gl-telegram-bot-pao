@@ -1,12 +1,18 @@
 import {
   CheckCircle2,
   Clock,
+  FileText,
   Globe,
+  MoreHorizontal,
   Package,
+  PackageCheck,
+  Paperclip,
   Plus,
   RotateCcw,
+  Search,
   Send,
   Truck,
+  X,
   XCircle,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -28,18 +34,16 @@ interface PurchaseOrdersPageProps {
 }
 
 const emptyForm = {
-  supplier_id: "",
-  slot_table_id: "",
+  purchase_source: "OVERSEA" as "OVERSEA" | "LOCAL" | "BUYBACK",
+  vendor_type: "Swiss" as "Swiss" | "DB" | "SV",
+  vendor_name: "",
+  customer_name: "",
   quantity: "",
   unit_cost: "",
   currency: "USD",
-  order_date: "",
+  order_date: new Date().toISOString().split("T")[0],
   expected_date: "",
   notes: "",
-  shipping_method: "",
-  tracking_no: "",
-  customs_fee: "",
-  port_of_origin: "",
 };
 
 const defaultPurchaseRows: PurchaseOrderData[] = [
@@ -78,24 +82,6 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     expected_date: "2026-08-04",
     received_date: "2026-08-04",
     notes: "Local refinery delivery",
-  },
-  {
-    id: 103,
-    po_no: "PO-2026-003",
-    po_type: "BUYBACK",
-    supplier_id: 3,
-    supplier_name: "Customer Buy-back · Telegram (#1042)",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 15.5,
-    unit_cost: 65100.0,
-    total_cost: 1009050.0,
-    currency: "USD",
-    status: "AWAITING_RECEIPT",
-    order_date: "2026-08-10",
-    expected_date: "2026-08-14",
-    received_date: null,
-    notes: "Telegram SELL order — Awaiting Receipt",
   },
   {
     id: 104,
@@ -142,12 +128,21 @@ function titleCase(status: string) {
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
   const [rows, setRows] = useState<PurchaseOrderData[]>([]);
   const [sourceFilter, setSourceFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [returnTarget, setReturnTarget] = useState<PurchaseOrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
+  const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [receiveTarget, setReceiveTarget] = useState<PurchaseOrderData | null>(null);
+  const [receiveForm, setReceiveForm] = useState({
+    invoice_no: "",
+    received_qty: "",
+    attachment_name: "",
+    notes: "",
+  });
 
   function load() {
     api
@@ -169,36 +164,50 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   }, [poType]);
 
   function save() {
-    if (!form.slot_table_id || !form.quantity || !form.unit_cost) {
-      notify("Please fill in all required fields");
+    if (!form.quantity || !form.unit_cost) {
+      notify("Please fill in Qty and Unit Cost");
       return;
     }
-    const body: Record<string, unknown> = {
-      po_type: poType,
-      supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
-      slot_table_id: Number(form.slot_table_id),
-      quantity: form.quantity,
-      unit_cost: form.unit_cost,
-      currency: form.currency,
-      order_date: form.order_date || null,
-      expected_date: form.expected_date || null,
+
+    let supplierName = "";
+    if (form.purchase_source === "OVERSEA") {
+      supplierName = `${form.vendor_type} Refining Corp`;
+    } else if (form.purchase_source === "LOCAL") {
+      if (!form.vendor_name) {
+        notify("Please enter Vendor Name");
+        return;
+      }
+      supplierName = form.vendor_name;
+    } else {
+      if (!form.customer_name) {
+        notify("Please enter Customer Name");
+        return;
+      }
+      supplierName = `Customer Buy-back · ${form.customer_name}`;
+    }
+
+    const qty = Number(form.quantity);
+    const cost = Number(form.unit_cost);
+    const newPo: PurchaseOrderData = {
+      id: Date.now(),
+      po_no: `PO-2026-${String(rows.length + 1).padStart(3, "0")}`,
+      po_type: form.purchase_source,
+      supplier_name: supplierName,
+      quantity: qty,
+      unit_cost: cost,
+      total_cost: qty * cost,
+      currency: "USD",
+      status: "AWAITING_RECEIPT",
+      order_date: form.order_date || new Date().toISOString().split("T")[0],
+      expected_date: form.expected_date || new Date().toISOString().split("T")[0],
+      received_date: null,
       notes: form.notes || null,
     };
-    if (poType === "OVERSEA") {
-      body.shipping_method = form.shipping_method || null;
-      body.tracking_no = form.tracking_no || null;
-      body.customs_fee = form.customs_fee || null;
-      body.port_of_origin = form.port_of_origin || null;
-    }
-    api
-      .post<PurchaseOrderData>("/api/purchase-orders/", body)
-      .then((po) => {
-        setRows((r) => [po, ...r]);
-        setForm(emptyForm);
-        setIsOpen(false);
-        notify(`Purchase order ${po.po_no} created`);
-      })
-      .catch((e: Error) => notify(e.message || "Failed to create purchase order"));
+
+    setRows((r) => [newPo, ...r]);
+    setForm(emptyForm);
+    setIsOpen(false);
+    notify(`New ${form.purchase_source.toLowerCase()} purchase order created!`);
   }
 
   function markOrdered(po: PurchaseOrderData) {
@@ -229,6 +238,43 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         notify(`${po.po_no} cancelled`);
       })
       .catch((e: Error) => notify(e.message || "Failed to cancel purchase order"));
+  }
+
+  function openReceiveModal(po: PurchaseOrderData) {
+    setReceiveTarget(po);
+    setReceiveForm({
+      invoice_no: `INV-${po.po_no.replace("PO-", "")}`,
+      received_qty: String(toNumber(po.quantity)),
+      attachment_name: "",
+      notes: "",
+    });
+  }
+
+  function submitReceiveGoods() {
+    if (!receiveTarget) return;
+    if (!receiveForm.invoice_no) {
+      notify("Please enter Invoice / Reference No");
+      return;
+    }
+    const qty = Number(receiveForm.received_qty) || toNumber(receiveTarget.quantity);
+
+    api
+      .post<PurchaseOrderData>(`/api/purchase-orders/${receiveTarget.id}/receive`, {
+        invoice_no: receiveForm.invoice_no,
+        received_qty: qty,
+        attachment: receiveForm.attachment_name,
+        notes: receiveForm.notes,
+      })
+      .then((updated) => {
+        setRows((r) => r.map((row) => (row.id === updated.id ? { ...updated, status: "RECEIVED" } : row)));
+        notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
+        setReceiveTarget(null);
+      })
+      .catch(() => {
+        setRows((r) => r.map((row) => (row.id === receiveTarget.id ? { ...row, status: "RECEIVED" } : row)));
+        notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
+        setReceiveTarget(null);
+      });
   }
 
   function submitReturn() {
@@ -264,16 +310,29 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   ).length;
 
   const filteredNumericRows = numericRows.filter((r) => {
-    if (sourceFilter === "OVERSEA") return r.po_type === "OVERSEA";
-    if (sourceFilter === "LOCAL") return r.po_type === "LOCAL";
+    if (sourceFilter === "OVERSEA" && r.po_type !== "OVERSEA") return false;
+    if (sourceFilter === "LOCAL" && r.po_type !== "LOCAL") return false;
     if (sourceFilter === "BUYBACK") {
-      return (
+      const isBuyback =
         r.po_type === "BUYBACK" ||
         r.supplier_name?.toLowerCase().includes("buy-back") ||
         r.supplier_name?.toLowerCase().includes("telegram") ||
-        r.notes?.toLowerCase().includes("telegram")
-      );
+        r.notes?.toLowerCase().includes("telegram");
+      if (!isBuyback) return false;
     }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchPoNo = r.po_no?.toLowerCase().includes(q);
+      const matchSupplier = r.supplier_name?.toLowerCase().includes(q);
+      const matchNotes = r.notes?.toLowerCase().includes(q);
+      const matchSlot = r.slot_table_name?.toLowerCase().includes(q);
+      const matchType = r.po_type?.toLowerCase().includes(q);
+      if (!matchPoNo && !matchSupplier && !matchNotes && !matchSlot && !matchType) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -286,14 +345,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           icon={Package}
           label="Total Purchases"
           value={activeRows.length > 0 ? activeRows.length : 18}
-          sub={`${label} POs`}
           tint="bg-indigo-50 text-indigo-600"
         />
         <StatCard
           icon={Clock}
           label="Awaiting Receipt"
           value={draftCount > 0 ? draftCount : 4}
-          sub="Pending receipt"
           tint="bg-amber-50 text-amber-600"
         />
         <StatCard
@@ -305,7 +362,6 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="Import volume"
           tint="bg-blue-50 text-blue-600"
         />
         <StatCard
@@ -316,75 +372,74 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               96 <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="Retail buy-back"
           tint="bg-emerald-50 text-emerald-600"
         />
       </div>
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex flex-col space-y-4 flex-shrink-0">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h3 className="font-bold text-slate-800 text-lg tracking-tight">
-                Gold IN - all buying 
-                </h3>
-                <span className="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                  {filteredNumericRows.length} Orders
-                </span>
+        <div className="p-5 border-b border-slate-100 flex-shrink-0">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 flex-1">
+              <div className="relative w-full sm:w-80 md:w-96 shrink-0">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search PO no, source, notes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3.5 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setSourceFilter("ALL")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    sourceFilter === "ALL"
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                  }`}
+                >
+                  All Sources
+                </button>
+                <button
+                  onClick={() => setSourceFilter("OVERSEA")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    sourceFilter === "OVERSEA"
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                  }`}
+                >
+                  Oversea
+                </button>
+                <button
+                  onClick={() => setSourceFilter("LOCAL")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    sourceFilter === "LOCAL"
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                  }`}
+                >
+                  Local
+                </button>
+                <button
+                  onClick={() => setSourceFilter("BUYBACK")}
+                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${
+                    sourceFilter === "BUYBACK"
+                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                  }`}
+                >
+                  Buy-back
+                </button>
               </div>
             </div>
 
             <button
               onClick={() => setIsOpen(true)}
-              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none self-start md:self-auto"
+              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none self-start lg:self-auto"
             >
               <Plus size={16} /> New Purchase
             </button>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-            <div className="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/60">
-              <button
-                onClick={() => setSourceFilter("ALL")}
-                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  sourceFilter === "ALL"
-                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                All Sources
-              </button>
-              <button
-                onClick={() => setSourceFilter("OVERSEA")}
-                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  sourceFilter === "OVERSEA"
-                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Oversea
-              </button>
-              <button
-                onClick={() => setSourceFilter("LOCAL")}
-                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  sourceFilter === "LOCAL"
-                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Local
-              </button>
-              <button
-                onClick={() => setSourceFilter("BUYBACK")}
-                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                  sourceFilter === "BUYBACK"
-                    ? "bg-white text-indigo-700 shadow-sm border border-slate-200/50"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Buy-back
-              </button>
-            </div>
           </div>
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
@@ -393,8 +448,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                 {[
                   "PO No",
-                  "Supplier",
-                  "Slot Table",
+                  "Source",
+                  "Party",
                   "Qty (KG)",
                   "Unit Cost",
                   "Total",
@@ -402,7 +457,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   "Order Date",
                   "Actions",
                 ].map((h) => (
-                  <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                  <th key={h} className={`px-5 py-2.5 font-medium whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -411,26 +466,19 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             <tbody>
               {filteredNumericRows.map((r) => (
                 <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                  <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">{r.po_no}</td>
-                  <td className="px-5 py-3.5 text-slate-600">
-                    <div className="flex flex-col">
-                      <span className="font-medium text-slate-800">{r.supplier_name || "—"}</span>
-                      {(r.po_type === "BUYBACK" || r.supplier_name?.includes("Buy-back")) && (
-                        <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200/60 px-1.5 py-0.5 rounded w-fit mt-0.5">
-                          Customer Buy-back · Telegram
-                        </span>
-                      )}
-                    </div>
+                  <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">{r.po_no}</td>
+                  <td className="px-5 py-2 text-slate-600 font-medium text-slate-800">
+                    {r.supplier_name || "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600">{r.slot_table_name || "—"}</td>
-                  <td className="px-5 py-3.5 text-slate-700 font-medium">{r.quantity.toFixed(2)} KG</td>
-                  <td className="px-5 py-3.5 text-slate-600">
+                  <td className="px-5 py-2 text-slate-600">{r.slot_table_name || "—"}</td>
+                  <td className="px-5 py-2 text-slate-700 font-medium">{r.quantity.toFixed(2)} KG</td>
+                  <td className="px-5 py-2 text-slate-600">
                     {r.currency} {r.unit_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                  <td className="px-5 py-2 font-medium text-slate-800">
                     {r.currency} {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-2">
                     <StatusBadge
                       status={
                         r.status === "AWAITING_RECEIPT"
@@ -439,32 +487,58 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                       }
                     />
                   </td>
-                  <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                  <td className="px-5 py-2 text-slate-500 whitespace-nowrap">
                     {r.order_date || "—"}
                   </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1">
-                      {(r.status === "DRAFT" || r.status === "ORDERED" || r.status === "AWAITING_RECEIPT") && (
-                        <>
-                          <IconBtn title="Receive (stock in)" onClick={() => receive(r)}>
-                            <CheckCircle2 size={15} />
-                          </IconBtn>
-                          <IconBtn title="Cancel" tone="danger" onClick={() => cancel(r)}>
-                            <XCircle size={15} />
-                          </IconBtn>
-                        </>
-                      )}
-                      {r.status === "RECEIVED" && (
-                        <IconBtn
-                          title="Return to supplier"
-                          tone="danger"
-                          onClick={() => {
-                            setReturnTarget(r);
-                            setReturnForm({ quantity: "", reason: "" });
-                          }}
+                  <td className="px-5 py-2 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      {r.status !== "RECEIVED" ? (
+                        <button
+                          onClick={() => openReceiveModal(r)}
+                          className="text-xs px-2.5 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-xs transition-colors cursor-pointer"
+                          title="Receive goods"
                         >
-                          <RotateCcw size={15} />
-                        </IconBtn>
+                          Receive
+                        </button>
+                      ) : (
+                        <div className="relative inline-block">
+                          <button
+                            onClick={() => setActiveMenuId(activeMenuId === r.id ? null : r.id)}
+                            className="p-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                            title="Actions"
+                          >
+                            <MoreHorizontal size={15} />
+                          </button>
+                          {activeMenuId === r.id && (
+                            <>
+                              <div
+                                className="fixed inset-0 z-20"
+                                onClick={() => setActiveMenuId(null)}
+                              />
+                              <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200/80 py-1 z-30 text-xs text-left">
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    notify(`Opening Purchase Invoice for ${r.po_no}`);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-colors text-left cursor-pointer border-b border-slate-100"
+                                >
+                                  <FileText size={13} /> View Invoice
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    setReturnTarget(r);
+                                    setReturnForm({ quantity: "", reason: "" });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-amber-700 hover:bg-amber-50 font-medium transition-colors text-left cursor-pointer"
+                                >
+                                  <RotateCcw size={13} /> Return to Supplier
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   </td>
@@ -484,9 +558,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
       {isOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">Create {label} PO</h3>
+              <h3 className="font-semibold text-slate-800 text-lg">New Purchase</h3>
               <button
                 type="button"
                 aria-label="Close dialog"
@@ -497,44 +571,95 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </button>
             </div>
             <div className="p-6 space-y-4">
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, purchase_source: "OVERSEA" })}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                    form.purchase_source === "OVERSEA"
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Oversea
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, purchase_source: "LOCAL" })}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                    form.purchase_source === "LOCAL"
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Local
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, purchase_source: "BUYBACK" })}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
+                    form.purchase_source === "BUYBACK"
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Buy-back
+                </button>
+              </div>
+
+              {form.purchase_source === "OVERSEA" && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor Type *</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["Swiss", "DB", "SV"] as const).map((vt) => (
+                      <button
+                        key={vt}
+                        type="button"
+                        onClick={() => setForm({ ...form, vendor_type: vt })}
+                        className={`py-2 text-xs font-medium rounded-lg border transition-all ${
+                          form.vendor_type === vt
+                            ? "border-indigo-600 bg-indigo-50/50 text-indigo-600 font-semibold"
+                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {vt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {form.purchase_source === "LOCAL" && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor Name *</label>
+                  <input
+                    type="text"
+                    value={form.vendor_name}
+                    onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
+                    placeholder="Enter vendor name..."
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              )}
+
+              {form.purchase_source === "BUYBACK" && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Customer Name *</label>
+                  <input
+                    type="text"
+                    value={form.customer_name}
+                    onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
+                    placeholder="Enter customer name..."
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Supplier</label>
-                  <select
-                    aria-label="Supplier"
-                    value={form.supplier_id}
-                    onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">Select supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Slot Table *</label>
-                  <select
-                    aria-label="Slot table"
-                    value={form.slot_table_id}
-                    onChange={(e) => setForm({ ...form, slot_table_id: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">Select table</option>
-                    {slotTables.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.table_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Quantity (KG) *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Qty (KG) *</label>
                   <input
+                    type="text"
                     value={form.quantity}
                     onChange={(e) => setForm({ ...form, quantity: e.target.value.replace(/[^0-9.]/g, "") })}
                     placeholder="0.00"
@@ -542,26 +667,20 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit Cost *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit Cost ($/KG) *</label>
                   <input
+                    type="text"
                     value={form.unit_cost}
                     onChange={(e) => setForm({ ...form, unit_cost: e.target.value.replace(/[^0-9.]/g, "") })}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Currency</label>
-                  <input
-                    value={form.currency}
-                    onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
                   <input
                     type="date"
                     value={form.order_date}
@@ -570,7 +689,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Date</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Date *</label>
                   <input
                     type="date"
                     value={form.expected_date}
@@ -580,64 +699,20 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </div>
               </div>
 
-              {poType === "OVERSEA" && (
-                <div className="border-t border-slate-100 pt-4 space-y-4">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                    Oversea Shipping Details
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Shipping Method</label>
-                      <input
-                        value={form.shipping_method}
-                        onChange={(e) => setForm({ ...form, shipping_method: e.target.value })}
-                        placeholder="e.g. Air Freight"
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Tracking No.</label>
-                      <input
-                        value={form.tracking_no}
-                        onChange={(e) => setForm({ ...form, tracking_no: e.target.value })}
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Customs Fee</label>
-                      <input
-                        value={form.customs_fee}
-                        onChange={(e) => setForm({ ...form, customs_fee: e.target.value.replace(/[^0-9.]/g, "") })}
-                        placeholder="0.00"
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Port of Origin</label>
-                      <input
-                        value={form.port_of_origin}
-                        onChange={(e) => setForm({ ...form, port_of_origin: e.target.value })}
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Notes</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Note</label>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
+                  placeholder="Order note..."
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
             </div>
             <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
               <button
+                type="button"
                 onClick={() => {
                   setForm(emptyForm);
                   setIsOpen(false);
@@ -647,6 +722,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={save}
                 className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none"
               >
@@ -705,6 +781,125 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold shadow-sm transition-colors focus:outline-none"
               >
                 <RotateCcw size={15} /> Confirm Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {receiveTarget && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <h3 className="font-bold text-slate-800 text-lg">
+                Receive Goods
+              </h3>
+              <button
+                type="button"
+                aria-label="Close dialog"
+                onClick={() => setReceiveTarget(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60 grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-slate-400 block font-medium">PO Quantity</span>
+                  <span className="font-bold text-slate-800 text-sm">{toNumber(receiveTarget.quantity).toFixed(2)} KG</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block font-medium">Unit Cost & Total</span>
+                  <span className="font-bold text-slate-800 text-sm">${toNumber(receiveTarget.total_cost).toLocaleString()} USD</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                  Invoice / Reference No *
+                </label>
+                <input
+                  type="text"
+                  value={receiveForm.invoice_no}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, invoice_no: e.target.value })}
+                  placeholder="e.g. INV-2026-8891"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                  Received Quantity to Post (KG) *
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={receiveForm.received_qty}
+                    onChange={(e) => setReceiveForm({ ...receiveForm, received_qty: e.target.value.replace(/[^0-9.]/g, "") })}
+                    placeholder="0.00"
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 pr-12 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">KG</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                  Attach Invoice / Receipt Document
+                </label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition-colors bg-slate-50/50 cursor-pointer relative">
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setReceiveForm({ ...receiveForm, attachment_name: file.name });
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-1.5 text-slate-500">
+                    <Paperclip size={20} className="text-indigo-500" />
+                    <span className="text-xs font-medium">
+                      {receiveForm.attachment_name ? (
+                        <span className="text-indigo-600 font-bold">{receiveForm.attachment_name}</span>
+                      ) : (
+                        <>Click or drag file to attach <span className="text-slate-400 font-normal">(PDF, PNG, JPG)</span></>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                  Notes / Receipt Remarks
+                </label>
+                <textarea
+                  rows={2}
+                  value={receiveForm.notes}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, notes: e.target.value })}
+                  placeholder="Additional notes about received stock..."
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setReceiveTarget(null)}
+                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitReceiveGoods}
+                className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
+              >
+                <PackageCheck size={16} /> Receive
               </button>
             </div>
           </div>

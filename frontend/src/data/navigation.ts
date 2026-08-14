@@ -21,16 +21,14 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: Home },
+  { id: "buy-back-slots", label: "Slots", icon: Calendar },
   {
     id: "gold-in", label: "Gold In (Buying)", icon: ArrowDownLeft, children: [
       { id: "purchase", label: "Purchase", icon: ShoppingBag },
-      { id: "buy-back-slots", label: "Buy-Back Slots", icon: Calendar },
-      { id: "goods-receipt", label: "Goods Receipt", icon: FileCheck },
     ]
   },
   {
     id: "gold-out", label: "Gold Out (Selling)", icon: ArrowUpRight, children: [
-      { id: "sell-slots-premium", label: "Sell Slots & Premium", icon: Calendar },
       { id: "sell-orders", label: "Sell Orders", icon: ShoppingCart },
       { id: "invoice", label: "Invoice", icon: FileText },
       { id: "delivery-notes", label: "Delivery Notes", icon: Truck },
@@ -56,10 +54,8 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "dashboard": ["Dashboard"],
   "gold-in": ["Dashboard", "Gold In (Buying)"],
   "purchase": ["Dashboard", "Gold In (Buying)", "Purchase"],
-  "buy-back-slots": ["Dashboard", "Gold In (Buying)", "Buy-Back Slots"],
-  "goods-receipt": ["Dashboard", "Gold In (Buying)", "Goods Receipt"],
+  "buy-back-slots": ["Dashboard", "Slots"],
   "gold-out": ["Dashboard", "Gold Out (Selling)"],
-  "sell-slots-premium": ["Dashboard", "Gold Out (Selling)", "Sell Slots & Premium"],
   "sell-orders": ["Dashboard", "Gold Out (Selling)", "Sell Orders"],
   "invoice": ["Dashboard", "Gold Out (Selling)", "Invoice"],
   "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
@@ -116,9 +112,7 @@ export const TOPBAR_ICON: Record<string, any> = {
 export const PAGE_TITLE: Record<string, string> = {
   "dashboard": "Dashboard Overview",
   "purchase": "Purchase Orders",
-  "buy-back-slots": "Buy-Back Slots Management",
-  "goods-receipt": "Goods Receipt",
-  "sell-slots-premium": "Sell Slots & Premium Management",
+  "buy-back-slots": "Slots Management",
   "sell-orders": "Sell Orders",
   "invoice": "Sales Invoices",
   "delivery-notes": "Delivery Notes",
