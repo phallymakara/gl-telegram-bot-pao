@@ -128,10 +128,15 @@ export interface CustomerData {
 
 export interface InventoryData {
   id: number;
+  reference?: string;
   inventory_date: string;
+  party?: string;
+  name?: string;
   stock_kg: number;
-  created_at: string;
-  updated_at: string;
+  total_amount?: number;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface SupplierData {
@@ -167,6 +172,8 @@ export interface PurchaseOrderData {
   tracking_no?: string | null;
   customs_fee?: number | null;
   port_of_origin?: string | null;
+  spot_price?: number;
+  premium?: number;
   created_at?: string;
 }
 

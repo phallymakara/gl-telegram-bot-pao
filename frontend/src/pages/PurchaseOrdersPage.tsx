@@ -3,11 +3,14 @@ import {
   Clock,
   FileText,
   Globe,
+  MapPin,
   MoreHorizontal,
   Package,
   PackageCheck,
   Paperclip,
+  Pencil,
   Plus,
+  Printer,
   RotateCcw,
   Search,
   Send,
@@ -38,6 +41,9 @@ const emptyForm = {
   vendor_type: "Swiss" as "Swiss" | "DB" | "SV",
   vendor_name: "",
   customer_name: "",
+  spot_price: "",
+  premium: "",
+  amount_kg: "",
   quantity: "",
   unit_cost: "",
   currency: "USD",
@@ -52,17 +58,19 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     po_no: "PO-2026-001",
     po_type: "OVERSEA",
     supplier_id: 1,
-    supplier_name: "Swiss Refining Corp",
+    supplier_name: "DB",
     slot_table_id: 1,
     slot_table_name: "99.99% Gold Kilobar",
-    quantity: 250.0,
-    unit_cost: 65200.0,
-    total_cost: 16300000.0,
+    quantity: 1.00,
+    spot_price: 4376.2,
+    premium: 200,
+    unit_cost: 140786.078,
+    total_cost: 140786.078,
     currency: "USD",
     status: "RECEIVED",
-    order_date: "2026-08-01",
-    expected_date: "2026-08-05",
-    received_date: "2026-08-05",
+    order_date: "2026-08-15",
+    expected_date: "2026-08-15",
+    received_date: "2026-08-15",
     notes: "Import shipment via Zurich Flight",
   },
   {
@@ -70,17 +78,19 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     po_no: "PO-2026-002",
     po_type: "LOCAL",
     supplier_id: 2,
-    supplier_name: "Phnom Penh Gold Wholesale",
+    supplier_name: "Phnom Penh Gold",
     slot_table_id: 2,
     slot_table_name: "Local Gold Bar 99.99%",
-    quantity: 35.0,
-    unit_cost: 65150.0,
-    total_cost: 2280250.0,
+    quantity: 2.50,
+    spot_price: 4375.0,
+    premium: 150,
+    unit_cost: 140792.00,
+    total_cost: 351980.00,
     currency: "USD",
     status: "RECEIVED",
-    order_date: "2026-08-03",
-    expected_date: "2026-08-04",
-    received_date: "2026-08-04",
+    order_date: "2026-08-14",
+    expected_date: "2026-08-14",
+    received_date: "2026-08-14",
     notes: "Local refinery delivery",
   },
   {
@@ -88,36 +98,40 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     po_no: "PO-2026-004",
     po_type: "OVERSEA",
     supplier_id: 4,
-    supplier_name: "Dubai Gold Refinery",
+    supplier_name: "Swiss",
     slot_table_id: 1,
     slot_table_name: "99.99% Gold Kilobar",
-    quantity: 370.0,
-    unit_cost: 65250.0,
-    total_cost: 24142500.0,
+    quantity: 5.00,
+    spot_price: 4378.0,
+    premium: 250,
+    unit_cost: 140993.96,
+    total_cost: 704969.80,
     currency: "USD",
     status: "ORDERED",
-    order_date: "2026-08-11",
+    order_date: "2026-08-13",
     expected_date: "2026-08-18",
     received_date: null,
-    notes: "Oversea import shipment — Awaiting Receipt",
+    notes: "Oversea import shipment",
   },
   {
     id: 105,
     po_no: "PO-2026-005",
     po_type: "BUYBACK",
     supplier_id: 5,
-    supplier_name: "Customer Buy-back · Telegram (#1088)",
+    supplier_name: "Telegram (#1088)",
     slot_table_id: 1,
     slot_table_name: "99.99% Gold Kilobar",
-    quantity: 80.5,
-    unit_cost: 65120.0,
-    total_cost: 5242160.0,
+    quantity: 1.50,
+    spot_price: 4370.0,
+    premium: 100,
+    unit_cost: 140586.76,
+    total_cost: 210880.14,
     currency: "USD",
-    status: "AWAITING_RECEIPT",
+    status: "CONFIRMED",
     order_date: "2026-08-12",
     expected_date: "2026-08-15",
     received_date: null,
-    notes: "Telegram SELL order — Awaiting Receipt",
+    notes: "Telegram SELL order",
   },
 ];
 
@@ -133,9 +147,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [editingPoId, setEditingPoId] = useState<number | null>(null);
   const [returnTarget, setReturnTarget] = useState<PurchaseOrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
+  const [showStatusSubMenuId, setShowStatusSubMenuId] = useState<number | null>(null);
+  const [invoiceModalPo, setInvoiceModalPo] = useState<PurchaseOrderData | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrderData | null>(null);
   const [receiveForm, setReceiveForm] = useState({
     invoice_no: "",
@@ -143,6 +160,267 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     attachment_name: "",
     notes: "",
   });
+
+  function printInvoiceDirectly(po: PurchaseOrderData) {
+    const orderDate = po.order_date ? po.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
+    const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
+    const qtyVal = po.quantity || 1.00;
+    const totalCost = (po.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 });
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Print Invoice - ${po.po_no}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @page { size: A5; margin: 0; }
+          body { background: white; padding: 0; margin: 0; }
+          .invoice-card { width: 148mm; min-height: 210mm; p: 20px; box-sizing: border-box; }
+        </style>
+      </head>
+      <body>
+        <div class="invoice-card bg-[#fffcf5] border border-red-800 text-slate-900 font-sans space-y-4 p-5">
+          <div class="flex flex-row items-start justify-between border-b-2 border-red-800/60 pb-3">
+            <div class="flex items-start gap-2.5">
+              <div class="w-11 h-11 rounded-full border-2 border-red-700 flex items-center justify-center bg-red-50 text-red-700 font-bold shrink-0">
+                <div class="w-8 h-8 border-2 border-red-700 rounded-full flex items-center justify-center">
+                  <div class="w-4 h-4 border border-red-700 rotate-45"></div>
+                </div>
+              </div>
+              <div>
+                <h2 class="font-black text-base text-red-700 tracking-tight leading-tight">CHHAY VANN CO.,LTD</h2>
+                <p class="text-[10px] text-red-800 font-bold">Physical Gold Trading</p>
+                <div class="text-[9px] text-red-900/80 leading-snug mt-0.5 space-y-0.5">
+                  <p>Add: #31, St. 286, S/K. Olympic, Phnom Penh, Cambodia.</p>
+                  <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
+                </div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="inline-block text-[10px] font-bold text-red-800 border-b border-red-800 pb-0.5 mb-1">Physical</div>
+              <div class="text-[11px] text-red-900 font-medium space-y-0.5">
+                <p>Re. No.: <span class="font-mono font-bold text-red-700 text-xs">${refNo}</span></p>
+                <p>Date: <span class="font-semibold text-slate-900 text-xs">${po.order_date || new Date().toISOString().split("T")[0]}</span></p>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-center py-0.5">
+            <h1 class="text-base font-black text-red-700 tracking-wider uppercase">PURCHASE SLIP</h1>
+            <p class="text-[10px] font-bold text-red-800 tracking-widest">卖单</p>
+          </div>
+
+          <div class="border border-red-700 rounded-none p-2.5 bg-red-50/30 space-y-1.5 text-xs text-red-900">
+            <div class="flex items-center justify-between border-b border-red-200 pb-1">
+              <span class="font-semibold">Customer Name / 客户名:</span>
+              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "ABC"}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">Phone Number / 电话号码:</span>
+              <span class="font-mono text-slate-800 text-xs">+855 12 345 678</span>
+            </div>
+          </div>
+
+          <div class="border border-red-700 rounded-none overflow-hidden">
+            <table class="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr class="bg-red-100/80 border-b border-red-700 text-red-900 font-bold text-center">
+                  <th class="p-1.5 border-r border-red-700"><div>Collected Date</div><div class="text-[9px] font-normal text-red-800">取货日期</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>London Time</div><div class="text-[9px] font-normal text-red-800">伦敦价格</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>Premium</div><div class="text-[9px] font-normal text-red-800">加价</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>Amount</div><div class="text-[9px] font-normal text-red-800">数量</div></th>
+                  <th class="p-1.5"><div>Price</div><div class="text-[9px] font-normal text-red-800">价格</div></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-red-200 text-slate-900 text-center font-medium">
+                <tr class="bg-white">
+                  <td class="p-2 border-r border-red-200 font-semibold">${orderDate}</td>
+                  <td class="p-2 border-r border-red-200"><span class="font-bold text-xs">${spotPrice}</span></td>
+                  <td class="p-2 border-r border-red-200 font-semibold text-rose-700">${premiumVal}</td>
+                  <td class="p-2 border-r border-red-200 font-bold">${qtyVal} <span class="text-[10px] font-normal text-slate-600">(CDB) Kg</span></td>
+                  <td class="p-2 font-black text-xs text-red-700">${totalCost} <span class="text-[10px] font-normal text-slate-700">USD</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Physical gold trade purchase order verified."}</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 pt-4 text-center text-xs text-red-900 font-medium">
+            <div><p class="font-bold">Sale By:</p><p class="text-[9px] text-red-800">销售者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+            <div><p class="font-bold">Recorded by:</p><p class="text-[9px] text-red-800">记录者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+            <div><p class="font-bold">Checked by:</p><p class="text-[9px] text-red-800">检查者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 300);
+  }
+
+  function openInvoiceInNewTab(po: PurchaseOrderData) {
+    const orderDate = po.order_date ? po.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
+    const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
+    const qtyVal = po.quantity || 1.00;
+    const totalCost = (po.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Purchase Slip - ${po.po_no}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+          @page { size: A5; margin: 0; }
+          @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; padding: 0 !important; }
+            .invoice-card { shadow: none !important; border: 1px solid #991b1b !important; box-shadow: none !important; }
+          }
+        </style>
+      </head>
+      <body class="bg-slate-200 min-h-screen p-4 md:p-6 flex flex-col items-center justify-start text-slate-800">
+        
+        <!-- Top Action Bar -->
+        <div class="no-print w-full max-w-[148mm] flex items-center justify-between bg-white p-3 rounded-none border border-slate-300 mb-4">
+          <span class="text-xs font-bold text-slate-700">A5 Purchase Invoice — ${po.po_no}</span>
+          <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-3.5 py-1.5 bg-red-700 hover:bg-red-800 text-white rounded-none text-xs font-bold transition-all cursor-pointer flex items-center gap-1">
+              <span>🖨️</span> Print A5
+            </button>
+            <button onclick="window.close()" class="px-3 py-1.5 border border-slate-300 hover:bg-slate-100 text-slate-600 rounded-none text-xs font-bold transition-colors cursor-pointer">
+              ✕ Close
+            </button>
+          </div>
+        </div>
+
+        <!-- A5 Sheet Container (148mm x 210mm) -->
+        <div class="invoice-card bg-[#fffcf5] border border-red-800 rounded-none w-[148mm] min-h-[210mm] p-5 space-y-4 text-slate-900 box-border">
+          <!-- Slip Header -->
+          <div class="flex flex-row items-start justify-between border-b-2 border-red-800/60 pb-3">
+            <div class="flex items-start gap-2.5">
+              <div class="w-11 h-11 rounded-full border-2 border-red-700 flex items-center justify-center bg-red-50 text-red-700 font-bold shrink-0">
+                <div class="w-8 h-8 border-2 border-red-700 rounded-full flex items-center justify-center">
+                  <div class="w-4 h-4 border border-red-700 rotate-45"></div>
+                </div>
+              </div>
+              <div>
+                <h2 class="font-black text-base text-red-700 tracking-tight leading-tight">
+                  CHHAY VANN CO.,LTD
+                </h2>
+                <p class="text-[10px] text-red-800 font-bold">Physical Gold Trading</p>
+                <div class="text-[9px] text-red-900/80 leading-snug mt-0.5 space-y-0.5">
+                  <p>Add: #31, St. 286, S/K. Olympic, Phnom Penh, Cambodia.</p>
+                  <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
+                </div>
+              </div>
+            </div>
+            <div class="text-right">
+              <div class="inline-block text-[10px] font-bold text-red-800 border-b border-red-800 pb-0.5 mb-1">
+                Physical
+              </div>
+              <div class="text-[11px] text-red-900 font-medium space-y-0.5">
+                <p>Re. No.: <span class="font-mono font-bold text-red-700 text-xs">${refNo}</span></p>
+                <p>Date: <span class="font-semibold text-slate-900 text-xs">${po.order_date || new Date().toISOString().split("T")[0]}</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Title -->
+          <div class="text-center py-0.5">
+            <h1 class="text-base font-black text-red-700 tracking-wider uppercase">PURCHASE SLIP</h1>
+            <p class="text-[10px] font-bold text-red-800 tracking-widest">卖单</p>
+          </div>
+
+          <!-- Customer Box -->
+          <div class="border border-red-700 rounded-none p-2.5 bg-red-50/30 space-y-1.5 text-xs text-red-900">
+            <div class="flex items-center justify-between border-b border-red-200 pb-1">
+              <span class="font-semibold">Customer Name / 客户名:</span>
+              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "ABC"}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="font-semibold">Phone Number / 电话号码:</span>
+              <span class="font-mono text-slate-800 text-xs">+855 12 345 678</span>
+            </div>
+          </div>
+
+          <!-- Items Table -->
+          <div class="border border-red-700 rounded-none overflow-hidden">
+            <table class="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr class="bg-red-100/80 border-b border-red-700 text-red-900 font-bold text-center">
+                  <th class="p-1.5 border-r border-red-700"><div>Collected Date</div><div class="text-[9px] font-normal text-red-800">取货日期</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>London Time</div><div class="text-[9px] font-normal text-red-800">伦敦价格</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>Premium</div><div class="text-[9px] font-normal text-red-800">加价</div></th>
+                  <th class="p-1.5 border-r border-red-700"><div>Amount</div><div class="text-[9px] font-normal text-red-800">数量</div></th>
+                  <th class="p-1.5"><div>Price</div><div class="text-[9px] font-normal text-red-800">价格</div></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-red-200 text-slate-900 text-center font-medium">
+                <tr class="bg-white">
+                  <td class="p-2 border-r border-red-200 font-semibold">${orderDate}</td>
+                  <td class="p-2 border-r border-red-200"><span class="font-bold text-xs">${spotPrice}</span></td>
+                  <td class="p-2 border-r border-red-200 font-semibold text-rose-700">${premiumVal}</td>
+                  <td class="p-2 border-r border-red-200 font-bold">${qtyVal} <span class="text-[10px] font-normal text-slate-600">(CDB) Kg</span></td>
+                  <td class="p-2 font-black text-xs text-red-700">${totalCost} <span class="text-[10px] font-normal text-slate-700">USD</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Physical gold trade purchase order verified."}</span>
+            </div>
+          </div>
+
+          <!-- Signatures -->
+          <div class="grid grid-cols-3 gap-3 pt-4 text-center text-xs text-red-900 font-medium">
+            <div><p class="font-bold">Sale By:</p><p class="text-[9px] text-red-800">销售者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+            <div><p class="font-bold">Recorded by:</p><p class="text-[9px] text-red-800">记录者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+            <div><p class="font-bold">Checked by:</p><p class="text-[9px] text-red-800">检查者</p><div class="mt-6 border-b border-red-700/60 w-3/4 mx-auto"></div></div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      notify("Pop-up blocked. Please allow pop-ups for this site.");
+    }
+  }
 
   function load() {
     api
@@ -163,12 +441,27 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .catch(() => notify("Failed to load slot tables"));
   }, [poType]);
 
-  function save() {
-    if (!form.quantity || !form.unit_cost) {
-      notify("Please fill in Qty and Unit Cost");
-      return;
-    }
+  function openEditPoModal(po: PurchaseOrderData) {
+    setEditingPoId(po.id);
+    setForm({
+      purchase_source: (po.po_type as "OVERSEA" | "LOCAL" | "BUYBACK") || "OVERSEA",
+      vendor_type: "Swiss",
+      vendor_name: po.supplier_name || "",
+      customer_name: po.supplier_name || "",
+      spot_price: po.spot_price ? String(po.spot_price) : "4376.2",
+      premium: po.premium ? String(po.premium) : "200",
+      amount_kg: String(po.quantity || 1),
+      quantity: String(po.quantity || 1),
+      unit_cost: String(po.unit_cost || 140786.078),
+      currency: "USD",
+      order_date: po.order_date || new Date().toISOString().split("T")[0],
+      expected_date: po.expected_date || "",
+      notes: po.notes || "",
+    });
+    setIsOpen(true);
+  }
 
+  function save() {
     let supplierName = "";
     if (form.purchase_source === "OVERSEA") {
       supplierName = `${form.vendor_type} Refining Corp`;
@@ -186,28 +479,63 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       supplierName = `Customer Buy-back · ${form.customer_name}`;
     }
 
-    const qty = Number(form.quantity);
-    const cost = Number(form.unit_cost);
-    const newPo: PurchaseOrderData = {
-      id: Date.now(),
-      po_no: `PO-2026-${String(rows.length + 1).padStart(3, "0")}`,
-      po_type: form.purchase_source,
-      supplier_name: supplierName,
-      quantity: qty,
-      unit_cost: cost,
-      total_cost: qty * cost,
-      currency: "USD",
-      status: "AWAITING_RECEIPT",
-      order_date: form.order_date || new Date().toISOString().split("T")[0],
-      expected_date: form.expected_date || new Date().toISOString().split("T")[0],
-      received_date: null,
-      notes: form.notes || null,
-    };
+    const spotPrice = Number(form.spot_price) || 4376.2;
+    const premium = Number(form.premium) || 200;
+    const qty = Number(form.amount_kg) || Number(form.quantity) || 1.0;
+    const unitCost = (spotPrice * 32.148) + premium;
+    const totalCost = qty * unitCost;
 
-    setRows((r) => [newPo, ...r]);
+    if (editingPoId !== null) {
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === editingPoId
+            ? {
+              ...r,
+              po_type: form.purchase_source,
+              supplier_name: supplierName,
+              quantity: qty,
+              spot_price: spotPrice,
+              premium: premium,
+              unit_cost: unitCost,
+              total_cost: totalCost,
+              order_date: form.order_date || r.order_date,
+              notes: form.notes || null,
+            }
+            : r
+        )
+      );
+      notify("Purchase order updated successfully!");
+      setEditingPoId(null);
+    } else {
+      const newPo: PurchaseOrderData = {
+        id: Date.now(),
+        po_no: `PO-2026-${String(rows.length + 1).padStart(3, "0")}`,
+        po_type: form.purchase_source,
+        supplier_name: supplierName,
+        quantity: qty,
+        spot_price: spotPrice,
+        premium: premium,
+        unit_cost: unitCost,
+        total_cost: totalCost,
+        currency: "USD",
+        status: "ORDERED",
+        order_date: form.order_date || new Date().toISOString().split("T")[0],
+        expected_date: form.order_date || new Date().toISOString().split("T")[0],
+        received_date: null,
+        notes: form.notes || null,
+      };
+
+      setRows((r) => [newPo, ...r]);
+      notify(`New ${form.purchase_source.toLowerCase()} purchase order created!`);
+    }
+
     setForm(emptyForm);
     setIsOpen(false);
-    notify(`New ${form.purchase_source.toLowerCase()} purchase order created!`);
+  }
+
+  function markConfirmed(po: PurchaseOrderData) {
+    setRows((r) => r.map((row) => (row.id === po.id ? { ...row, status: "CONFIRMED" } : row)));
+    notify(`${po.po_no} status changed to Confirmed`);
   }
 
   function markOrdered(po: PurchaseOrderData) {
@@ -248,6 +576,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       attachment_name: "",
       notes: "",
     });
+  }
+
+  function submitReceive() {
+    if (!receiveTarget) return;
+    receive(receiveTarget);
+    setReceiveTarget(null);
   }
 
   function submitReceiveGoods() {
@@ -340,40 +674,55 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
   return (
     <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-shrink-0">
-        <StatCard
-          icon={Package}
-          label="Total Purchases"
-          value={activeRows.length > 0 ? activeRows.length : 18}
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={Clock}
-          label="Awaiting Receipt"
-          value={draftCount > 0 ? draftCount : 4}
-          tint="bg-amber-50 text-amber-600"
-        />
-        <StatCard
-          icon={Globe}
-          label="Oversea (KG)"
-          value={
-            <>
-              {poType === "OVERSEA" && totalQuantity > 0 ? totalQuantity.toFixed(0) : 620}{" "}
-              <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          tint="bg-blue-50 text-blue-600"
-        />
-        <StatCard
-          icon={RotateCcw}
-          label="Customer Buy-back (KG)"
-          value={
-            <>
-              96 <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          tint="bg-emerald-50 text-emerald-600"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0">
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <Globe size={16} className="text-slate-500 shrink-0" />
+            <span>Oversea</span>
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {poType === "OVERSEA" && totalQuantity > 0 ? totalQuantity.toFixed(0) : "620"}
+            </span>
+            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <MapPin size={16} className="text-slate-500 shrink-0" />
+            <span>Local</span>
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {poType === "LOCAL" && totalQuantity > 0 ? totalQuantity.toFixed(0) : "18"}
+            </span>
+            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <RotateCcw size={16} className="text-slate-500 shrink-0" />
+            <span>Buy-back</span>
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">96</span>
+            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <Clock size={16} className="text-slate-500 shrink-0" />
+            <span>Pending PO</span>
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {draftCount > 0 ? draftCount : 4}
+            </span>
+          </div>
+        </div>
       </div>
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex-shrink-0">
@@ -394,8 +743,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   onClick={() => setSourceFilter("ALL")}
                   className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "ALL"
-                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
                     }`}
                 >
                   All Sources
@@ -403,8 +752,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   onClick={() => setSourceFilter("OVERSEA")}
                   className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "OVERSEA"
-                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
                     }`}
                 >
                   Oversea
@@ -412,8 +761,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   onClick={() => setSourceFilter("LOCAL")}
                   className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "LOCAL"
-                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
                     }`}
                 >
                   Local
@@ -421,8 +770,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   onClick={() => setSourceFilter("BUYBACK")}
                   className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "BUYBACK"
-                      ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                      : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
+                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
+                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
                     }`}
                 >
                   Buy-back
@@ -441,91 +790,217 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+              <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                 {[
                   "PO No",
-                  "Source",
+                  "Type",
                   "Party",
-                  "Qty (KG)",
-                  "Unit Cost",
-                  "Total",
-                  "Status",
+                  "Amount (KG)",
+                  "Spot Price",
+                  "Premium",
+                  "Total Price",
                   "Order Date",
+                  "Status",
                   "Actions",
                 ].map((h) => (
-                  <th key={h} className={`px-5 py-2.5 font-medium whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
+                  <th key={h} className={`px-5 py-2.5 font-bold text-black whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
                     {h}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filteredNumericRows.map((r) => (
-                <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/60">
-                  <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">{r.po_no}</td>
-                  <td className="px-5 py-2 text-slate-600 font-medium text-slate-800">
-                    {r.supplier_name || "—"}
+              {filteredNumericRows.map((r, idx) => (
+                <tr
+                  key={r.id}
+                  className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
+                    }`}
+                >
+                  <td className="px-5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{r.po_no}</td>
+                  <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
+                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Buy-back"}
                   </td>
-                  <td className="px-5 py-2 text-slate-600">{r.slot_table_name || "—"}</td>
-                  <td className="px-5 py-2 text-slate-700 font-medium">{r.quantity.toFixed(2)} KG</td>
-                  <td className="px-5 py-2 text-slate-600">
-                    {r.currency} {r.unit_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{r.supplier_name || "—"}</td>
+                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)}</td>
+                  <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
+                    {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
                   </td>
-                  <td className="px-5 py-2 font-medium text-slate-800">
-                    {r.currency} {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
+                    {r.premium !== undefined && r.premium !== null ? r.premium.toLocaleString() : "200"}
                   </td>
-                  <td className="px-5 py-2">
-                    <StatusBadge
-                      status={
-                        r.status === "AWAITING_RECEIPT"
-                          ? "Awaiting Receipt"
-                          : titleCase(r.status)
-                      }
-                    />
+                  <td className="px-5 py-2.5 font-bold text-slate-900 whitespace-nowrap">
+                    {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                   </td>
-                  <td className="px-5 py-2 text-slate-500 whitespace-nowrap">
-                    {r.order_date || "—"}
+                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{r.order_date || "—"}</td>
+                  <td className="px-5 py-2.5 whitespace-nowrap">
+                    <StatusBadge status={titleCase(r.status)} />
                   </td>
                   <td className="px-5 py-2 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      {r.status !== "RECEIVED" ? (
+                    <div className="flex items-center justify-center">
+                      {/* Three Dots Menu Dropdown */}
+                      <div className="relative inline-block">
                         <button
-                          onClick={() => openReceiveModal(r)}
-                          className="text-xs px-2.5 py-1 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-xs transition-colors cursor-pointer"
-                          title="Receive goods"
+                          type="button"
+                          onClick={() => setActiveMenuId(activeMenuId === r.id ? null : r.id)}
+                          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                          title="Actions"
                         >
-                          Receive
+                          <MoreHorizontal size={15} />
                         </button>
-                      ) : (
-                        <div className="relative inline-block">
-                          <button
-                            onClick={() => setActiveMenuId(activeMenuId === r.id ? null : r.id)}
-                            className="p-1 rounded-md border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
-                            title="Actions"
-                          >
-                            <MoreHorizontal size={15} />
-                          </button>
-                          {activeMenuId === r.id && (
-                            <>
-                              <div
-                                className="fixed inset-0 z-20"
-                                onClick={() => setActiveMenuId(null)}
-                              />
-                              <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border border-slate-200/80 py-1 z-30 text-xs text-left">
+                        {activeMenuId === r.id && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-20"
+                              onClick={() => setActiveMenuId(null)}
+                            />
+                            <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100">
+                              <div className="py-0.5 space-y-0.5">
+                                {/* 1. Change Status (Side Popover Submenu) */}
+                                {(() => {
+                                  const isReceiveDisabled = r.status === "RECEIVED" || r.status === "CANCELLED";
+                                  const isSubOpen = showStatusSubMenuId === r.id;
+                                  return (
+                                    <div className="relative">
+                                      <button
+                                        type="button"
+                                        disabled={isReceiveDisabled}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (isReceiveDisabled) return;
+                                          setShowStatusSubMenuId(isSubOpen ? null : r.id);
+                                        }}
+                                        className={`w-full flex items-center justify-between px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
+                                            ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                            : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
+                                          }`}
+                                        title={isReceiveDisabled ? "Status cannot be changed" : "Change Status"}
+                                      >
+                                        <span className="flex items-center gap-2">
+                                          <CheckCircle2 size={14} /> Change Status
+                                        </span>
+                                        <span className="text-[10px] text-slate-400">◀</span>
+                                      </button>
+
+                                      {/* Popover container attached next to Change Status button */}
+                                      {isSubOpen && (
+                                        <div className="absolute right-full top-0 mr-2 w-36 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-40 animate-in fade-in zoom-in duration-150">
+                                          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                            Status
+                                          </div>
+                                          <div className="space-y-1">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowStatusSubMenuId(null);
+                                                setActiveMenuId(null);
+                                                markConfirmed(r);
+                                              }}
+                                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "CONFIRMED"
+                                                  ? "bg-blue-100 text-blue-800"
+                                                  : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                                                }`}
+                                            >
+                                              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span> Confirmed
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowStatusSubMenuId(null);
+                                                setActiveMenuId(null);
+                                                openReceiveModal(r);
+                                              }}
+                                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "RECEIVED"
+                                                  ? "bg-emerald-100 text-emerald-800"
+                                                  : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                                                }`}
+                                            >
+                                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> Received
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+
+                                {/* 2. View Invoice */}
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setActiveMenuId(null);
-                                    notify(`Opening Purchase Invoice for ${r.po_no}`);
+                                    openInvoiceInNewTab(r);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3 py-2 text-indigo-600 hover:bg-indigo-50 font-medium transition-colors text-left cursor-pointer"
+                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-indigo-600 hover:bg-indigo-50 font-semibold transition-colors text-left cursor-pointer"
                                 >
-                                  <FileText size={13} /> View Invoice
+                                  <FileText size={14} /> View Invoice
                                 </button>
+
+                                {/* 3. Print / Export PDF */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveMenuId(null);
+                                    printInvoiceDirectly(r);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-100/70 font-medium transition-colors text-left cursor-pointer"
+                                >
+                                  <Printer size={14} /> Print / Export PDF
+                                </button>
+
+                                {/* 4. Edit PO */}
+                                {(() => {
+                                  const isEditDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={isEditDisabled}
+                                      onClick={() => {
+                                        if (isEditDisabled) return;
+                                        setActiveMenuId(null);
+                                        openEditPoModal(r);
+                                      }}
+                                      className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isEditDisabled
+                                        ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                        : "text-slate-700 hover:bg-slate-100/70 cursor-pointer"
+                                        }`}
+                                      title={isEditDisabled ? "Orders with Received or Confirmed status cannot be edited" : "Edit PO"}
+                                    >
+                                      <Pencil size={14} /> Edit PO
+                                    </button>
+                                  );
+                                })()}
                               </div>
-                            </>
-                          )}
-                        </div>
-                      )}
+
+                              {/* 5. Cancel Order */}
+                              <div className="pt-1">
+                                {(() => {
+                                  const isCancelDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                  return (
+                                    <button
+                                      type="button"
+                                      disabled={isCancelDisabled}
+                                      onClick={() => {
+                                        if (isCancelDisabled) return;
+                                        setActiveMenuId(null);
+                                        cancel(r);
+                                      }}
+                                      className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isCancelDisabled
+                                        ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                        : "text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                        }`}
+                                      title={isCancelDisabled ? "Orders with Received or Confirmed status cannot be cancelled" : "Cancel Order"}
+                                    >
+                                      <XCircle size={14} /> Cancel Order
+                                    </button>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -562,8 +1037,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "OVERSEA" })}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "OVERSEA"
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
                   Oversea
@@ -572,8 +1047,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "LOCAL" })}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "LOCAL"
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
                   Local
@@ -582,8 +1057,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "BUYBACK" })}
                   className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "BUYBACK"
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
                   Buy-back
@@ -600,8 +1075,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         type="button"
                         onClick={() => setForm({ ...form, vendor_type: vt })}
                         className={`py-2 text-xs font-medium rounded-lg border transition-all ${form.vendor_type === vt
-                            ? "border-indigo-600 bg-indigo-50/50 text-indigo-600 font-semibold"
-                            : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          ? "border-indigo-600 bg-indigo-50/50 text-indigo-600 font-semibold"
+                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
                           }`}
                       >
                         {vt}
@@ -631,41 +1106,61 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     type="text"
                     value={form.customer_name}
                     onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                    placeholder="Enter customer name..."
+                    placeholder="fill customer name"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               )}
 
+              {/* Order Date (Placed under Vendor) */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
+                <input
+                  type="date"
+                  value={form.order_date}
+                  onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Spot Price & Premium */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Qty (KG) *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Spot Price *</label>
                   <input
                     type="text"
-                    value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: e.target.value.replace(/[^0-9.]/g, "") })}
+                    value={form.spot_price}
+                    onChange={(e) => setForm({ ...form, spot_price: e.target.value.replace(/[^0-9.]/g, "") })}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
+                  <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1">
+                    <span>Conversion factor:</span> <span className="font-semibold text-indigo-600">32.148</span>
+                  </p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit Cost ($/KG) *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium *</label>
                   <input
                     type="text"
-                    value={form.unit_cost}
-                    onChange={(e) => setForm({ ...form, unit_cost: e.target.value.replace(/[^0-9.]/g, "") })}
+                    value={form.premium}
+                    onChange={(e) => setForm({ ...form, premium: e.target.value.replace(/[^0-9.]/g, "") })}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
+              {/* Amount (KG) */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Receive Date *</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Amount (KG) *</label>
                 <input
-                  type="date"
-                  value={form.order_date}
-                  onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+                  type="text"
+                  value={form.amount_kg}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9.]/g, "");
+                    setForm({ ...form, amount_kg: val, quantity: val });
+                  }}
+                  placeholder="0.00"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
@@ -695,9 +1190,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <button
                 type="button"
                 onClick={save}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none"
+                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={15} /> Save PO
+                <Plus size={15} /> Make PO
               </button>
             </div>
           </div>
@@ -871,6 +1366,187 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
               >
                 <PackageCheck size={16} /> Receive
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* E-INVOICE / PURCHASE SLIP MODAL */}
+      {invoiceModalPo && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
+          <div className="bg-[#fffcf5] rounded-none border border-red-800 shadow-none w-[148mm] max-w-[148mm] overflow-hidden transform scale-100 transition-transform my-6 text-red-950 font-sans">
+
+            {/* Modal Header Bar */}
+            <div className="p-2.5 bg-red-900 text-white flex items-center justify-between border-b border-red-800">
+              <div className="flex items-center gap-2 text-xs font-bold tracking-wide">
+                <FileText size={16} /> A5 PURCHASE SLIP #{invoiceModalPo.po_no}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-2.5 py-1 bg-red-800 hover:bg-red-700 rounded-none text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  Print A5
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceModalPo(null)}
+                  className="p-1 rounded-none text-red-200 hover:text-white hover:bg-red-800 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Slip Paper Container */}
+            <div className="p-6 md:p-8 space-y-5 bg-[#fffcf5]">
+
+              {/* Slip Top Header */}
+              <div className="flex flex-col sm:flex-row items-start justify-between gap-4 border-b-2 border-red-800/40 pb-4">
+                {/* Logo & Company Info */}
+                <div className="flex items-start gap-3">
+                  <div className="w-14 h-14 rounded-full border-2 border-red-700 flex items-center justify-center bg-red-50 text-red-700 font-bold shrink-0 shadow-xs">
+                    <div className="w-10 h-10 border-2 border-red-700 rounded-full flex items-center justify-center relative">
+                      <div className="w-5 h-5 border border-red-700 rotate-45"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <h2 className="font-black text-xl text-red-700 tracking-tight leading-tight">
+                      CHHAY VANN CO.,LTD
+                    </h2>
+                    <p className="text-[11px] text-red-800 font-medium">Physical Gold Trading</p>
+                    <div className="text-[10px] text-red-900/80 leading-snug mt-1 space-y-0.5">
+                      <p>Add: #31, St. 286, S/K. Olympic, Khan Chamkarmon, Phnom Penh, Cambodia.</p>
+                      <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
+                      <p>Email: Chhayvann.co.ltd@gmail.com</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Meta Info */}
+                <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 border-red-200 pt-2 sm:pt-0">
+                  <div className="inline-block text-xs font-bold text-red-800 border-b-2 border-red-800 pb-0.5 mb-2">
+                    Physical
+                  </div>
+                  <div className="text-xs text-red-900 font-medium space-y-1">
+                    <p>Re. No.: <span className="font-mono font-bold text-red-700 text-sm">A {invoiceModalPo.po_no.replace("PO-2026-", "0062")}</span></p>
+                    <p>Date: <span className="font-semibold text-slate-900">{invoiceModalPo.order_date || new Date().toISOString().split("T")[0]}</span></p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slip Center Title */}
+              <div className="text-center py-1">
+                <h1 className="text-xl font-black text-red-700 tracking-wider uppercase">PURCHASE SLIP</h1>
+                <p className="text-xs font-bold text-red-800 tracking-widest">卖单</p>
+              </div>
+
+              {/* Customer / Party Info Box */}
+              <div className="border border-red-700 rounded-lg p-3 bg-red-50/20 space-y-2 text-xs text-red-900">
+                <div className="flex items-center justify-between border-b border-red-200 pb-1.5">
+                  <span className="font-semibold">Customer Name / 客户名:</span>
+                  <span className="font-bold text-slate-900 text-sm">{invoiceModalPo.supplier_name || "ABC"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">Phone Number / 电话号码:</span>
+                  <span className="font-mono text-slate-800">+855 12 345 678</span>
+                </div>
+              </div>
+
+              {/* Purchase Slip Details Table */}
+              <div className="border border-red-700 rounded-lg overflow-hidden">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="bg-red-100/70 border-b border-red-700 text-red-900 font-bold text-center">
+                      <th className="p-2 border-r border-red-700">
+                        <div>Collected Date</div>
+                        <div className="text-[10px] font-normal text-red-800">取货日期</div>
+                      </th>
+                      <th className="p-2 border-r border-red-700">
+                        <div>London Time</div>
+                        <div className="text-[10px] font-normal text-red-800">伦敦价格</div>
+                      </th>
+                      <th className="p-2 border-r border-red-700">
+                        <div>Premium</div>
+                        <div className="text-[10px] font-normal text-red-800">加价</div>
+                      </th>
+                      <th className="p-2 border-r border-red-700">
+                        <div>Amount</div>
+                        <div className="text-[10px] font-normal text-red-800">数量</div>
+                      </th>
+                      <th className="p-2">
+                        <div>Price</div>
+                        <div className="text-[10px] font-normal text-red-800">价格</div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-200 text-slate-900 text-center font-medium">
+                    <tr className="bg-white">
+                      <td className="p-2.5 border-r border-red-200 font-semibold">
+                        {invoiceModalPo.order_date ? invoiceModalPo.order_date.replace(/-/g, " . ") : "15 . 08 . 2026"}
+                      </td>
+                      <td className="p-2.5 border-r border-red-200">
+                        <div><span className="font-bold text-sm">{(invoiceModalPo.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                        <div className="text-[10px] text-slate-500 italic">(Spot price)</div>
+                      </td>
+                      <td className="p-2.5 border-r border-red-200 font-semibold text-rose-700">
+                        {invoiceModalPo.premium !== undefined && invoiceModalPo.premium !== null ? `${invoiceModalPo.premium > 0 ? "+" : ""}${invoiceModalPo.premium}` : "+200"}
+                      </td>
+                      <td className="p-2.5 border-r border-red-200 font-bold">
+                        {invoiceModalPo.quantity || 1.00} <span className="text-xs font-normal text-slate-600">(CDB) Kg</span>
+                      </td>
+                      <td className="p-2.5 font-black text-sm text-red-700">
+                        {(invoiceModalPo.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 })} <span className="text-xs font-normal text-slate-700">USD</span>
+                      </td>
+                    </tr>
+                    <tr className="bg-red-50/10 h-7 text-slate-400">
+                      <td className="border-r border-red-200">.</td>
+                      <td className="border-r border-red-200"></td>
+                      <td className="border-r border-red-200"></td>
+                      <td className="border-r border-red-200 text-xs">Kg</td>
+                      <td className="text-xs">USD</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                {/* Notes section */}
+                <div className="p-2.5 border-t border-red-700 bg-red-50/20 text-xs text-red-900">
+                  <span className="font-semibold">Other / 其它:</span> &nbsp;
+                  <span className="text-slate-800 italic">{invoiceModalPo.notes || "Physical gold trade purchase order verified."}</span>
+                </div>
+              </div>
+
+              {/* Signatures Row */}
+              <div className="grid grid-cols-3 gap-4 pt-6 text-center text-xs text-red-900 font-medium">
+                <div>
+                  <p className="font-bold">Sale By:</p>
+                  <p className="text-[10px] text-red-800">销售者</p>
+                  <div className="mt-8 border-b border-red-700/60 w-3/4 mx-auto"></div>
+                </div>
+                <div>
+                  <p className="font-bold">Recorded by:</p>
+                  <p className="text-[10px] text-red-800">记录者</p>
+                  <div className="mt-8 border-b border-red-700/60 w-3/4 mx-auto"></div>
+                </div>
+                <div>
+                  <p className="font-bold">Checked by:</p>
+                  <p className="text-[10px] text-red-800">检查者</p>
+                  <div className="mt-8 border-b border-red-700/60 w-3/4 mx-auto"></div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 bg-red-50 border-t border-red-200 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setInvoiceModalPo(null)}
+                className="px-4 py-2 rounded-lg border border-red-300 text-red-800 hover:bg-red-100 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Close
               </button>
             </div>
           </div>

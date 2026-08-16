@@ -88,6 +88,7 @@ export default function App() {
         <main className="flex-1 min-w-0 overflow-hidden w-full flex flex-col">
           {page === "purchase" && <PurchaseOrdersPage poType="LOCAL" notify={notify} />}
           {page === "buy-back-slots" && <SlotsPage mode="buyback" notify={notify} />}
+          {page === "sell-slots-premium" && <SlotsPage mode="sell" notify={notify} />}
           {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
           {page === "inventory-ledger" && <InventoryPage notify={notify} />}
