@@ -16,6 +16,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     Inactive: "bg-rose-50 text-rose-700",
     Draft: "bg-slate-100 text-slate-500",
     Ordered: "bg-blue-50 text-blue-700",
+    Incoming: "bg-blue-50 text-blue-700",
     Received: "bg-emerald-50 text-emerald-700",
     "Awaiting Receipt": "bg-amber-50 text-amber-700",
     Returned: "bg-rose-50 text-rose-700",

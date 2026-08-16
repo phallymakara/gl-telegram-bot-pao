@@ -67,6 +67,11 @@ export interface OrderData {
   transaction_type: string;
   status: string;
   created_at: string;
+  channel?: string;
+  order_source?: string;
+  order_date?: string;
+  spot_price?: number;
+  total_amount?: number;
 }
 
 export interface SlotRowData {
@@ -155,10 +160,10 @@ export interface PurchaseOrderData {
   id: number;
   po_no: string;
   po_type: string;
-  supplier_id: number | null;
+  supplier_id?: number | null;
   supplier_name: string | null;
-  slot_table_id: number;
-  slot_table_name: string | null;
+  slot_table_id?: number;
+  slot_table_name?: string | null;
   quantity: number;
   unit_cost: number;
   total_cost: number;

@@ -39,47 +39,25 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
 
-      {/* 1. INVENTORY OVERVIEW */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 1. OVERVIEW STAT CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard
           icon={Package}
-          label="Physical"
+          label="Physical Stock"
           value={
             <>
-              {physicalStock} <span className="text-sm font-normal text-slate-400">KG</span>
+              100.0 <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
-          sub="Total physical stock"
+          sub="Current inventory"
           tint="bg-blue-50 text-blue-600"
         />
         <StatCard
-          icon={Lock}
-          label="Reserved"
-          value={
-            <>
-              {reservedStock} <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Confirmed pending orders"
+          icon={Truck}
+          label="Incoming PO"
+          value="5"
+          sub="Awaiting receipt"
           tint="bg-amber-50 text-amber-600"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label="Available"
-          value={
-            <>
-              {availableStock} <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Physical − Reserved"
-          tint="bg-emerald-50 text-emerald-600"
-        />
-        <StatCard
-          icon={ShoppingBag}
-          label="Open Orders"
-          value={openOrdersCount}
-          sub="Active open orders"
-          tint="bg-purple-50 text-purple-600"
         />
       </div>
 
@@ -168,38 +146,6 @@ export default function DashboardPage() {
             <span className="text-base font-black text-indigo-700">38.7 KG</span>
           </div>
         </Card>
-      </div>
-
-      {/* 3. ORDER ACTIVITY */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <Clock size={15} className="text-indigo-600" /> Order Activity
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <StatCard
-            icon={Clock}
-            label="Pending"
-            value="5"
-            sub="Awaiting confirmation"
-            tint="bg-amber-50 text-amber-600"
-          />
-          <StatCard
-            icon={CheckCircle2}
-            label="Confirmed"
-            value="7"
-            sub="Processing / Reserved"
-            tint="bg-sky-50 text-sky-600"
-          />
-          <StatCard
-            icon={Truck}
-            label="Delivered"
-            value="23"
-            sub="Completed deliveries"
-            tint="bg-emerald-50 text-emerald-600"
-          />
-        </div>
       </div>
 
     </div>

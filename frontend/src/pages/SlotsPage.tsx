@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Calendar, Trash2, Pencil, MoreHorizontal, X, Save, Check } from "lucide-react";
+import { Plus, Calendar, Trash2, Pencil, MoreHorizontal, X, Save, Check, Package, Truck } from "lucide-react";
 import Card from "../components/Card";
 import { api, SlotTableData } from "../data/api";
 
@@ -59,6 +59,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   const [selectedSlotType, setSelectedSlotType] = useState<"BUY" | "SELL">(
     mode === "sell" ? "SELL" : "BUY"
   );
+  const [incomingDate, setIncomingDate] = useState(new Date().toISOString().split("T")[0]);
 
   const [buyTables, setBuyTables] = useState<BuyTableItem[]>(INITIAL_BUY_TABLES);
   const [sellTables, setSellTables] = useState<SellTableItem[]>(INITIAL_SELL_TABLES);
@@ -373,6 +374,42 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
           <Plus size={16} /> Add Table
         </button>
       </div>
+
+      {/* 2-Card Container for Current Physical Stock and Incoming (Sell Slot only) */}
+      {selectedSlotType === "SELL" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
+          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+              <Package size={16} className="text-slate-500 shrink-0" />
+              <span>Current Physical Stock</span>
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl font-bold text-slate-800">20.5</span>
+              <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+                <Truck size={16} className="text-slate-500 shrink-0" />
+                <span>Incoming</span>
+              </div>
+              <input
+                type="date"
+                aria-label="Incoming date filter"
+                value={incomingDate}
+                onChange={(e) => setIncomingDate(e.target.value)}
+                className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
+              />
+            </div>
+            <div className="mt-2.5 flex items-baseline">
+              <span className="text-2xl font-bold text-slate-800">18.2</span>
+              <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content View */}
       {selectedSlotType === "SELL" ? (
@@ -758,7 +795,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 <input
                   type="text"
                   value={buyRowForm.premium}
-                  onChange={(e) => setBuyRowForm({ ...buyRowForm, premium: e.target.value.replace(/[^0-9.]/g, "") })}
+                  onChange={(e) => setBuyRowForm({ ...buyRowForm, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
                   placeholder="300.00"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
@@ -829,7 +866,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   <input
                     type="text"
                     value={sellRowForm.premium}
-                    onChange={(e) => setSellRowForm({ ...sellRowForm, premium: e.target.value.replace(/[^0-9.]/g, "") })}
+                    onChange={(e) => setSellRowForm({ ...sellRowForm, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
                     placeholder="300.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />

@@ -36,7 +36,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: "master-stock", label: "Master & Stock", icon: Layers, children: [
       { id: "inventory-ledger", label: "Inventory Ledger", icon: Archive },
-      { id: "contact", label: "Contact", icon: Users },
     ]
   },
   { id: "user-management", label: "User Management", icon: User },
@@ -59,7 +58,6 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
   "master-stock": ["Dashboard", "Master & Stock"],
   "inventory-ledger": ["Dashboard", "Master & Stock", "Inventory Ledger"],
-  "contact": ["Dashboard", "Master & Stock", "Contact"],
   "platform-orders": ["Dashboard", "Orders", "Platform Orders"],
   "physical-orders": ["Dashboard", "Orders", "Physical Orders"],
   "po-local": ["Dashboard", "Purchase Orders", "Local PO"],
@@ -89,7 +87,6 @@ export const TOPBAR_ICON: Record<string, any> = {
   "invoice": "menu",
   "delivery-notes": "menu",
   "inventory-ledger": "menu",
-  "contact": "menu",
   "platform-orders": "menu",
   "physical-orders": "menu",
   "po-local": "menu",
@@ -114,7 +111,6 @@ export const PAGE_TITLE: Record<string, string> = {
   "sell-orders": "Sell Orders",
   "delivery-notes": "Delivery Notes",
   "inventory-ledger": "Inventory Ledger",
-  "contact": "Contact Directory & Customers",
   "platform-orders": "Platform Orders",
   "physical-orders": "Physical Orders",
   "po-local": "Local Purchase Orders",

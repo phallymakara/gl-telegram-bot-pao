@@ -5,7 +5,6 @@ import Topbar from "./layouts/Topbar";
 import GoodsReceiptPage from "./pages/GoodsReceiptPage";
 import InvoicePage from "./pages/InvoicePage";
 import DeliveryNotesPage from "./pages/DeliveryNotesPage";
-import ContactsPage from "./pages/ContactsPage";
 import ReportsPage from "./pages/ReportsPage";
 import DashboardPage from "./pages/DashboardPage";
 import PlatformOrdersPage from "./pages/PlatformOrdersPage";
@@ -56,7 +55,6 @@ export default function App() {
     page === "invoice" ||
     page === "delivery-notes" ||
     page === "inventory-ledger" ||
-    page === "contact" ||
     page === "reports" ||
     page === "low-stock-alerts" ||
     page === "discount-promotions" ||
@@ -92,7 +90,6 @@ export default function App() {
           {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
           {page === "inventory-ledger" && <InventoryPage notify={notify} />}
-          {page === "contact" && <ContactsPage notify={notify} />}
           {page === "reports" && <ReportsPage notify={notify} />}
 
           {page === "platform-orders" && <PlatformOrdersPage notify={notify} />}

@@ -107,7 +107,7 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     unit_cost: 140993.96,
     total_cost: 704969.80,
     currency: "USD",
-    status: "ORDERED",
+    status: "INCOMING",
     order_date: "2026-08-13",
     expected_date: "2026-08-18",
     received_date: null,
@@ -133,6 +133,106 @@ const defaultPurchaseRows: PurchaseOrderData[] = [
     received_date: null,
     notes: "Telegram SELL order",
   },
+  {
+    id: 106,
+    po_no: "PO-2026-006",
+    po_type: "LOCAL",
+    supplier_id: 3,
+    supplier_name: "SV Trading",
+    slot_table_id: 2,
+    slot_table_name: "Local Gold Bar 99.99%",
+    quantity: 3.00,
+    spot_price: 4374.5,
+    premium: 180,
+    unit_cost: 140763.30,
+    total_cost: 422289.90,
+    currency: "USD",
+    status: "INCOMING",
+    order_date: "2026-08-11",
+    expected_date: "2026-08-17",
+    received_date: null,
+    notes: "Local refinery batch dispatch",
+  },
+  {
+    id: 107,
+    po_no: "PO-2026-007",
+    po_type: "OVERSEA",
+    supplier_id: 6,
+    supplier_name: "Valcambi Suisse",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 10.00,
+    spot_price: 4380.0,
+    premium: 220,
+    unit_cost: 141028.24,
+    total_cost: 1410282.40,
+    currency: "USD",
+    status: "INCOMING",
+    order_date: "2026-08-10",
+    expected_date: "2026-08-19",
+    received_date: null,
+    notes: "Swiss air cargo logistics",
+  },
+  {
+    id: 108,
+    po_no: "PO-2026-008",
+    po_type: "BUYBACK",
+    supplier_id: 7,
+    supplier_name: "Heng Ty Gold",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 0.50,
+    spot_price: 4368.0,
+    premium: 120,
+    unit_cost: 140542.10,
+    total_cost: 70271.05,
+    currency: "USD",
+    status: "RECEIVED",
+    order_date: "2026-08-09",
+    expected_date: "2026-08-09",
+    received_date: "2026-08-09",
+    notes: "Over-the-counter buyback",
+  },
+  {
+    id: 109,
+    po_no: "PO-2026-009",
+    po_type: "LOCAL",
+    supplier_id: 8,
+    supplier_name: "Phnom Penh Refinery",
+    slot_table_id: 2,
+    slot_table_name: "Local Gold Bar 99.99%",
+    quantity: 4.00,
+    spot_price: 4372.0,
+    premium: 160,
+    unit_cost: 140685.20,
+    total_cost: 562740.80,
+    currency: "USD",
+    status: "RECEIVED",
+    order_date: "2026-08-08",
+    expected_date: "2026-08-08",
+    received_date: "2026-08-08",
+    notes: "Vault deposit verified",
+  },
+  {
+    id: 110,
+    po_no: "PO-2026-010",
+    po_type: "OVERSEA",
+    supplier_id: 9,
+    supplier_name: "PAMP SA",
+    slot_table_id: 1,
+    slot_table_name: "99.99% Gold Kilobar",
+    quantity: 2.00,
+    spot_price: 4375.5,
+    premium: 210,
+    unit_cost: 140868.00,
+    total_cost: 281736.00,
+    currency: "USD",
+    status: "CANCELLED",
+    order_date: "2026-08-07",
+    expected_date: "2026-08-12",
+    received_date: null,
+    notes: "Supplier cancelled due to flight delay",
+  },
 ];
 
 function titleCase(status: string) {
@@ -141,7 +241,8 @@ function titleCase(status: string) {
 
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
   const [rows, setRows] = useState<PurchaseOrderData[]>([]);
-  const [sourceFilter, setSourceFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
@@ -157,6 +258,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [receiveForm, setReceiveForm] = useState({
     invoice_no: "",
     received_qty: "",
+    received_date: new Date().toISOString().split("T")[0],
     attachment_name: "",
     notes: "",
   });
@@ -480,7 +582,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     }
 
     const spotPrice = Number(form.spot_price) || 4376.2;
-    const premium = Number(form.premium) || 200;
+    const premium = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 200;
     const qty = Number(form.amount_kg) || Number(form.quantity) || 1.0;
     const unitCost = (spotPrice * 32.148) + premium;
     const totalCost = qty * unitCost;
@@ -518,7 +620,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         unit_cost: unitCost,
         total_cost: totalCost,
         currency: "USD",
-        status: "ORDERED",
+        status: "INCOMING",
         order_date: form.order_date || new Date().toISOString().split("T")[0],
         expected_date: form.order_date || new Date().toISOString().split("T")[0],
         received_date: null,
@@ -543,7 +645,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .post<PurchaseOrderData>(`/api/purchase-orders/${po.id}/mark-ordered`)
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
-        notify(`${po.po_no} marked as ordered`);
+        notify(`${po.po_no} marked as incoming`);
       })
       .catch((e: Error) => notify(e.message || "Failed to update purchase order"));
   }
@@ -573,6 +675,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     setReceiveForm({
       invoice_no: `INV-${po.po_no.replace("PO-", "")}`,
       received_qty: String(toNumber(po.quantity)),
+      received_date: po.received_date || new Date().toISOString().split("T")[0],
       attachment_name: "",
       notes: "",
     });
@@ -591,21 +694,23 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       return;
     }
     const qty = Number(receiveForm.received_qty) || toNumber(receiveTarget.quantity);
+    const recDate = receiveForm.received_date || new Date().toISOString().split("T")[0];
 
     api
       .post<PurchaseOrderData>(`/api/purchase-orders/${receiveTarget.id}/receive`, {
         invoice_no: receiveForm.invoice_no,
         received_qty: qty,
+        received_date: recDate,
         attachment: receiveForm.attachment_name,
         notes: receiveForm.notes,
       })
       .then((updated) => {
-        setRows((r) => r.map((row) => (row.id === updated.id ? { ...updated, status: "RECEIVED" } : row)));
+        setRows((r) => r.map((row) => (row.id === updated.id ? { ...updated, status: "RECEIVED", received_date: recDate } : row)));
         notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
         setReceiveTarget(null);
       })
       .catch(() => {
-        setRows((r) => r.map((row) => (row.id === receiveTarget.id ? { ...row, status: "RECEIVED" } : row)));
+        setRows((r) => r.map((row) => (row.id === receiveTarget.id ? { ...row, status: "RECEIVED", received_date: recDate } : row)));
         notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
         setReceiveTarget(null);
       });
@@ -640,19 +745,28 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const totalQuantity = numericRows.reduce((s, r) => s + r.quantity, 0);
   const receivedCount = numericRows.filter((r) => r.status === "RECEIVED").length;
   const draftCount = numericRows.filter(
-    (r) => r.status === "DRAFT" || r.status === "ORDERED" || r.status === "AWAITING_RECEIPT"
+    (r) => r.status === "DRAFT" || r.status === "ORDERED" || r.status === "INCOMING" || r.status === "AWAITING_RECEIPT"
   ).length;
 
   const filteredNumericRows = numericRows.filter((r) => {
-    if (sourceFilter === "OVERSEA" && r.po_type !== "OVERSEA") return false;
-    if (sourceFilter === "LOCAL" && r.po_type !== "LOCAL") return false;
-    if (sourceFilter === "BUYBACK") {
+    if (typeFilter === "OVERSEA" && r.po_type !== "OVERSEA") return false;
+    if (typeFilter === "LOCAL" && r.po_type !== "LOCAL") return false;
+    if (typeFilter === "BUYBACK") {
       const isBuyback =
         r.po_type === "BUYBACK" ||
         r.supplier_name?.toLowerCase().includes("buy-back") ||
         r.supplier_name?.toLowerCase().includes("telegram") ||
         r.notes?.toLowerCase().includes("telegram");
       if (!isBuyback) return false;
+    }
+
+    if (statusFilter !== "ALL") {
+      if (statusFilter === "INCOMING") {
+        const isIncoming = r.status === "INCOMING" || (r.status !== "RECEIVED" && r.status !== "CANCELLED");
+        if (!isIncoming) return false;
+      } else if (r.status?.toUpperCase() !== statusFilter.toUpperCase()) {
+        return false;
+      }
     }
 
     if (searchQuery.trim()) {
@@ -714,8 +828,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <Clock size={16} className="text-slate-500 shrink-0" />
-            <span>Pending PO</span>
+            <Truck size={16} className="text-slate-500 shrink-0" />
+            <span>Incoming PO</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
@@ -740,42 +854,30 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setSourceFilter("ALL")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "ALL"
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                    }`}
+                <select
+                  aria-label="Filter by Type"
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50/80 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs cursor-pointer"
                 >
-                  All Sources
-                </button>
-                <button
-                  onClick={() => setSourceFilter("OVERSEA")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "OVERSEA"
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                    }`}
+                  <option value="ALL">All Types</option>
+                  <option value="OVERSEA">Oversea</option>
+                  <option value="LOCAL">Local</option>
+                  <option value="BUYBACK">Buy-back</option>
+                </select>
+
+                <select
+                  aria-label="Filter by Status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50/80 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs cursor-pointer"
                 >
-                  Oversea
-                </button>
-                <button
-                  onClick={() => setSourceFilter("LOCAL")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "LOCAL"
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                    }`}
-                >
-                  Local
-                </button>
-                <button
-                  onClick={() => setSourceFilter("BUYBACK")}
-                  className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all border ${sourceFilter === "BUYBACK"
-                    ? "bg-indigo-50 text-indigo-700 border-indigo-200/80 shadow-xs"
-                    : "bg-slate-100/80 text-slate-600 border-slate-200/60 hover:bg-slate-200/70 hover:text-slate-800"
-                    }`}
-                >
-                  Buy-back
-                </button>
+                  <option value="ALL">All Statuses</option>
+                  <option value="INCOMING">Incoming</option>
+                  <option value="RECEIVED">Received</option>
+                  <option value="CONFIRMED">Confirmed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
               </div>
             </div>
 
@@ -800,6 +902,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   "Premium",
                   "Total Price",
                   "Order Date",
+                  "Receive Date",
                   "Status",
                   "Actions",
                 ].map((h) => (
@@ -832,6 +935,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                   </td>
                   <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{r.order_date || "—"}</td>
+                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{r.received_date || "—"}</td>
                   <td className="px-5 py-2.5 whitespace-nowrap">
                     <StatusBadge status={titleCase(r.status)} />
                   </td>
@@ -1143,7 +1247,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <input
                     type="text"
                     value={form.premium}
-                    onChange={(e) => setForm({ ...form, premium: e.target.value.replace(/[^0-9.]/g, "") })}
+                    onChange={(e) => setForm({ ...form, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
@@ -1308,6 +1412,18 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">KG</span>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                  Receive Date *
+                </label>
+                <input
+                  type="date"
+                  value={receiveForm.received_date}
+                  onChange={(e) => setReceiveForm({ ...receiveForm, received_date: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800"
+                />
               </div>
 
               <div>

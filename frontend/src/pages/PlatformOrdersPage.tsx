@@ -1,9 +1,8 @@
-import { Eye, FileText, MoreHorizontal, Pencil, PhoneCall, Plus, Printer, RotateCcw, Send, ShoppingCart, Store, Trash2, X, XCircle } from "lucide-react";
+import { Eye, FileText, MoreHorizontal, Package, Pencil, PhoneCall, Plus, Printer, RotateCcw, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
-import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import { api, OrderData, toNumber } from "../data/api";
 
@@ -23,6 +22,7 @@ export default function PlatformOrdersPage({
   const [editingOrder, setEditingOrder] = useState<OrderData | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<OrderData | null>(null);
+  const [incomingDate, setIncomingDate] = useState(new Date().toISOString().split("T")[0]);
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
     channel: "Walk-in",
@@ -367,6 +367,11 @@ export default function PlatformOrdersPage({
         total_amount: totalAmount,
         status: "CONFIRMED",
         order_date: new Date().toISOString().split("T")[0],
+        group_name: null,
+        slot_date: null,
+        premium_amount: qty * prem,
+        transaction_type: "SELL",
+        created_at: new Date().toISOString(),
       };
 
       setRows((r) => [newOrder, ...r]);
@@ -401,40 +406,37 @@ export default function PlatformOrdersPage({
       className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
       onClick={() => setActiveMenuId(null)}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
-        <StatCard
-          icon={ShoppingCart}
-          label="Sell Orders"
-          value={
-            <>
-              38.7 <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Total sell orders volume"
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={Send}
-          label="Telegram"
-          value={
-            <>
-              18.2 <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Direct bot orders"
-          tint="bg-sky-50 text-sky-600"
-        />
-        <StatCard
-          icon={Store}
-          label="Physical Order"
-          value={
-            <>
-              20.5 <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Desk, phone & walk-in sales"
-          tint="bg-emerald-50 text-emerald-600"
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <Package size={16} className="text-slate-500 shrink-0" />
+            <span>Current Physical Stock</span>
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">20.5</span>
+            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+              <Truck size={16} className="text-slate-500 shrink-0" />
+              <span>Incoming</span>
+            </div>
+            <input
+              type="date"
+              aria-label="Incoming date filter"
+              value={incomingDate}
+              onChange={(e) => setIncomingDate(e.target.value)}
+              className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
+            />
+          </div>
+          <div className="mt-2.5 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">18.2</span>
+            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
       </div>
 
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden h-full">
@@ -599,6 +601,7 @@ export default function PlatformOrdersPage({
                                   setNewOrderForm({
                                     customer_name: r.customer_name || "",
                                     channel: r.channel || "Walk-in",
+                                    spot_price: String(r.spot_price || "4376.50"),
                                     quantity: String(r.quantity),
                                     premium: String(r.premium),
                                     notes: "",

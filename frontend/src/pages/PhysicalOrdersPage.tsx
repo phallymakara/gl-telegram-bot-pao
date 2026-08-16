@@ -316,7 +316,7 @@ export default function PhysicalOrdersPage({
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      premium: e.target.value.replace(/[^0-9.]/g, ""),
+                      premium: e.target.value.replace(/[^0-9.-]/g, ""),
                     })
                   }
                   placeholder="Enter premium"
