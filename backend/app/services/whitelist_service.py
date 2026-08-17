@@ -62,8 +62,22 @@ def restricted(func):
         clean_username = username.strip().lower().lstrip("@") if username else ""
         str_tg_id = str(telegram_id).strip()
 
-        if not ((clean_username in allowed_list) or (str_tg_id in allowed_list)):
-            logger.warning("Unauthorized access attempt blocked | user_id=%s | username=%s", telegram_id, username)
+        is_allowed = (clean_username and clean_username in allowed_list) or (str_tg_id in allowed_list)
+
+        if not is_allowed:
+            logger.warning(
+                "Unauthorized access attempt blocked | user_id=%s | username=@%s | allowed_in_db=%s",
+                telegram_id,
+                username,
+                allowed_list,
+            )
+            print(
+                f"\n[SECURITY ALERT] Unauthorized Telegram user blocked!\n"
+                f"  - Telegram User ID : {telegram_id}\n"
+                f"  - Telegram Username: @{username if username else 'N/A'}\n"
+                f"  - Whitelist in DB  : {allowed_list}\n"
+                f"To allow this user, add Telegram ID '{telegram_id}' or username '{username}' to Whitelisted Customers in Admin Panel or DB.\n"
+            )
             lang = context.user_data.get("lang", "EN")
             unauth_msg = t("unauthorized", lang)
             if update.callback_query:
