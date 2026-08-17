@@ -4,7 +4,7 @@ import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
-import { api, OrderData, toNumber } from "../data/api";
+import { api, OrderData, DashboardStatsData, toNumber } from "../data/api";
 
 interface PlatformOrdersPageProps {
   notify: (msg: string) => void;
@@ -32,12 +32,24 @@ export default function PlatformOrdersPage({
     notes: "",
   });
 
-  useEffect(() => {
+  const [stats, setStats] = useState<DashboardStatsData | null>(null);
+
+  const load = () => {
     api
-      .get<OrderData[]>("/api/orders/?order_type=BUY")
+      .get<OrderData[]>("/api/orders/?order_type=SELL")
       .then(setRows)
       .catch(() => notify("Failed to load orders"));
-  }, []);
+    api
+      .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
+      .then(setStats)
+      .catch(() => { });
+  };
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [incomingDate]);
 
   function cancelOrder(o: OrderData) {
     api
@@ -45,6 +57,7 @@ export default function PlatformOrdersPage({
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
         notify(`${o.order_no} cancelled`);
+        load();
       })
       .catch((e: Error) => notify(e.message || "Failed to cancel order"));
   }
@@ -63,6 +76,7 @@ export default function PlatformOrdersPage({
         notify(`${returnTarget.order_no} returned — stock updated`);
         setReturnTarget(null);
         setReturnForm({ quantity: "", reason: "" });
+        load();
       })
       .catch((e: Error) => notify(e.message || "Failed to return order"));
   }
@@ -305,12 +319,6 @@ export default function PlatformOrdersPage({
           </div>
 
           <!-- Signatures -->
-          <div class="grid grid-cols-3 gap-3 pt-4 text-center text-xs text-slate-700 font-medium">
-            <div><p class="font-bold">Sales Agent:</p><div class="mt-6 border-b border-slate-300 w-3/4 mx-auto"></div></div>
-            <div><p class="font-bold">Authorized By:</p><div class="mt-6 border-b border-slate-300 w-3/4 mx-auto"></div></div>
-            <div><p class="font-bold">Received By:</p><div class="mt-6 border-b border-slate-300 w-3/4 mx-auto"></div></div>
-          </div>
-        </div>
       </body>
       </html>
     `;
@@ -323,63 +331,59 @@ export default function PlatformOrdersPage({
     }
   }
 
-  function deleteOrder(o: OrderData) {
-    setRows((rs) => rs.filter((row) => row.id !== o.id));
-    notify(`Sell Order ${o.order_no} deleted`);
-  }
-
   function submitNewSellOrder() {
-    if (!newOrderForm.customer_name || !newOrderForm.quantity || !newOrderForm.premium) {
-      notify("Please fill in Customer Name, Quantity, and Premium");
+    if (!newOrderForm.customer_name.trim()) {
+      notify("Please enter Customer Name");
+      return;
+    }
+    if (!newOrderForm.quantity || Number(newOrderForm.quantity) <= 0) {
+      notify("Please enter a valid Quantity");
       return;
     }
 
     const qty = Number(newOrderForm.quantity);
-    const prem = Number(newOrderForm.premium);
+    const prem = Number(newOrderForm.premium) || 0;
     const spotPrice = Number(newOrderForm.spot_price) || 4376.50;
     const unitPrice = (spotPrice * 32.148) + prem;
     const totalAmount = qty * unitPrice;
 
     if (editingOrder !== null) {
-      setRows((rs) =>
-        rs.map((row) =>
-          row.id === editingOrder.id
-            ? {
-                ...row,
-                customer_name: newOrderForm.customer_name,
-                channel: newOrderForm.channel,
-                quantity: qty,
-                premium: prem,
-                total_amount: totalAmount,
-              }
-            : row
-        )
-      );
-      notify(`Sell Order ${editingOrder.order_no} updated successfully!`);
+      api
+        .put<OrderData>(`/api/orders/${editingOrder.id}`, {
+          customer_name: newOrderForm.customer_name,
+          channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
+          spot_price: spotPrice,
+          quantity: qty,
+          premium: prem,
+          total_amount: totalAmount,
+          transaction_type: "SELL",
+        })
+        .then((updated) => {
+          setRows((rs) => rs.map((row) => (row.id === editingOrder.id ? updated : row)));
+          notify("Order updated successfully!");
+          setEditingOrder(null);
+          load();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to update order"));
     } else {
-      const newOrder: OrderData = {
-        id: Date.now(),
-        order_no: `SO-2026-${String(rows.length + 101).padStart(3, "0")}`,
-        customer_name: newOrderForm.customer_name,
-        channel: newOrderForm.channel,
-        quantity: qty,
-        premium: prem,
-        total_amount: totalAmount,
-        status: "CONFIRMED",
-        order_date: new Date().toISOString().split("T")[0],
-        group_name: null,
-        slot_date: null,
-        premium_amount: qty * prem,
-        transaction_type: "SELL",
-        created_at: new Date().toISOString(),
-      };
-
-      setRows((r) => [newOrder, ...r]);
-      notify(`New Sell Order ${newOrder.order_no} created for ${newOrder.customer_name}!`);
+      api
+        .post<OrderData>("/api/orders/", {
+          transaction_type: "SELL",
+          customer_name: newOrderForm.customer_name,
+          channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
+          spot_price: spotPrice,
+          quantity: qty,
+          premium: prem,
+          total_amount: totalAmount,
+        })
+        .then((created) => {
+          setRows((rs) => [created, ...rs]);
+          notify("New sell order created!");
+          load();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to create order"));
     }
 
-    setIsNewOrderModalOpen(false);
-    setEditingOrder(null);
     setNewOrderForm({
       customer_name: "",
       channel: "Walk-in",
@@ -388,14 +392,15 @@ export default function PlatformOrdersPage({
       premium: "",
       notes: "",
     });
+    setIsNewOrderModalOpen(false);
   }
 
-  const filtered = useMemo(() => {
+  const filteredRows = useMemo(() => {
     return rows.filter((r) => {
       const mq =
         !q ||
-        r.customer_name?.toLowerCase().includes(q.toLowerCase()) ||
-        r.order_no.toLowerCase().includes(q.toLowerCase());
+        r.order_no.toLowerCase().includes(q.toLowerCase()) ||
+        (r.customer_name && r.customer_name.toLowerCase().includes(q.toLowerCase()));
       const ms = status === "Order status" || r.status === status;
       return mq && ms;
     });
@@ -413,16 +418,16 @@ export default function PlatformOrdersPage({
             <span>Current Physical Stock</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">20.5</span>
+            <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.physical_stock ?? 0).toFixed(1)}</span>
             <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
           </div>
         </div>
 
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2.5">
             <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
               <Truck size={16} className="text-slate-500 shrink-0" />
-              <span>Incoming</span>
+              <span>Incoming Gold</span>
             </div>
             <input
               type="date"
@@ -432,9 +437,31 @@ export default function PlatformOrdersPage({
               className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
             />
           </div>
-          <div className="mt-2.5 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">18.2</span>
-            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+
+          <div className="grid grid-cols-2 divide-x divide-slate-200 items-center">
+            {/* Left Side: Incoming */}
+            <div className="pr-4">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Incoming
+              </div>
+              <div className="flex items-baseline">
+                <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
+                <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+              </div>
+            </div>
+
+            {/* Right Side: Remaining */}
+            <div className="pl-4">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                Remaining
+              </div>
+              <div className="flex items-baseline">
+                <span className="text-2xl font-bold text-slate-800">
+                  {toNumber(stats?.remaining_incoming ?? 0).toFixed(1)}
+                </span>
+                <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -488,9 +515,8 @@ export default function PlatformOrdersPage({
                 ].map((h) => (
                   <th
                     key={h}
-                    className={`px-5 py-3 font-medium bg-slate-50 whitespace-nowrap ${
-                      h === "Actions" ? "text-center" : ""
-                    }`}
+                    className={`px-5 py-3 font-medium bg-slate-50 whitespace-nowrap ${h === "Actions" ? "text-center" : ""
+                      }`}
                   >
                     {h}
                   </th>
@@ -498,11 +524,19 @@ export default function PlatformOrdersPage({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, idx) => {
+              {filteredRows.map((r: OrderData, idx: number) => {
                 const quantity = toNumber(r.quantity);
                 const premium = toNumber(r.premium);
                 const premiumAmount = toNumber(r.premium_amount);
-                const channel = r.channel || (idx % 2 === 0 ? "Walk-in" : "Phone");
+                const rawChannel = (r.channel || "").toUpperCase();
+                let displayChannel = "WALK_IN";
+                if (rawChannel === "TELEGRAM" || Boolean(r.telegram_user_id)) {
+                  displayChannel = "TELEGRAM";
+                } else if (rawChannel === "PHONE") {
+                  displayChannel = "PHONE";
+                } else if (rawChannel === "WALK_IN" || rawChannel === "WALKIN" || rawChannel === "WALK-IN") {
+                  displayChannel = "WALK_IN";
+                }
 
                 return (
                   <tr
@@ -516,19 +550,17 @@ export default function PlatformOrdersPage({
                       {r.customer_name || "—"}
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      {channel === "Telegram" && (
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
-                          Telegram
+                      {displayChannel === "TELEGRAM" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
+                          <Send size={12} className="shrink-0 text-sky-600" /> Telegram Bot
                         </span>
-                      )}
-                      {channel === "Phone" && (
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
-                          Phone
+                      ) : displayChannel === "PHONE" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
+                          <PhoneCall size={12} className="shrink-0 text-purple-600" /> Phone
                         </span>
-                      )}
-                      {channel === "Walk-in" && (
-                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                          Walk-in
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
+                          <Store size={12} className="shrink-0 text-amber-600" /> Walk-in
                         </span>
                       )}
                     </td>
@@ -625,11 +657,10 @@ export default function PlatformOrdersPage({
                                   setActiveMenuId(null);
                                   cancelOrder(r);
                                 }}
-                                className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors ${
-                                  r.status === "COMPLETED"
+                                className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors ${r.status === "COMPLETED"
                                     ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
                                     : "text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                }`}
+                                  }`}
                               >
                                 <XCircle size={14} /> Cancel Order
                               </button>
@@ -815,7 +846,7 @@ export default function PlatformOrdersPage({
       {invoiceModalOrder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
           <div className="bg-white rounded-none border border-indigo-600 shadow-none w-[148mm] max-w-[148mm] overflow-hidden transform scale-100 transition-transform my-6 text-blue-950 font-sans">
-            
+
             {/* Modal Header Bar */}
             <div className="p-2.5 bg-indigo-900 text-white flex items-center justify-between border-b border-indigo-800">
               <div className="flex items-center gap-2 text-xs font-bold tracking-wide">
@@ -841,7 +872,7 @@ export default function PlatformOrdersPage({
 
             {/* Printable Slip Paper Container */}
             <div className="p-6 md:p-8 space-y-5 bg-[#f4f7fc]">
-              
+
               {/* Slip Top Header */}
               <div className="flex flex-col sm:flex-row items-start justify-between gap-4 border-b-2 border-blue-800/40 pb-4">
                 {/* Logo & Company Info */}

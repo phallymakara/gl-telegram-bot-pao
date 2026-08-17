@@ -21,6 +21,7 @@ class SlotRow(Base):
 
     slot_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     premium: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    qty: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True, default=Decimal("10.00"))
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

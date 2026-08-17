@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate_po_no(po_type: str) -> str:
-    prefix = "PO-L" if po_type == "LOCAL" else "PO-O"
+    prefix = "PO-L" if po_type == "LOCAL" else ("PO-O" if po_type == "OVERSEA" else "PO-B")
     return f"{prefix}-{uuid4().hex[:8].upper()}"
 
 
@@ -25,7 +25,7 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
         po = session.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
         if not po:
             raise ValueError(f"Purchase order {po_id} not found")
-        if po.status not in ("DRAFT", "ORDERED"):
+        if po.status not in ("DRAFT", "ORDERED", "INCOMING", "PENDING", "CONFIRMED"):
             raise ValueError(f"Purchase order {po_id} cannot be received from status {po.status}")
 
         po.status = "RECEIVED"

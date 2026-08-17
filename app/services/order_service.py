@@ -40,7 +40,16 @@ def _get_or_create_default_group(session) -> TelegramGroup:
 
 def _find_slot_row(session, slot_date: str, order_type: str) -> tuple[SlotRow, SlotTable] | None:
     target = slot_date.strip()
-    tables = session.query(SlotTable).filter(SlotTable.is_active == True).all()
+    store_type = "SELL" if order_type.upper() in ("BUY", "SELL_SLOT") else "BUY"
+    query = session.query(SlotTable).filter(SlotTable.is_active == True)
+    if store_type == "SELL":
+        tables = query.filter(SlotTable.table_name.ilike("%SELL%")).all()
+        if not tables:
+            tables = query.all()
+    else:
+        tables = query.filter(SlotTable.table_name.ilike("%BUY%")).all()
+        if not tables:
+            tables = query.filter(~SlotTable.table_name.ilike("%SELL%")).all()
     for t in tables:
         for row in t.rows:
             row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
@@ -63,7 +72,7 @@ def _place_order_sync(
             raise SlotNotFoundError("Slot not found")
 
         if order_type == "BUY":
-            if not check_stock_sync(slot_date, quantity):
+            if not check_stock_sync(slot_date, quantity, order_type):
                 raise InsufficientStockError("Insufficient stock")
 
         customer = _find_or_create_customer(session, telegram_id, username)
@@ -72,16 +81,27 @@ def _place_order_sync(
         slot_row, slot_table = slot_pair if slot_pair else (None, None)
 
         premium_val = float(slot_info["premium"])
+        spot_price_dec = Decimal("4376.20")
+        total_amt = Decimal(str(quantity)) * (spot_price_dec * Decimal("32.148") + Decimal(str(premium_val)))
+
+        # Store perspective: Telegram user BUY = Store SELL (Gold OUT); Telegram user SELL = Store BUY (Gold IN/Buyback)
+        store_txn_type = "SELL" if order_type == "BUY" else "BUY"
+        prefix = "ORD-S" if store_txn_type == "SELL" else "ORD-B"
+
         order = Order(
-            order_no=f"ORD-{uuid4().hex[:8].upper()}",
+            order_no=f"{prefix}-{uuid4().hex[:8].upper()}",
             customer_id=customer.id,
             group_id=group.id,
             slot_id=slot_row.id if slot_row else None,
-            quantity=quantity,
-            premium=premium_val,
-            premium_amount=premium_val * quantity,
-            transaction_type=order_type,
+            quantity=Decimal(str(quantity)),
+            premium=Decimal(str(premium_val)),
+            premium_amount=Decimal(str(premium_val * quantity)),
+            transaction_type=store_txn_type,
             status="CONFIRMED",
+            channel="TELEGRAM",
+            customer_name=customer.display_name or username,
+            spot_price=spot_price_dec,
+            total_amount=total_amt,
             telegram_user_id=telegram_id,
             username=username,
             slot_date_str=slot_date,
@@ -89,8 +109,36 @@ def _place_order_sync(
         session.add(order)
         session.flush()
 
-        if order_type == "BUY" and slot_table:
-            deduct_stock_sync(slot_date, quantity)
+        if store_txn_type == "SELL" and slot_table:
+            deduct_stock_sync(slot_date, quantity, order_type)
+        elif store_txn_type == "BUY":
+            from datetime import date
+            from app.models.purchase_order import PurchaseOrder
+            from app.services.purchase_order_service import generate_po_no
+
+            po_no = generate_po_no("BUYBACK")
+            cust_name = customer.display_name or username or f"Telegram #{telegram_id}"
+            unit_cost_val = (spot_price_dec * Decimal("32.148")) + Decimal(str(premium_val))
+
+            po = PurchaseOrder(
+                po_no=po_no,
+                po_type="BUYBACK",
+                supplier_id=None,
+                supplier_name=cust_name,
+                slot_table_id=slot_table.id if slot_table else None,
+                quantity=Decimal(str(quantity)),
+                spot_price=spot_price_dec,
+                premium=Decimal(str(premium_val)),
+                unit_cost=unit_cost_val,
+                total_cost=total_amt,
+                currency="USD",
+                status="RECEIVED",
+                order_date=date.today(),
+                expected_date=date.today(),
+                received_date=date.today(),
+                notes=f"Telegram Customer Buyback #{order.order_no} (@{username})",
+            )
+            session.add(po)
 
         session.commit()
         session.refresh(order)

@@ -26,6 +26,11 @@ class Order(Base):
     transaction_type: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="COMPLETED", index=True)
 
+    channel: Mapped[str | None] = mapped_column(String(50), nullable=True, default="TELEGRAM")
+    customer_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    spot_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+
     telegram_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     slot_date_str: Mapped[str | None] = mapped_column(String(20), nullable=True)

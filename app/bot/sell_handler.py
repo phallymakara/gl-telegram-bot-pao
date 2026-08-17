@@ -7,6 +7,7 @@ from app.utils.translation import t
 
 async def handle_sell(query, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "EN")
+    # User SELL = Store buys gold into Buy Slot tables
     slots = await asyncio.to_thread(get_active_slots_sync, "SELL")
 
     await query.message.reply_text(

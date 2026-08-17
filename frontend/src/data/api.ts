@@ -68,6 +68,8 @@ export interface OrderData {
   status: string;
   created_at: string;
   channel?: string;
+  telegram_user_id?: string | null;
+  username?: string | null;
   order_source?: string;
   order_date?: string;
   spot_price?: number;
@@ -78,6 +80,7 @@ export interface SlotRowData {
   id: number;
   slot_date: string;
   premium: number;
+  qty?: number;
 }
 
 export interface SlotTableData {
@@ -112,6 +115,16 @@ export interface DashboardStatsData {
   total_buy_kg: number;
   total_sell_kg: number;
   physical_stock?: number;
+  incoming_po?: number;
+  remaining_incoming?: number;
+  gold_in_overseas?: number;
+  gold_in_local?: number;
+  gold_in_customer?: number;
+  gold_in_total?: number;
+  gold_out_telegram?: number;
+  gold_out_phone?: number;
+  gold_out_walkin?: number;
+  gold_out_total?: number;
   reserved?: number;
   available?: number;
   open_orders?: number;

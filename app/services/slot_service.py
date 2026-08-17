@@ -14,21 +14,36 @@ def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
     return {
         "slot_date": slot_row.slot_date.isoformat() if isinstance(slot_row.slot_date, (date, datetime)) else str(slot_row.slot_date),
         "premium": float(slot_row.premium),
+        "qty": float(slot_row.qty) if getattr(slot_row, "qty", None) is not None else 10.0,
         "stock_kg": float(slot_table.stock),
         "min_order": 0,
         "active": "YES" if slot_table.is_active else "NO",
     }
 
 
+def _resolve_target_store_type(order_type: str) -> str:
+    if not order_type:
+        return "SELL"
+    op = order_type.strip().upper()
+    if op in ("BUY", "SELL_SLOT"):
+        return "SELL"
+    elif op in ("SELL", "BUY_SLOT"):
+        return "BUY"
+    return op
+
+
 def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
     session = SessionLocal()
     try:
-        tables = (
-            session.query(SlotTable)
-            .filter(SlotTable.is_active == True)
-            .order_by(SlotTable.display_order)
-            .all()
-        )
+        query = session.query(SlotTable).filter(SlotTable.is_active == True)
+        store_type = _resolve_target_store_type(order_type)
+        if store_type == "SELL":
+            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+        else:
+            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+
         merged: dict[str, dict] = {}
         for t in tables:
             for row in t.rows:
@@ -47,12 +62,15 @@ def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
     session = SessionLocal()
     try:
         target = slot_date.strip()
-        tables = (
-            session.query(SlotTable)
-            .filter(SlotTable.is_active == True)
-            .order_by(SlotTable.display_order)
-            .all()
-        )
+        query = session.query(SlotTable).filter(SlotTable.is_active == True)
+        store_type = _resolve_target_store_type(order_type)
+        if store_type == "SELL":
+            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+        else:
+            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+
         result = []
         for t in tables:
             for row in t.rows:
@@ -74,23 +92,26 @@ def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | Non
     return first
 
 
-def check_stock_sync(slot_date: str, quantity: float) -> bool:
-    slot = get_slot_by_date_sync(slot_date)
+def check_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
+    slot = get_slot_by_date_sync(slot_date, order_type)
     if not slot:
         return False
     return float(slot["stock_kg"]) >= quantity
 
 
-def deduct_stock_sync(slot_date: str, quantity: float) -> bool:
+def deduct_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
     session = SessionLocal()
     try:
         target = slot_date.strip()
-        tables = (
-            session.query(SlotTable)
-            .filter(SlotTable.is_active == True)
-            .order_by(SlotTable.display_order)
-            .all()
-        )
+        query = session.query(SlotTable).filter(SlotTable.is_active == True)
+        store_type = _resolve_target_store_type(order_type)
+        if store_type == "SELL":
+            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+        else:
+            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+
         remaining = float(quantity)
         found = False
         for t in tables:
@@ -122,7 +143,7 @@ def deduct_stock_sync(slot_date: str, quantity: float) -> bool:
 
 
 def add_stock_to_table_sync(
-    slot_table_id: int,
+    slot_table_id: int | None,
     quantity: Decimal,
     txn_type: str,
     remark: str | None = None,
@@ -130,9 +151,15 @@ def add_stock_to_table_sync(
 ) -> SlotTable:
     session = SessionLocal()
     try:
-        table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
+        table = None
+        if slot_table_id:
+            table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
         if not table:
-            raise ValueError(f"Slot table {slot_table_id} not found")
+            table = session.query(SlotTable).first()
+        if not table:
+            table = SlotTable(table_name="Default 99.99% Gold Kilobar", stock=Decimal(100), is_active=True, display_order=1)
+            session.add(table)
+            session.flush()
 
         stock_before = table.stock
         table.stock = stock_before + Decimal(quantity)
@@ -158,7 +185,7 @@ def add_stock_to_table_sync(
 
 
 def deduct_stock_from_table_sync(
-    slot_table_id: int,
+    slot_table_id: int | None,
     quantity: Decimal,
     txn_type: str,
     remark: str | None = None,
@@ -166,9 +193,15 @@ def deduct_stock_from_table_sync(
 ) -> SlotTable:
     session = SessionLocal()
     try:
-        table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
+        table = None
+        if slot_table_id:
+            table = session.query(SlotTable).filter(SlotTable.id == slot_table_id).first()
         if not table:
-            raise ValueError(f"Slot table {slot_table_id} not found")
+            table = session.query(SlotTable).first()
+        if not table:
+            table = SlotTable(table_name="Default 99.99% Gold Kilobar", stock=Decimal(100), is_active=True, display_order=1)
+            session.add(table)
+            session.flush()
 
         stock_before = table.stock
         quantity = Decimal(quantity)

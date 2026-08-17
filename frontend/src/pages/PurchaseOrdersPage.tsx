@@ -1,4 +1,5 @@
 import {
+  Calendar,
   CheckCircle2,
   Clock,
   FileText,
@@ -25,6 +26,7 @@ import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import {
   api,
+  DashboardStatsData,
   PurchaseOrderData,
   SlotTableData,
   SupplierData,
@@ -32,7 +34,7 @@ import {
 } from "../data/api";
 
 interface PurchaseOrdersPageProps {
-  poType: "LOCAL" | "OVERSEA";
+  poType?: "LOCAL" | "OVERSEA" | "BUYBACK" | "";
   notify: (msg: string) => void;
 }
 
@@ -49,194 +51,31 @@ const emptyForm = {
   currency: "USD",
   order_date: new Date().toISOString().split("T")[0],
   expected_date: "",
+  received_date: "",
   notes: "",
 };
 
-const defaultPurchaseRows: PurchaseOrderData[] = [
-  {
-    id: 101,
-    po_no: "PO-2026-001",
-    po_type: "OVERSEA",
-    supplier_id: 1,
-    supplier_name: "DB",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 1.00,
-    spot_price: 4376.2,
-    premium: 200,
-    unit_cost: 140786.078,
-    total_cost: 140786.078,
-    currency: "USD",
-    status: "RECEIVED",
-    order_date: "2026-08-15",
-    expected_date: "2026-08-15",
-    received_date: "2026-08-15",
-    notes: "Import shipment via Zurich Flight",
-  },
-  {
-    id: 102,
-    po_no: "PO-2026-002",
-    po_type: "LOCAL",
-    supplier_id: 2,
-    supplier_name: "Phnom Penh Gold",
-    slot_table_id: 2,
-    slot_table_name: "Local Gold Bar 99.99%",
-    quantity: 2.50,
-    spot_price: 4375.0,
-    premium: 150,
-    unit_cost: 140792.00,
-    total_cost: 351980.00,
-    currency: "USD",
-    status: "RECEIVED",
-    order_date: "2026-08-14",
-    expected_date: "2026-08-14",
-    received_date: "2026-08-14",
-    notes: "Local refinery delivery",
-  },
-  {
-    id: 104,
-    po_no: "PO-2026-004",
-    po_type: "OVERSEA",
-    supplier_id: 4,
-    supplier_name: "Swiss",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 5.00,
-    spot_price: 4378.0,
-    premium: 250,
-    unit_cost: 140993.96,
-    total_cost: 704969.80,
-    currency: "USD",
-    status: "INCOMING",
-    order_date: "2026-08-13",
-    expected_date: "2026-08-18",
-    received_date: null,
-    notes: "Oversea import shipment",
-  },
-  {
-    id: 105,
-    po_no: "PO-2026-005",
-    po_type: "BUYBACK",
-    supplier_id: 5,
-    supplier_name: "Telegram (#1088)",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 1.50,
-    spot_price: 4370.0,
-    premium: 100,
-    unit_cost: 140586.76,
-    total_cost: 210880.14,
-    currency: "USD",
-    status: "CONFIRMED",
-    order_date: "2026-08-12",
-    expected_date: "2026-08-15",
-    received_date: null,
-    notes: "Telegram SELL order",
-  },
-  {
-    id: 106,
-    po_no: "PO-2026-006",
-    po_type: "LOCAL",
-    supplier_id: 3,
-    supplier_name: "SV Trading",
-    slot_table_id: 2,
-    slot_table_name: "Local Gold Bar 99.99%",
-    quantity: 3.00,
-    spot_price: 4374.5,
-    premium: 180,
-    unit_cost: 140763.30,
-    total_cost: 422289.90,
-    currency: "USD",
-    status: "INCOMING",
-    order_date: "2026-08-11",
-    expected_date: "2026-08-17",
-    received_date: null,
-    notes: "Local refinery batch dispatch",
-  },
-  {
-    id: 107,
-    po_no: "PO-2026-007",
-    po_type: "OVERSEA",
-    supplier_id: 6,
-    supplier_name: "Valcambi Suisse",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 10.00,
-    spot_price: 4380.0,
-    premium: 220,
-    unit_cost: 141028.24,
-    total_cost: 1410282.40,
-    currency: "USD",
-    status: "INCOMING",
-    order_date: "2026-08-10",
-    expected_date: "2026-08-19",
-    received_date: null,
-    notes: "Swiss air cargo logistics",
-  },
-  {
-    id: 108,
-    po_no: "PO-2026-008",
-    po_type: "BUYBACK",
-    supplier_id: 7,
-    supplier_name: "Heng Ty Gold",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 0.50,
-    spot_price: 4368.0,
-    premium: 120,
-    unit_cost: 140542.10,
-    total_cost: 70271.05,
-    currency: "USD",
-    status: "RECEIVED",
-    order_date: "2026-08-09",
-    expected_date: "2026-08-09",
-    received_date: "2026-08-09",
-    notes: "Over-the-counter buyback",
-  },
-  {
-    id: 109,
-    po_no: "PO-2026-009",
-    po_type: "LOCAL",
-    supplier_id: 8,
-    supplier_name: "Phnom Penh Refinery",
-    slot_table_id: 2,
-    slot_table_name: "Local Gold Bar 99.99%",
-    quantity: 4.00,
-    spot_price: 4372.0,
-    premium: 160,
-    unit_cost: 140685.20,
-    total_cost: 562740.80,
-    currency: "USD",
-    status: "RECEIVED",
-    order_date: "2026-08-08",
-    expected_date: "2026-08-08",
-    received_date: "2026-08-08",
-    notes: "Vault deposit verified",
-  },
-  {
-    id: 110,
-    po_no: "PO-2026-010",
-    po_type: "OVERSEA",
-    supplier_id: 9,
-    supplier_name: "PAMP SA",
-    slot_table_id: 1,
-    slot_table_name: "99.99% Gold Kilobar",
-    quantity: 2.00,
-    spot_price: 4375.5,
-    premium: 210,
-    unit_cost: 140868.00,
-    total_cost: 281736.00,
-    currency: "USD",
-    status: "CANCELLED",
-    order_date: "2026-08-07",
-    expected_date: "2026-08-12",
-    received_date: null,
-    notes: "Supplier cancelled due to flight delay",
-  },
-];
+
 
 function titleCase(status: string) {
   return status.charAt(0) + status.slice(1).toLowerCase();
+}
+
+function formatDate(d: string | null | undefined): string {
+  if (!d) return "—";
+  return d.includes("T") ? d.split("T")[0] : d;
+}
+
+function formatParty(r: PurchaseOrderData): string {
+  if (!r.supplier_name) return "—";
+  let name = r.supplier_name;
+  if (name.includes("Refining Corp")) {
+    name = name.replace("Refining Corp", "").trim();
+  }
+  if (name.includes("Customer Buy-back ·")) {
+    name = name.replace("Customer Buy-back ·", "").trim();
+  }
+  return name || "—";
 }
 
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
@@ -524,15 +363,30 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     }
   }
 
+  const [receivedDateFilter, setReceivedDateFilter] = useState<string>("");
+
+  const [stats, setStats] = useState<DashboardStatsData | null>(null);
+
   function load() {
+    const params = new URLSearchParams();
+    if (poType && poType.trim() !== "") params.append("po_type", poType);
+    if (receivedDateFilter) params.append("received_date", receivedDateFilter);
+    const queryString = params.toString();
+    const url = queryString ? `/api/purchase-orders/?${queryString}` : "/api/purchase-orders/";
+
     api
-      .get<PurchaseOrderData[]>(`/api/purchase-orders/?po_type=${poType}`)
+      .get<PurchaseOrderData[]>(url)
       .then(setRows)
       .catch(() => notify("Failed to load purchase orders"));
+    api
+      .get<DashboardStatsData>("/api/dashboard/stats")
+      .then(setStats)
+      .catch(() => { });
   }
 
   useEffect(() => {
     load();
+    const interval = setInterval(load, 5000);
     api
       .get<SupplierData[]>(`/api/suppliers/?supplier_type=${poType}`)
       .then(setSuppliers)
@@ -541,7 +395,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .get<SlotTableData[]>("/api/slots/")
       .then(setSlotTables)
       .catch(() => notify("Failed to load slot tables"));
-  }, [poType]);
+    return () => clearInterval(interval);
+  }, [poType, receivedDateFilter]);
 
   function openEditPoModal(po: PurchaseOrderData) {
     setEditingPoId(po.id);
@@ -558,7 +413,20 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       currency: "USD",
       order_date: po.order_date || new Date().toISOString().split("T")[0],
       expected_date: po.expected_date || "",
+      received_date: po.received_date || "",
       notes: po.notes || "",
+    });
+    setIsOpen(true);
+  }
+
+  function openNewPoModal() {
+    setEditingPoId(null);
+    const source = (poType === "LOCAL" || poType === "OVERSEA") ? poType : "OVERSEA";
+    setForm({
+      ...emptyForm,
+      purchase_source: source,
+      order_date: new Date().toISOString().split("T")[0],
+      received_date: "",
     });
     setIsOpen(true);
   }
@@ -566,7 +434,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   function save() {
     let supplierName = "";
     if (form.purchase_source === "OVERSEA") {
-      supplierName = `${form.vendor_type} Refining Corp`;
+      supplierName = form.vendor_type || "Swiss";
     } else if (form.purchase_source === "LOCAL") {
       if (!form.vendor_name) {
         notify("Please enter Vendor Name");
@@ -578,7 +446,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         notify("Please enter Customer Name");
         return;
       }
-      supplierName = `Customer Buy-back · ${form.customer_name}`;
+      supplierName = form.customer_name;
     }
 
     const spotPrice = Number(form.spot_price) || 4376.2;
@@ -588,47 +456,49 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     const totalCost = qty * unitCost;
 
     if (editingPoId !== null) {
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === editingPoId
-            ? {
-              ...r,
-              po_type: form.purchase_source,
-              supplier_name: supplierName,
-              quantity: qty,
-              spot_price: spotPrice,
-              premium: premium,
-              unit_cost: unitCost,
-              total_cost: totalCost,
-              order_date: form.order_date || r.order_date,
-              notes: form.notes || null,
-            }
-            : r
-        )
-      );
-      notify("Purchase order updated successfully!");
+      api
+        .put<PurchaseOrderData>(`/api/purchase-orders/${editingPoId}`, {
+          po_type: form.purchase_source,
+          supplier_name: supplierName,
+          quantity: qty,
+          spot_price: spotPrice,
+          premium: premium,
+          unit_cost: unitCost,
+          order_date: form.order_date,
+          received_date: form.received_date || null,
+          notes: form.notes || null,
+        })
+        .then((updated) => {
+          setRows((prev) => prev.map((r) => (r.id === editingPoId ? updated : r)));
+          notify("Purchase order updated successfully!");
+          load();
+        })
+        .catch((e: Error) => {
+          notify(e.message || "Failed to update purchase order");
+        });
       setEditingPoId(null);
     } else {
-      const newPo: PurchaseOrderData = {
-        id: Date.now(),
-        po_no: `PO-2026-${String(rows.length + 1).padStart(3, "0")}`,
-        po_type: form.purchase_source,
-        supplier_name: supplierName,
-        quantity: qty,
-        spot_price: spotPrice,
-        premium: premium,
-        unit_cost: unitCost,
-        total_cost: totalCost,
-        currency: "USD",
-        status: "INCOMING",
-        order_date: form.order_date || new Date().toISOString().split("T")[0],
-        expected_date: form.order_date || new Date().toISOString().split("T")[0],
-        received_date: null,
-        notes: form.notes || null,
-      };
-
-      setRows((r) => [newPo, ...r]);
-      notify(`New ${form.purchase_source.toLowerCase()} purchase order created!`);
+      api
+        .post<PurchaseOrderData>("/api/purchase-orders/", {
+          po_type: form.purchase_source,
+          supplier_name: supplierName,
+          quantity: qty,
+          spot_price: spotPrice,
+          premium: premium,
+          unit_cost: unitCost,
+          currency: "USD",
+          order_date: form.order_date || new Date().toISOString().split("T")[0],
+          received_date: form.received_date || null,
+          notes: form.notes || null,
+        })
+        .then((created) => {
+          setRows((r) => [created, ...r.filter((x) => x.id !== created.id)]);
+          notify(`New ${form.purchase_source.toLowerCase()} purchase order created!`);
+          load();
+        })
+        .catch((e: Error) => {
+          notify(e.message || "Failed to create purchase order");
+        });
     }
 
     setForm(emptyForm);
@@ -636,8 +506,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   }
 
   function markConfirmed(po: PurchaseOrderData) {
-    setRows((r) => r.map((row) => (row.id === po.id ? { ...row, status: "CONFIRMED" } : row)));
-    notify(`${po.po_no} status changed to Confirmed`);
+    api
+      .post<PurchaseOrderData>(`/api/purchase-orders/${po.id}/confirm`)
+      .then((updated) => {
+        setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
+        notify(`${po.po_no} status changed to Confirmed`);
+        load();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to confirm purchase order"));
   }
 
   function markOrdered(po: PurchaseOrderData) {
@@ -646,6 +522,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
         notify(`${po.po_no} marked as incoming`);
+        load();
       })
       .catch((e: Error) => notify(e.message || "Failed to update purchase order"));
   }
@@ -656,6 +533,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
         notify(`${po.po_no} received — stock updated`);
+        load();
       })
       .catch((e: Error) => notify(e.message || "Failed to receive purchase order"));
   }
@@ -666,6 +544,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
         notify(`${po.po_no} cancelled`);
+        load();
       })
       .catch((e: Error) => notify(e.message || "Failed to cancel purchase order"));
   }
@@ -708,11 +587,13 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         setRows((r) => r.map((row) => (row.id === updated.id ? { ...updated, status: "RECEIVED", received_date: recDate } : row)));
         notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
         setReceiveTarget(null);
+        load();
       })
       .catch(() => {
         setRows((r) => r.map((row) => (row.id === receiveTarget.id ? { ...row, status: "RECEIVED", received_date: recDate } : row)));
         notify(`${receiveTarget.po_no} received (${qty} KG) — posted to physical inventory stock!`);
         setReceiveTarget(null);
+        load();
       });
   }
 
@@ -735,7 +616,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       .catch((e: Error) => notify(e.message || "Failed to return purchase order"));
   }
 
-  const activeRows = rows.length > 0 ? rows : defaultPurchaseRows;
+  const activeRows = rows;
   const numericRows = activeRows.map((r) => ({
     ...r,
     quantity: toNumber(r.quantity),
@@ -769,6 +650,13 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       }
     }
 
+    if (receivedDateFilter) {
+      const recDate = r.received_date ? (r.received_date.includes("T") ? r.received_date.split("T")[0] : r.received_date) : "";
+      if (recDate !== receivedDateFilter) {
+        return false;
+      }
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       const matchPoNo = r.po_no?.toLowerCase().includes(q);
@@ -796,7 +684,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
-              {poType === "OVERSEA" && totalQuantity > 0 ? totalQuantity.toFixed(0) : "620"}
+              {toNumber(stats?.gold_in_overseas ?? 0).toFixed(0)}
             </span>
             <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
           </div>
@@ -805,11 +693,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
             <MapPin size={16} className="text-slate-500 shrink-0" />
-            <span>Local</span>
+            <span>Physical</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
-              {poType === "LOCAL" && totalQuantity > 0 ? totalQuantity.toFixed(0) : "18"}
+              {toNumber(stats?.gold_in_local ?? 0).toFixed(0)}
             </span>
             <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
           </div>
@@ -818,10 +706,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
             <RotateCcw size={16} className="text-slate-500 shrink-0" />
-            <span>Buy-back</span>
+            <span>Platform</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">96</span>
+            <span className="text-2xl font-bold text-slate-800">
+              {toNumber(stats?.gold_in_customer ?? 0).toFixed(0)}
+            </span>
             <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
           </div>
         </div>
@@ -833,7 +723,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
-              {draftCount > 0 ? draftCount : 4}
+              {toNumber(stats?.incoming_po ?? 0).toFixed(0)}
             </span>
           </div>
         </div>
@@ -862,8 +752,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 >
                   <option value="ALL">All Types</option>
                   <option value="OVERSEA">Oversea</option>
-                  <option value="LOCAL">Local</option>
-                  <option value="BUYBACK">Buy-back</option>
+                  <option value="LOCAL">Physical</option>
+                  <option value="BUYBACK">Platform</option>
                 </select>
 
                 <select
@@ -878,11 +768,33 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <option value="CONFIRMED">Confirmed</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
+
+                <div className="flex items-center gap-1.5 bg-slate-50/80 border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs shrink-0">
+                  <Calendar size={14} className="text-slate-400 shrink-0" />
+                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Received:</span>
+                  <input
+                    type="date"
+                    aria-label="Filter by Received Date"
+                    value={receivedDateFilter}
+                    onChange={(e) => setReceivedDateFilter(e.target.value)}
+                    className="text-xs font-semibold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
+                  />
+                  {receivedDateFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setReceivedDateFilter("")}
+                      className="text-xs text-slate-400 hover:text-rose-600 font-bold ml-1 cursor-pointer transition-colors"
+                      title="Clear Received Date filter"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             <button
-              onClick={() => setIsOpen(true)}
+              onClick={openNewPoModal}
               className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none self-start lg:self-auto"
             >
               <Plus size={16} /> New Purchase
@@ -902,7 +814,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   "Premium",
                   "Total Price",
                   "Order Date",
-                  "Receive Date",
+                  "Expected Receive Date",
                   "Status",
                   "Actions",
                 ].map((h) => (
@@ -921,9 +833,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 >
                   <td className="px-5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{r.po_no}</td>
                   <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
-                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Buy-back"}
+                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Physical" : "Platform"}
                   </td>
-                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{r.supplier_name || "—"}</td>
+                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
                   <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)}</td>
                   <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                     {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
@@ -934,8 +846,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <td className="px-5 py-2.5 font-bold text-slate-900 whitespace-nowrap">
                     {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                   </td>
-                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{r.order_date || "—"}</td>
-                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{r.received_date || "—"}</td>
+                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
+                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.received_date || r.expected_date)}</td>
                   <td className="px-5 py-2.5 whitespace-nowrap">
                     <StatusBadge status={titleCase(r.status)} />
                   </td>
@@ -974,8 +886,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                           setShowStatusSubMenuId(isSubOpen ? null : r.id);
                                         }}
                                         className={`w-full flex items-center justify-between px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
-                                            ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
-                                            : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
+                                          ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                          : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
                                           }`}
                                         title={isReceiveDisabled ? "Status cannot be changed" : "Change Status"}
                                       >
@@ -1001,8 +913,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                                 markConfirmed(r);
                                               }}
                                               className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "CONFIRMED"
-                                                  ? "bg-blue-100 text-blue-800"
-                                                  : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                                                ? "bg-blue-100 text-blue-800"
+                                                : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
                                                 }`}
                                             >
                                               <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span> Confirmed
@@ -1016,8 +928,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                                 openReceiveModal(r);
                                               }}
                                               className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "RECEIVED"
-                                                  ? "bg-emerald-100 text-emerald-800"
-                                                  : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                                                ? "bg-emerald-100 text-emerald-800"
+                                                : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
                                                 }`}
                                             >
                                               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> Received
@@ -1155,17 +1067,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Local
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, purchase_source: "BUYBACK" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "BUYBACK"
-                    ? "bg-white text-indigo-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                    }`}
-                >
-                  Buy-back
+                  Physical
                 </button>
               </div>
 
@@ -1223,6 +1125,17 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   type="date"
                   value={form.order_date}
                   onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Expected Received Date (Placed below Order Date) */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Received Date</label>
+                <input
+                  type="date"
+                  value={form.received_date}
+                  onChange={(e) => setForm({ ...form, received_date: e.target.value })}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>

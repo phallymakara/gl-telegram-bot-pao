@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Calendar, Trash2, Pencil, MoreHorizontal, X, Save, Check, Package, Truck } from "lucide-react";
 import Card from "../components/Card";
-import { api, SlotTableData } from "../data/api";
+import { api, SlotTableData, DashboardStatsData, toNumber } from "../data/api";
 
 interface SlotsPageProps {
   mode?: "buyback" | "sell";
@@ -30,30 +30,8 @@ interface SellTableItem {
   rows: SlotRowItem[];
 }
 
-const INITIAL_BUY_TABLES: BuyTableItem[] = [
-  {
-    id: 1,
-    title: "Buy Slot Table 1",
-    rows: [
-      { id: 201, start_date: "2026-08-08", end_date: "2026-08-08", premium: "300.00" },
-      { id: 202, start_date: "2026-08-09", end_date: "2026-08-09", premium: "300.00" },
-    ],
-  },
-];
-
-const INITIAL_SELL_TABLES: SellTableItem[] = [
-  {
-    id: 1,
-    title: "Sell Slot Table 1",
-    tableStock: "100.000",
-    newRowDate: "2026-08-15",
-    rows: [
-      { id: 101, start_date: "2026-08-08", end_date: "2026-08-08", premium: "300.00", qty: "10.00" },
-      { id: 102, start_date: "2026-08-09", end_date: "2026-08-09", premium: "300.00", qty: "15.00" },
-      { id: 103, start_date: "2026-08-10", end_date: "2026-08-10", premium: "300.00", qty: "20.00" },
-    ],
-  },
-];
+const INITIAL_BUY_TABLES: BuyTableItem[] = [];
+const INITIAL_SELL_TABLES: SellTableItem[] = [];
 
 export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) {
   const [selectedSlotType, setSelectedSlotType] = useState<"BUY" | "SELL">(
@@ -90,52 +68,86 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     qty: "10.00",
   });
 
-  useEffect(() => {
+  const [stats, setStats] = useState<DashboardStatsData | null>(null);
+
+  function loadStats() {
+    api
+      .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
+      .then(setStats)
+      .catch(() => { });
+  }
+
+  function loadSlots() {
     api
       .get<SlotTableData[]>("/api/slots/")
       .then((tables) => {
-        if (tables.length > 0 && tables[0].rows) {
-          const apiRows = tables[0].rows.map((r) => ({
-            id: r.id,
-            start_date: r.slot_date,
-            end_date: r.slot_date,
-            premium: r.premium,
-          }));
-          setBuyTables([
-            {
-              id: 1,
-              title: "Buy Slot Table 1",
-              rows: apiRows,
-            },
-          ]);
+        if (tables) {
+          const buyList: BuyTableItem[] = tables
+            .filter((t) => t.table_name.toUpperCase().includes("BUY") || !t.table_name.toUpperCase().includes("SELL"))
+            .map((t) => ({
+              id: t.id,
+              title: t.table_name,
+              rows: (t.rows || []).map((r) => ({
+                id: r.id,
+                start_date: r.slot_date,
+                end_date: r.slot_date,
+                premium: r.premium,
+              })),
+            }));
+          const sellList: SellTableItem[] = tables
+            .filter((t) => t.table_name.toUpperCase().includes("SELL"))
+            .map((t) => ({
+              id: t.id,
+              title: t.table_name,
+              tableStock: String(t.stock),
+              newRowDate: new Date().toISOString().split("T")[0],
+              rows: (t.rows || []).map((r) => ({
+                id: r.id,
+                start_date: r.slot_date,
+                end_date: r.slot_date,
+                premium: r.premium,
+                qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
+              })),
+            }));
+          setBuyTables(buyList);
+          setSellTables(sellList);
         }
       })
       .catch(() => { });
-  }, []);
+  }
+
+  useEffect(() => {
+    loadSlots();
+    loadStats();
+    const interval = setInterval(() => {
+      loadSlots();
+      loadStats();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [incomingDate]);
 
   // Buy Table Handlers
   function addBuyTable() {
-    const newTableId = Date.now();
-    const today = new Date().toISOString().split("T")[0];
-    const newTable: BuyTableItem = {
-      id: newTableId,
-      title: `Buy Slot Table ${buyTables.length + 1}`,
-      rows: [
-        {
-          id: Date.now() + 1,
-          start_date: today,
-          end_date: today,
-          premium: "300.00",
-        },
-      ],
-    };
-    setBuyTables((prev) => [...prev, newTable]);
-    notify("New Buy Slot table added!");
+    api
+      .post<SlotTableData>("/api/slots/", {
+        table_name: `Buy Slot Table ${buyTables.length + 1}`,
+        stock: 100,
+      })
+      .then(() => {
+        notify("New Buy Slot table added!");
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to add table"));
   }
 
   function deleteBuyTable(tableId: number) {
-    setBuyTables((prev) => prev.filter((t) => t.id !== tableId));
-    notify("Buy table deleted");
+    api
+      .delete(`/api/slots/${tableId}`)
+      .then(() => {
+        notify("Buy table deleted");
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to delete table"));
   }
 
   function openAddBuyRowModal(tableId: number) {
@@ -169,37 +181,30 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     }
 
     const startDate = buyRowForm.start_date;
-    const endDate = buyRowForm.end_date || buyRowForm.start_date;
+    const prem = Number(buyRowForm.premium) || 300;
 
     if (editingBuyRowId !== null) {
-      setBuyTables((prev) =>
-        prev.map((tbl) => {
-          if (tbl.id !== targetBuyTableId) return tbl;
-          return {
-            ...tbl,
-            rows: tbl.rows.map((r) =>
-              r.id === editingBuyRowId
-                ? { ...r, start_date: startDate, end_date: endDate, premium: buyRowForm.premium }
-                : r
-            ),
-          };
+      api
+        .put(`/api/slots/${targetBuyTableId}/rows/${editingBuyRowId}`, {
+          slot_date: startDate,
+          premium: prem,
         })
-      );
-      notify("Buy slot row updated successfully!");
+        .then(() => {
+          notify("Buy slot row updated successfully!");
+          loadSlots();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to update row"));
     } else {
-      const newRow: SlotRowItem = {
-        id: Date.now(),
-        start_date: startDate,
-        end_date: endDate,
-        premium: buyRowForm.premium,
-      };
-      setBuyTables((prev) =>
-        prev.map((tbl) => {
-          if (tbl.id !== targetBuyTableId) return tbl;
-          return { ...tbl, rows: [...tbl.rows, newRow] };
+      api
+        .post(`/api/slots/${targetBuyTableId}/rows`, {
+          slot_date: startDate,
+          premium: prem,
         })
-      );
-      notify("New row added to Buy table!");
+        .then(() => {
+          notify("New row added to Buy table!");
+          loadSlots();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to add row"));
     }
 
     setIsBuyModalOpen(false);
@@ -208,35 +213,37 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   }
 
   function deleteRowInBuyTable(tableId: number, rowId: number) {
-    setBuyTables((prev) =>
-      prev.map((tbl) => {
-        if (tbl.id !== tableId) return tbl;
-        return { ...tbl, rows: tbl.rows.filter((r) => r.id !== rowId) };
+    api
+      .delete(`/api/slots/${tableId}/rows/${rowId}`)
+      .then(() => {
+        notify("Row deleted");
+        loadSlots();
       })
-    );
-    notify("Row deleted");
+      .catch((e: Error) => notify(e.message || "Failed to delete row"));
   }
 
   // Sell Table Handlers
   function addSellTable() {
-    const newTableId = Date.now();
-    const today = new Date().toISOString().split("T")[0];
-    const newTable: SellTableItem = {
-      id: newTableId,
-      title: `Sell Slot Table ${sellTables.length + 1}`,
-      tableStock: "100.000",
-      newRowDate: today,
-      rows: [
-        { id: Date.now() + 1, start_date: today, end_date: today, premium: "300.00", qty: "10.00" },
-      ],
-    };
-    setSellTables((prev) => [...prev, newTable]);
-    notify("New Sell Slot table added!");
+    api
+      .post<SlotTableData>("/api/slots/", {
+        table_name: `Sell Slot Table ${sellTables.length + 1}`,
+        stock: 100,
+      })
+      .then(() => {
+        notify("New Sell Slot table added!");
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to add table"));
   }
 
   function deleteSellTable(tableId: number) {
-    setSellTables((prev) => prev.filter((t) => t.id !== tableId));
-    notify("Table deleted");
+    api
+      .delete(`/api/slots/${tableId}`)
+      .then(() => {
+        notify("Table deleted");
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to delete table"));
   }
 
   function openAddSellRowModal(tableId: number) {
@@ -269,29 +276,34 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
       return;
     }
 
+    const startDate = sellRowForm.start_date;
+    const prem = Number(sellRowForm.premium) || 300;
+    const qtyVal = Number(sellRowForm.qty) || 10.0;
+
     if (editingSellRowId !== null) {
-      updateRowInSellTable(targetSellTableId, editingSellRowId, {
-        start_date: sellRowForm.start_date,
-        end_date: sellRowForm.start_date,
-        premium: sellRowForm.premium,
-        qty: sellRowForm.qty,
-      });
-      notify("Row updated successfully!");
-    } else {
-      const newRow: SlotRowItem = {
-        id: Date.now(),
-        start_date: sellRowForm.start_date,
-        end_date: sellRowForm.start_date,
-        premium: sellRowForm.premium,
-        qty: sellRowForm.qty || "0.00",
-      };
-      setSellTables((prev) =>
-        prev.map((tbl) => {
-          if (tbl.id !== targetSellTableId) return tbl;
-          return { ...tbl, rows: [...tbl.rows, newRow] };
+      api
+        .put(`/api/slots/${targetSellTableId}/rows/${editingSellRowId}`, {
+          slot_date: startDate,
+          premium: prem,
+          qty: qtyVal,
         })
-      );
-      notify("New row added to table!");
+        .then(() => {
+          notify("Row updated successfully!");
+          loadSlots();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to update row"));
+    } else {
+      api
+        .post(`/api/slots/${targetSellTableId}/rows`, {
+          slot_date: startDate,
+          premium: prem,
+          qty: qtyVal,
+        })
+        .then(() => {
+          notify("New row added to table!");
+          loadSlots();
+        })
+        .catch((e: Error) => notify(e.message || "Failed to add row"));
     }
 
     setIsSellModalOpen(false);
@@ -301,31 +313,54 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
   function updateRowInSellTable(tableId: number, rowId: number, patch: Partial<SlotRowItem>) {
     setSellTables((prev) =>
-      prev.map((tbl) => {
-        if (tbl.id !== tableId) return tbl;
-        return {
-          ...tbl,
-          rows: tbl.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
-        };
-      })
+      prev.map((t) =>
+        t.id === tableId
+          ? {
+            ...t,
+            rows: t.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
+          }
+          : t
+      )
     );
+
+    if (patch.start_date || patch.premium !== undefined || patch.qty !== undefined) {
+      api
+        .put(`/api/slots/${tableId}/rows/${rowId}`, {
+          slot_date: patch.start_date || new Date().toISOString().split("T")[0],
+          premium: patch.premium !== undefined && patch.premium !== "" ? Number(patch.premium) : 300,
+          qty: patch.qty !== undefined && patch.qty !== "" ? Number(patch.qty) : 10.0,
+        })
+        .then(() => { })
+        .catch(() => { });
+    }
   }
 
   function updateTableStock(tableId: number, stockVal: string) {
     setSellTables((prev) =>
-      prev.map((tbl) => (tbl.id === tableId ? { ...tbl, tableStock: stockVal } : tbl))
+      prev.map((t) => (t.id === tableId ? { ...t, tableStock: stockVal } : t))
     );
+    const tbl = sellTables.find((t) => t.id === tableId);
+    if (!tbl) return;
+    api
+      .put(`/api/slots/${tableId}`, {
+        table_name: tbl.title,
+        stock: Number(stockVal) || 0,
+      })
+      .then(() => { })
+      .catch(() => { });
   }
 
   function deleteRowInSellTable(tableId: number, rowId: number) {
-    setSellTables((prev) =>
-      prev.map((tbl) => {
-        if (tbl.id !== tableId) return tbl;
-        return { ...tbl, rows: tbl.rows.filter((r) => r.id !== rowId) };
+    api
+      .delete(`/api/slots/${tableId}/rows/${rowId}`)
+      .then(() => {
+        notify("Row deleted");
+        loadSlots();
       })
-    );
-    notify("Row deleted");
+      .catch((e: Error) => notify(e.message || "Failed to delete row"));
   }
+
+
 
   return (
     <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-4 min-h-0 h-full">
@@ -336,22 +371,20 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
           <button
             type="button"
             onClick={() => setSelectedSlotType("BUY")}
-            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${
-              selectedSlotType === "BUY"
+            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${selectedSlotType === "BUY"
                 ? "border-indigo-600 text-indigo-600"
                 : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
+              }`}
           >
             Buy Slot
           </button>
           <button
             type="button"
             onClick={() => setSelectedSlotType("SELL")}
-            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${
-              selectedSlotType === "SELL"
+            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${selectedSlotType === "SELL"
                 ? "border-emerald-600 text-emerald-600"
                 : "border-transparent text-slate-400 hover:text-slate-700"
-            }`}
+              }`}
           >
             Sell Slot
           </button>
@@ -367,8 +400,8 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
             }
           }}
           className={`flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg text-white font-medium shadow-sm transition-colors cursor-pointer ${selectedSlotType === "SELL"
-              ? "bg-emerald-600 hover:bg-emerald-700"
-              : "bg-indigo-600 hover:bg-indigo-700"
+            ? "bg-emerald-600 hover:bg-emerald-700"
+            : "bg-indigo-600 hover:bg-indigo-700"
             }`}
         >
           <Plus size={16} /> Add Table
@@ -384,16 +417,16 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               <span>Current Physical Stock</span>
             </div>
             <div className="mt-2.5 flex items-baseline">
-              <span className="text-2xl font-bold text-slate-800">20.5</span>
+              <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.physical_stock ?? 0).toFixed(1)}</span>
               <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
             </div>
           </div>
 
           <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2.5">
               <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
                 <Truck size={16} className="text-slate-500 shrink-0" />
-                <span>Incoming</span>
+                <span>Incoming Gold</span>
               </div>
               <input
                 type="date"
@@ -403,9 +436,31 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
               />
             </div>
-            <div className="mt-2.5 flex items-baseline">
-              <span className="text-2xl font-bold text-slate-800">18.2</span>
-              <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+
+            <div className="grid grid-cols-2 divide-x divide-slate-200 items-center">
+              {/* Left Side: Incoming */}
+              <div className="pr-4">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Incoming
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
+                  <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+                </div>
+              </div>
+
+              {/* Right Side: Remaining */}
+              <div className="pl-4">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Remaining
+                </div>
+                <div className="flex items-baseline">
+                  <span className="text-2xl font-bold text-slate-800">
+                    {toNumber(stats?.remaining_incoming ?? 0).toFixed(1)}
+                  </span>
+                  <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -429,10 +484,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             if (tempTitleValue.trim()) {
-                              setSellTables((prev) =>
-                                prev.map((t) => (t.id === tbl.id ? { ...t, title: tempTitleValue.trim() } : t))
-                              );
-                              notify("Table name updated!");
+                              api
+                                .put(`/api/slots/${tbl.id}`, {
+                                  table_name: tempTitleValue.trim(),
+                                  stock: Number(tbl.tableStock) || 100,
+                                })
+                                .then(() => {
+                                  notify("Table name updated!");
+                                  loadSlots();
+                                });
                             }
                             setEditingTitleTableId(null);
                           }
@@ -444,10 +504,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         type="button"
                         onClick={() => {
                           if (tempTitleValue.trim()) {
-                            setSellTables((prev) =>
-                              prev.map((t) => (t.id === tbl.id ? { ...t, title: tempTitleValue.trim() } : t))
-                            );
-                            notify("Table name updated!");
+                            api
+                              .put(`/api/slots/${tbl.id}`, {
+                                table_name: tempTitleValue.trim(),
+                                stock: Number(tbl.tableStock) || 100,
+                              })
+                              .then(() => {
+                                notify("Table name updated!");
+                                loadSlots();
+                              });
                           }
                           setEditingTitleTableId(null);
                         }}
@@ -475,16 +540,14 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   )}
                 </div>
 
-                {sellTables.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => deleteSellTable(tbl.id)}
-                    className="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer"
-                    title="Delete table"
-                  >
-                    <Trash2 size={14} /> Delete Table
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => deleteSellTable(tbl.id)}
+                  className="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer"
+                  title="Delete table"
+                >
+                  <Trash2 size={14} /> Delete Table
+                </button>
               </div>
 
               <div className="overflow-x-auto w-full">
@@ -503,22 +566,41 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-100 transition-colors ${
-                          idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
-                        }`}
+                        className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
+                          }`}
                       >
                         <td className="px-4 py-2 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Calendar size={14} className="text-slate-400 shrink-0" />
-                            <span>{r.start_date}</span>
+                            <input
+                              type="date"
+                              value={r.start_date}
+                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium, qty: r.qty })}
+                              className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
+                            />
                           </div>
                         </td>
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
-                          ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-slate-400 font-normal">$</span>
+                            <input
+                              type="text"
+                              value={r.premium}
+                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: e.target.value, qty: r.qty })}
+                              placeholder="300.00"
+                              className="w-20 text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
+                            />
+                          </div>
                         </td>
                         <td className="px-5 py-3 text-center text-xs font-medium text-slate-700 whitespace-nowrap">
-                          {r.qty !== undefined && r.qty !== "" ? r.qty : "0.00"}
+                          <input
+                            type="text"
+                            value={r.qty !== undefined && r.qty !== null ? r.qty : "10.00"}
+                            onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: r.premium, qty: e.target.value })}
+                            placeholder="10.00"
+                            className="w-20 text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
+                          />
                         </td>
                         {/* Merged STOCK column spanning all table rows */}
                         {idx === 0 && (
@@ -613,10 +695,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             if (tempBuyTitleValue.trim()) {
-                              setBuyTables((prev) =>
-                                prev.map((t) => (t.id === tbl.id ? { ...t, title: tempBuyTitleValue.trim() } : t))
-                              );
-                              notify("Table name updated!");
+                              api
+                                .put(`/api/slots/${tbl.id}`, {
+                                  table_name: tempBuyTitleValue.trim(),
+                                  stock: 100,
+                                })
+                                .then(() => {
+                                  notify("Table name updated!");
+                                  loadSlots();
+                                });
                             }
                             setEditingBuyTitleTableId(null);
                           }
@@ -628,10 +715,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         type="button"
                         onClick={() => {
                           if (tempBuyTitleValue.trim()) {
-                            setBuyTables((prev) =>
-                              prev.map((t) => (t.id === tbl.id ? { ...t, title: tempBuyTitleValue.trim() } : t))
-                            );
-                            notify("Table name updated!");
+                            api
+                              .put(`/api/slots/${tbl.id}`, {
+                                table_name: tempBuyTitleValue.trim(),
+                                stock: 100,
+                              })
+                              .then(() => {
+                                notify("Table name updated!");
+                                loadSlots();
+                              });
                           }
                           setEditingBuyTitleTableId(null);
                         }}
@@ -659,16 +751,14 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   )}
                 </div>
 
-                {buyTables.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => deleteBuyTable(tbl.id)}
-                    className="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer"
-                    title="Delete table"
-                  >
-                    <Trash2 size={14} /> Delete Table
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => deleteBuyTable(tbl.id)}
+                  className="text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1 font-medium cursor-pointer"
+                  title="Delete table"
+                >
+                  <Trash2 size={14} /> Delete Table
+                </button>
               </div>
 
               <div className="overflow-x-auto w-full">
@@ -685,9 +775,8 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-100 transition-colors ${
-                          idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
-                        }`}
+                        className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
+                          }`}
                       >
                         <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">

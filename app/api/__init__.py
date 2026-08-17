@@ -26,6 +26,7 @@ def on_startup():
         for sql in [
             "ALTER TABLE customers ALTER COLUMN telegram_user_id DROP NOT NULL",
             "ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_telegram_user_id_key",
+            "ALTER TABLE slot_rows ADD COLUMN IF NOT EXISTS qty NUMERIC(12, 2) DEFAULT 10.00",
         ]:
             try:
                 conn.execute(text(f"COMMIT"))

@@ -8,151 +8,10 @@ interface InventoryPageProps {
   notify: (msg: string) => void;
 }
 
-const defaultInventoryRows: InventoryData[] = [
-  {
-    id: 1,
-    reference: "PO-2026-001",
-    inventory_date: "2026-08-15",
-    party: "DB",
-    name: "99.99% Gold Kilobar",
-    stock_kg: 1.00,
-    total_amount: 140786.078,
-    notes: "Oversea purchase order received",
-  },
-  {
-    id: 2,
-    reference: "SO-2026-001",
-    inventory_date: "2026-08-15",
-    party: "Heng Ty",
-    name: "Physical Gold Kilobar",
-    stock_kg: -1.00,
-    total_amount: 140986.000,
-    notes: "Customer sell order walk-in delivery",
-  },
-  {
-    id: 3,
-    reference: "PO-2026-002",
-    inventory_date: "2026-08-14",
-    party: "Local Refinery",
-    name: "Standard Kilobar",
-    stock_kg: 3.50,
-    total_amount: 493500.000,
-    notes: "Local stock replenishment",
-  },
-  {
-    id: 4,
-    reference: "SO-2026-002",
-    inventory_date: "2026-08-14",
-    party: "Ly Hour",
-    name: "Physical Gold",
-    stock_kg: -2.00,
-    total_amount: 281500.000,
-    notes: "Direct phone order dispatch",
-  },
-  {
-    id: 5,
-    reference: "PO-2026-003",
-    inventory_date: "2026-08-13",
-    party: "Swiss Refining Corp",
-    name: "Swiss 99.99% Gold",
-    stock_kg: 5.00,
-    total_amount: 704969.800,
-    notes: "Swiss import stock arrival",
-  },
-  {
-    id: 6,
-    reference: "ADJ-2026-001",
-    inventory_date: "2026-08-12",
-    party: "Internal Vault",
-    name: "Audit Correction",
-    stock_kg: 0.50,
-    total_amount: 70390.000,
-    notes: "Vault inventory audit discrepancy adjustment",
-  },
-  {
-    id: 7,
-    reference: "SO-2026-003",
-    inventory_date: "2026-08-11",
-    party: "Vattanac Gold",
-    name: "Kilobar 1KG",
-    stock_kg: -1.50,
-    total_amount: 211200.000,
-    notes: "Platform sell order completed",
-  },
-  {
-    id: 8,
-    reference: "PO-2026-004",
-    inventory_date: "2026-08-10",
-    party: "SV Trading",
-    name: "Local Kilobar",
-    stock_kg: 2.00,
-    total_amount: 281572.000,
-    notes: "Local refinery batch received",
-  },
-  {
-    id: 9,
-    reference: "SO-2026-004",
-    inventory_date: "2026-08-09",
-    party: "Canadia Gold",
-    name: "99.99% Gold Kilobar",
-    stock_kg: -3.00,
-    total_amount: 422400.000,
-    notes: "Wholesale bullion dispatch",
-  },
-  {
-    id: 10,
-    reference: "PO-2026-005",
-    inventory_date: "2026-08-08",
-    party: "Valcambi Suisse",
-    name: "Swiss Cast Bar 1KG",
-    stock_kg: 10.00,
-    total_amount: 1408500.000,
-    notes: "Direct Swiss foundry delivery",
-  },
-  {
-    id: 11,
-    reference: "ADJ-2026-002",
-    inventory_date: "2026-08-07",
-    party: "Vault Manager",
-    name: "Regular Rebalance",
-    stock_kg: -0.20,
-    total_amount: 28160.000,
-    notes: "Melting loss sample verification",
-  },
-  {
-    id: 12,
-    reference: "SO-2026-005",
-    inventory_date: "2026-08-06",
-    party: "Chip Mong Precious",
-    name: "Standard Kilobar",
-    stock_kg: -1.00,
-    total_amount: 140750.000,
-    notes: "VIP client purchase order fulfilled",
-  },
-  {
-    id: 13,
-    reference: "PO-2026-006",
-    inventory_date: "2026-08-05",
-    party: "PAMP SA",
-    name: "PAMP Fortuna 1KG",
-    stock_kg: 4.00,
-    total_amount: 563200.000,
-    notes: "Minted bars shipment received",
-  },
-  {
-    id: 14,
-    reference: "SO-2026-006",
-    inventory_date: "2026-08-04",
-    party: "Telegram (#2041)",
-    name: "Physical Gold Kilobar",
-    stock_kg: -0.50,
-    total_amount: 70380.000,
-    notes: "OTC Telegram channel sale",
-  },
-];
+
 
 export default function InventoryPage({ notify }: InventoryPageProps) {
-  const [rows, setRows] = useState<InventoryData[]>(defaultInventoryRows);
+  const [rows, setRows] = useState<InventoryData[]>([]);
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -166,16 +25,20 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
     reason: "",
   });
 
-  useEffect(() => {
+  function load() {
     api
       .get<InventoryData[]>("/api/inventory/")
       .then((data) => {
-        if (data && data.length > 0) {
-          setRows(data);
-        }
+        setRows(data || []);
       })
       .catch(() => { })
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const filtered = useMemo(() => {
@@ -245,24 +108,23 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
           reason: "",
         });
         notify(`Stock adjustment of ${val} KG recorded successfully`);
+        load();
       })
       .catch((e: Error) => notify(e.message));
   }
 
-  const physicalStock = totalStock > 0 ? totalStock : 100.0;
+  const physicalStock = totalStock;
 
   const totalIn = useMemo(() => {
-    const sum = rows
+    return rows
       .filter((r) => toNumber(r.stock_kg) > 0)
       .reduce((acc, r) => acc + toNumber(r.stock_kg), 0);
-    return sum > 0 ? sum : 75.5;
   }, [rows]);
 
   const totalOut = useMemo(() => {
-    const sum = rows
+    return rows
       .filter((r) => toNumber(r.stock_kg) < 0)
       .reduce((acc, r) => acc + Math.abs(toNumber(r.stock_kg)), 0);
-    return sum > 0 ? sum : 38.7;
   }, [rows]);
 
   return (

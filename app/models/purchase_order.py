@@ -36,9 +36,12 @@ class PurchaseOrder(Base):
     po_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # "LOCAL" | "OVERSEA"
 
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True, index=True)
-    slot_table_id: Mapped[int] = mapped_column(ForeignKey("slot_tables.id"), nullable=False, index=True)
+    supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    slot_table_id: Mapped[int | None] = mapped_column(ForeignKey("slot_tables.id"), nullable=True, index=True)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    spot_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    premium: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     total_cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(10), nullable=False, default="USD")
@@ -63,7 +66,7 @@ class PurchaseOrder(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     supplier: Mapped["Supplier | None"] = relationship("Supplier")
-    slot_table: Mapped["SlotTable"] = relationship("SlotTable")
+    slot_table: Mapped["SlotTable | None"] = relationship("SlotTable")
     creator: Mapped["User | None"] = relationship("User")
 
 
@@ -77,7 +80,7 @@ class StockReturn(Base):
 
     purchase_order_id: Mapped[int | None] = mapped_column(ForeignKey("purchase_orders.id"), nullable=True, index=True)
     order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
-    slot_table_id: Mapped[int] = mapped_column(ForeignKey("slot_tables.id"), nullable=False, index=True)
+    slot_table_id: Mapped[int | None] = mapped_column(ForeignKey("slot_tables.id", ondelete="SET NULL"), nullable=True, index=True)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)

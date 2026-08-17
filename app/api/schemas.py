@@ -53,29 +53,47 @@ class OrderResponse(BaseModel):
     premium_amount: Decimal
     transaction_type: str
     status: str
+    channel: str | None = None
+    telegram_user_id: str | None = None
+    username: str | None = None
+    spot_price: Decimal | None = None
+    total_amount: Decimal | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
 class OrderCreate(BaseModel):
-    order_no: str
+    order_no: str | None = None
     transaction_type: str
     quantity: Decimal
-    premium: Decimal
+    premium: Decimal = Decimal(0)
     customer_name: str | None = None
     slot_date_str: str | None = None
+    channel: str | None = "TELEGRAM"
+    spot_price: Decimal | None = None
+    total_amount: Decimal | None = None
+
+
+class OrderUpdate(BaseModel):
+    quantity: Decimal | None = None
+    premium: Decimal | None = None
+    customer_name: str | None = None
+    status: str | None = None
+    channel: str | None = None
 
 
 class SlotRowCreate(BaseModel):
     slot_date: date
     premium: Decimal
+    qty: Decimal | None = Decimal("10.00")
 
 
 class SlotRowResponse(BaseModel):
     id: int
     slot_date: date
     premium: Decimal
+    qty: Decimal | None = Decimal("10.00")
 
     model_config = {"from_attributes": True}
 
@@ -91,7 +109,7 @@ class SlotTableResponse(BaseModel):
     stock: Decimal
     is_active: bool
     display_order: int
-    rows: list[SlotRowResponse]
+    rows: list[SlotRowResponse] = []
 
     model_config = {"from_attributes": True}
 
@@ -133,10 +151,15 @@ class DailyInventoryCreate(BaseModel):
 
 class DailyInventoryResponse(BaseModel):
     id: int
-    inventory_date: date
+    reference: str | None = None
+    inventory_date: date | str
+    party: str | None = None
+    name: str | None = None
     stock_kg: Decimal
-    created_at: datetime
-    updated_at: datetime
+    total_amount: Decimal | None = None
+    notes: str | None = None
+    created_at: datetime | str | None = None
+    updated_at: datetime | str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -167,12 +190,16 @@ class SupplierResponse(BaseModel):
 class PurchaseOrderCreate(BaseModel):
     po_type: str
     supplier_id: int | None = None
-    slot_table_id: int
+    supplier_name: str | None = None
+    slot_table_id: int | None = None
     quantity: Decimal
-    unit_cost: Decimal
+    spot_price: Decimal | None = None
+    premium: Decimal | None = None
+    unit_cost: Decimal | None = None
     currency: str = "USD"
     order_date: date | None = None
     expected_date: date | None = None
+    received_date: date | None = None
     notes: str | None = None
     shipping_method: str | None = None
     tracking_no: str | None = None
@@ -180,15 +207,31 @@ class PurchaseOrderCreate(BaseModel):
     port_of_origin: str | None = None
 
 
+class PurchaseOrderUpdate(BaseModel):
+    po_type: str | None = None
+    supplier_name: str | None = None
+    quantity: Decimal | None = None
+    spot_price: Decimal | None = None
+    premium: Decimal | None = None
+    unit_cost: Decimal | None = None
+    order_date: date | None = None
+    expected_date: date | None = None
+    received_date: date | None = None
+    notes: str | None = None
+    status: str | None = None
+
+
 class PurchaseOrderResponse(BaseModel):
     id: int
     po_no: str
     po_type: str
-    supplier_id: int | None
+    supplier_id: int | None = None
     supplier_name: str | None = None
-    slot_table_id: int
+    slot_table_id: int | None = None
     slot_table_name: str | None = None
     quantity: Decimal
+    spot_price: Decimal | None = None
+    premium: Decimal | None = None
     unit_cost: Decimal
     total_cost: Decimal
     currency: str
@@ -238,6 +281,16 @@ class DashboardStats(BaseModel):
     total_buy_kg: float
     total_sell_kg: float
     physical_stock: float = 100.0
+    incoming_po: float = 5.0
+    remaining_incoming: float = 0.0
+    gold_in_overseas: float = 25.0
+    gold_in_local: float = 35.0
+    gold_in_customer: float = 15.5
+    gold_in_total: float = 75.5
+    gold_out_telegram: float = 18.2
+    gold_out_phone: float = 12.0
+    gold_out_walkin: float = 8.5
+    gold_out_total: float = 38.7
     reserved: float = 40.0
     available: float = 60.0
     open_orders: int = 12

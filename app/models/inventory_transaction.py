@@ -13,7 +13,7 @@ class InventoryTransaction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
-    slot_table_id: Mapped[int] = mapped_column(ForeignKey("slot_tables.id"), nullable=False, index=True)
+    slot_table_id: Mapped[int | None] = mapped_column(ForeignKey("slot_tables.id", ondelete="SET NULL"), nullable=True, index=True)
     order_id: Mapped[int | None] = mapped_column(ForeignKey("orders.id"), nullable=True, index=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 

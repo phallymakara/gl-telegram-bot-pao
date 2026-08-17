@@ -13,6 +13,7 @@ import {
   Send,
   Settings as SettingsIcon,
   ShoppingBag,
+  ShoppingCart,
   Store,
   Truck,
 } from "lucide-react";
@@ -25,28 +26,54 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
 
   useEffect(() => {
-    api
-      .get<DashboardStatsData>("/api/dashboard/stats")
-      .then(setStats)
-      .catch(() => { });
+    const loadStats = () => {
+      api
+        .get<DashboardStatsData>("/api/dashboard/stats")
+        .then(setStats)
+        .catch(() => {});
+    };
+    loadStats();
+    const interval = setInterval(loadStats, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const physicalStock = toNumber(stats?.physical_stock ?? 100.0).toFixed(1);
-  const reservedStock = toNumber(stats?.reserved ?? 40.0).toFixed(1);
-  const availableStock = toNumber(stats?.available ?? 60.0).toFixed(1);
-  const openOrdersCount = stats?.open_orders ?? 12;
+  const physicalStock = toNumber(stats?.physical_stock ?? 0).toFixed(1);
+  const incomingPo = toNumber(stats?.incoming_po ?? 0).toFixed(1);
+
+  const goldInOverseas = toNumber(stats?.gold_in_overseas ?? 0).toFixed(1);
+  const goldInLocal = toNumber(stats?.gold_in_local ?? 0).toFixed(1);
+  const goldInCustomer = toNumber(stats?.gold_in_customer ?? 0).toFixed(1);
+  const goldInTotal = toNumber(
+    stats?.gold_in_total ??
+    (toNumber(stats?.gold_in_overseas ?? 0) +
+      toNumber(stats?.gold_in_local ?? 0) +
+      toNumber(stats?.gold_in_customer ?? 0))
+  ).toFixed(1);
+
+  const goldOutTelegram = toNumber(stats?.gold_out_telegram ?? 0).toFixed(1);
+  const goldOutPhone = toNumber(stats?.gold_out_phone ?? 0).toFixed(1);
+  const goldOutWalkin = toNumber(stats?.gold_out_walkin ?? 0).toFixed(1);
+  const goldOutTotal = toNumber(
+    stats?.gold_out_total ??
+    (toNumber(stats?.gold_out_telegram ?? 0) +
+      toNumber(stats?.gold_out_phone ?? 0) +
+      toNumber(stats?.gold_out_walkin ?? 0))
+  ).toFixed(1);
+
+  const totalPurchase = toNumber(stats?.total_buy_kg ?? stats?.gold_in_total ?? 0).toFixed(1);
+  const totalSale = toNumber(stats?.total_sell_kg ?? stats?.gold_out_total ?? 0).toFixed(1);
 
   return (
     <div className="space-y-4">
 
       {/* 1. OVERVIEW STAT CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Package}
           label="Physical Stock"
           value={
             <>
-              100.0 <span className="text-sm font-normal text-slate-400">KG</span>
+              {physicalStock} <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
           sub="Current inventory"
@@ -55,9 +82,35 @@ export default function DashboardPage() {
         <StatCard
           icon={Truck}
           label="Incoming PO"
-          value="5"
+          value={
+            <>
+              {incomingPo} <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
           sub="Awaiting receipt"
           tint="bg-amber-50 text-amber-600"
+        />
+        <StatCard
+          icon={ShoppingBag}
+          label="Total Purchase"
+          value={
+            <>
+              {totalPurchase} <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Vendor & Customer Buy-back"
+          tint="bg-emerald-50 text-emerald-600"
+        />
+        <StatCard
+          icon={ShoppingCart}
+          label="Total Sale"
+          value={
+            <>
+              {totalSale} <span className="text-sm font-normal text-slate-400">KG</span>
+            </>
+          }
+          sub="Sales to Customers"
+          tint="bg-indigo-50 text-indigo-600"
         />
       </div>
 
@@ -80,28 +133,28 @@ export default function DashboardPage() {
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <Globe size={15} className="text-blue-600 shrink-0" /> Overseas
                 </span>
-                <span className="font-bold text-sm text-slate-900">25.0 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldInOverseas} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <Building2 size={15} className="text-indigo-600 shrink-0" /> Local
                 </span>
-                <span className="font-bold text-sm text-slate-900">35.0 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldInLocal} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <RotateCcw size={15} className="text-emerald-600 shrink-0" /> Customer
                 </span>
-                <span className="font-bold text-sm text-slate-900">15.5 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldInCustomer} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
             </div>
           </div>
 
           <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total IN</span>
-            <span className="text-base font-black text-emerald-700">75.5 KG</span>
+            <span className="text-base font-black text-emerald-700">{goldInTotal} KG</span>
           </div>
         </Card>
 
@@ -122,28 +175,28 @@ export default function DashboardPage() {
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <Send size={15} className="text-sky-600 shrink-0" /> Telegram
                 </span>
-                <span className="font-bold text-sm text-slate-900">18.2 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldOutTelegram} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <PhoneCall size={15} className="text-purple-600 shrink-0" /> Phone
                 </span>
-                <span className="font-bold text-sm text-slate-900">12.0 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldOutPhone} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
                   <Store size={15} className="text-amber-600 shrink-0" /> Walk-in
                 </span>
-                <span className="font-bold text-sm text-slate-900">8.5 <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldOutWalkin} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
             </div>
           </div>
 
           <div className="mt-4 pt-3 border-t border-indigo-100 flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total OUT</span>
-            <span className="text-base font-black text-indigo-700">38.7 KG</span>
+            <span className="text-base font-black text-indigo-700">{goldOutTotal} KG</span>
           </div>
         </Card>
       </div>

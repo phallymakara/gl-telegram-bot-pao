@@ -15,6 +15,8 @@ from app.models.slot_table import SlotTable
 from app.models.telegram_group import TelegramGroup
 from app.models.user import User
 
+from app.models.purchase_order import PurchaseOrder, Supplier
+
 CUSTOMERS = [
     ("123456001", "makara", "Makara", "Phally", "Makara Phally"),
     ("123456002", "sokun", "Sokun", "Nisa", "Sokun Nisa"),
@@ -27,33 +29,32 @@ CUSTOMERS = [
 ]
 
 SLOT_TABLES = [
-    {"name": "Table 1", "stock": Decimal("50.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
-    {"name": "Table 2", "stock": Decimal("51.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
-    {"name": "Table 3", "stock": Decimal("60.000"), "rows": [("2026-08-10", 350)]},
+    {"name": "99.99% Gold Kilobar", "stock": Decimal("50.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
+    {"name": "Local Gold Bar 99.99%", "stock": Decimal("51.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
+    {"name": "General Gold Slot", "stock": Decimal("60.000"), "rows": [("2026-08-10", 350)]},
+]
+
+PURCHASE_ORDERS = [
+    ("PO-2026-001", "OVERSEA", "Swiss Refining Corp", Decimal("1.000"), Decimal("4376.20"), Decimal("200.00"), "RECEIVED", "2026-08-15"),
+    ("PO-2026-002", "LOCAL", "Phnom Penh Gold", Decimal("2.500"), Decimal("4375.00"), Decimal("150.00"), "RECEIVED", "2026-08-14"),
+    ("PO-2026-004", "OVERSEA", "DB Swiss", Decimal("5.000"), Decimal("4378.00"), Decimal("250.00"), "INCOMING", "2026-08-13"),
+    ("PO-2026-005", "BUYBACK", "Customer Buyback · Makara", Decimal("1.500"), Decimal("4370.00"), Decimal("100.00"), "CONFIRMED", "2026-08-12"),
+    ("PO-2026-006", "LOCAL", "SV Trading", Decimal("3.000"), Decimal("4374.50"), Decimal("180.00"), "INCOMING", "2026-08-11"),
+    ("PO-2026-007", "OVERSEA", "Valcambi Suisse", Decimal("10.000"), Decimal("4380.00"), Decimal("220.00"), "INCOMING", "2026-08-10"),
+    ("PO-2026-008", "BUYBACK", "Customer Buyback · Sokun", Decimal("0.500"), Decimal("4368.00"), Decimal("120.00"), "RECEIVED", "2026-08-09"),
+    ("PO-2026-009", "LOCAL", "Phnom Penh Refinery", Decimal("4.000"), Decimal("4372.00"), Decimal("160.00"), "RECEIVED", "2026-08-08"),
 ]
 
 ORDERS = [
-    # (customer_index, table_index, row_index, type, qty, status, days_ago)
-    (0, 0, 0, "BUY", Decimal("2.500"), "COMPLETED", 0),
-    (1, 0, 1, "SELL", Decimal("1.200"), "COMPLETED", 0),
-    (2, 1, 0, "BUY", Decimal("3.000"), "COMPLETED", 1),
-    (3, 1, 1, "BUY", Decimal("0.800"), "COMPLETED", 1),
-    (4, 2, 0, "SELL", Decimal("1.800"), "PENDING", 1),
-    (5, 0, 2, "BUY", Decimal("2.000"), "COMPLETED", 2),
-    (6, 1, 2, "SELL", Decimal("1.200"), "COMPLETED", 2),
-    (7, 2, 0, "BUY", Decimal("4.000"), "CANCELLED", 2),
-    (0, 1, 0, "BUY", Decimal("1.500"), "COMPLETED", 3),
-    (2, 0, 1, "SELL", Decimal("0.600"), "COMPLETED", 3),
-    (3, 2, 0, "BUY", Decimal("2.200"), "COMPLETED", 3),
-    (5, 1, 1, "SELL", Decimal("3.000"), "COMPLETED", 4),
-    (6, 0, 0, "BUY", Decimal("1.000"), "COMPLETED", 4),
-    (1, 2, 0, "BUY", Decimal("2.800"), "COMPLETED", 4),
-    (4, 1, 2, "SELL", Decimal("1.400"), "PENDING", 5),
-    (7, 0, 2, "BUY", Decimal("0.900"), "COMPLETED", 5),
-    (0, 2, 0, "SELL", Decimal("2.000"), "COMPLETED", 5),
-    (3, 1, 0, "BUY", Decimal("1.700"), "COMPLETED", 6),
-    (6, 2, 0, "SELL", Decimal("0.500"), "COMPLETED", 6),
-    (2, 0, 1, "BUY", Decimal("3.500"), "COMPLETED", 6),
+    # (customer_index, table_index, row_index, type, qty, status, channel, days_ago)
+    (0, 0, 0, "BUY", Decimal("2.500"), "COMPLETED", "TELEGRAM", 0),
+    (1, 0, 1, "SELL", Decimal("18.200"), "COMPLETED", "TELEGRAM", 0),
+    (2, 1, 0, "SELL", Decimal("12.000"), "COMPLETED", "PHONE", 0),
+    (3, 1, 1, "SELL", Decimal("8.500"), "COMPLETED", "WALK_IN", 0),
+    (4, 2, 0, "SELL", Decimal("1.800"), "PENDING", "TELEGRAM", 1),
+    (5, 0, 2, "BUY", Decimal("15.500"), "COMPLETED", "TELEGRAM", 1),
+    (6, 1, 2, "SELL", Decimal("1.200"), "COMPLETED", "PHONE", 2),
+    (7, 2, 0, "BUY", Decimal("4.000"), "CANCELLED", "TELEGRAM", 2),
 ]
 
 
@@ -65,16 +66,16 @@ def seed():
         Base.metadata.create_all(bind=engine)
         db.close()
         db = SessionLocal()
-        existing_orders = db.query(func.count(Order.id)).scalar()
-        if existing_orders:
-            db.execute(delete(InventoryTransaction))
-            db.execute(delete(Alert))
-            db.execute(delete(Order))
-            db.execute(delete(SlotRow))
-            db.execute(delete(SlotTable))
-            db.execute(delete(Customer))
-            db.execute(delete(TelegramGroup))
-            print(f"Cleared {existing_orders} existing orders and related data.")
+
+        db.execute(delete(InventoryTransaction))
+        db.execute(delete(Alert))
+        db.execute(delete(PurchaseOrder))
+        db.execute(delete(Supplier))
+        db.execute(delete(Order))
+        db.execute(delete(SlotRow))
+        db.execute(delete(SlotTable))
+        db.execute(delete(Customer))
+        db.execute(delete(TelegramGroup))
 
         if not db.query(User).filter(User.username == "admin").first():
             db.add(User(
@@ -125,11 +126,36 @@ def seed():
                 slot_rows.append(sr)
         db.flush()
 
+        # Seed Purchase Orders
+        for po_no, po_type, sup_name, qty, spot, prem, status, odate in PURCHASE_ORDERS:
+            unit_cost = (spot * Decimal("32.148")) + prem
+            total_cost = qty * unit_cost
+            po = PurchaseOrder(
+                po_no=po_no,
+                po_type=po_type,
+                supplier_name=sup_name,
+                slot_table_id=slot_tables[0].id,
+                quantity=qty,
+                spot_price=spot,
+                premium=prem,
+                unit_cost=unit_cost,
+                total_cost=total_cost,
+                status=status,
+                order_date=date.fromisoformat(odate),
+                expected_date=date.fromisoformat(odate),
+                received_date=date.fromisoformat(odate) if status == "RECEIVED" else None,
+            )
+            db.add(po)
+        db.flush()
+
         now = datetime.utcnow()
-        for i, (c_idx, t_idx, r_idx, ttype, qty, status, days_ago) in enumerate(ORDERS, start=1):
+        for i, (c_idx, t_idx, r_idx, ttype, qty, status, channel, days_ago) in enumerate(ORDERS, start=1):
             created = now - timedelta(days=days_ago, hours=random.randint(0, 8))
             premium = slot_rows[r_idx].premium
             order_no = f"GL-2026-{i:04d}"
+            spot_price = Decimal("4376.20")
+            unit = (spot_price * Decimal("32.148")) + premium
+            tot = qty * unit
             o = Order(
                 order_no=order_no,
                 customer_id=customers[c_idx].id,
@@ -140,6 +166,10 @@ def seed():
                 premium_amount=(qty * premium).quantize(Decimal("0.01")),
                 transaction_type=ttype,
                 status=status,
+                channel=channel,
+                customer_name=customers[c_idx].display_name,
+                spot_price=spot_price,
+                total_amount=tot,
                 telegram_user_id=customers[c_idx].telegram_user_id,
                 username=customers[c_idx].username,
                 slot_date_str=slot_rows[r_idx].slot_date.isoformat(),
@@ -149,7 +179,7 @@ def seed():
             db.add(o)
             db.flush()
 
-            if ttype == "BUY" and status != "CANCELLED":
+            if ttype == "SELL" and status != "CANCELLED":
                 table = slot_tables[t_idx]
                 after = max(Decimal("0"), table.stock - qty)
                 db.add(InventoryTransaction(
@@ -159,7 +189,7 @@ def seed():
                     quantity=qty,
                     stock_before=table.stock,
                     stock_after=after,
-                    remark=f"Auto-seeded from order {order_no}",
+                    remark=f"Auto-seeded order {order_no}",
                     created_at=created,
                 ))
                 table.stock = after
@@ -168,8 +198,9 @@ def seed():
         print("Seed complete:")
         print(f"  - {len(CUSTOMERS)} customers")
         print(f"  - {len(slot_tables)} slot tables / {len(slot_rows)} slot rows")
+        print(f"  - {len(PURCHASE_ORDERS)} purchase orders")
         print(f"  - {len(ORDERS)} orders")
-        print("  - admin user (username=admin, password=admin123) created if missing")
+        print("  - admin user (username=admin, password=admin123) created")
     finally:
         db.close()
 

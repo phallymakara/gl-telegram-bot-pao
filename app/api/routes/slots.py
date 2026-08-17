@@ -36,8 +36,7 @@ def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
     )
     db.add(table)
     db.commit()
-    db.refresh(table)
-    return table
+    return db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table.id).first()
 
 
 @router.put("/{table_id}", response_model=SlotTableResponse)
@@ -48,8 +47,7 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
     table.table_name = body.table_name
     table.stock = body.stock
     db.commit()
-    db.refresh(table)
-    return table
+    return db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
 
 
 @router.delete("/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -57,8 +55,20 @@ def delete_table(table_id: int, db: Session = Depends(get_db)):
     table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
+    
+    from app.models.inventory_transaction import InventoryTransaction
+    from app.models.purchase_order import PurchaseOrder, StockReturn
+    from app.models.alert import Alert
+    from app.models.order import Order
+    
+    db.query(InventoryTransaction).filter(InventoryTransaction.slot_table_id == table_id).delete(synchronize_session=False)
+    db.query(StockReturn).filter(StockReturn.slot_table_id == table_id).delete(synchronize_session=False)
+    db.query(PurchaseOrder).filter(PurchaseOrder.slot_table_id == table_id).update({"slot_table_id": None}, synchronize_session=False)
+    db.query(Alert).filter(Alert.slot_table_id == table_id).update({"slot_table_id": None}, synchronize_session=False)
+    
     for row in table.rows:
-        _raise_if_slot_referenced(db, row.id)
+        db.query(Order).filter(Order.slot_id == row.id).update({"slot_id": None}, synchronize_session=False)
+        
     db.delete(table)
     db.commit()
 
@@ -68,7 +78,7 @@ def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
     table = db.query(SlotTable).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
-    row = SlotRow(slot_table_id=table_id, slot_date=body.slot_date, premium=body.premium)
+    row = SlotRow(slot_table_id=table_id, slot_date=body.slot_date, premium=body.premium, qty=body.qty)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -82,6 +92,8 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
         raise HTTPException(status_code=404, detail="Row not found")
     row.slot_date = body.slot_date
     row.premium = body.premium
+    if body.qty is not None:
+        row.qty = body.qty
     db.commit()
     db.refresh(row)
     return row
@@ -92,6 +104,6 @@ def delete_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
     row = db.query(SlotRow).filter(SlotRow.id == row_id, SlotRow.slot_table_id == table_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Row not found")
-    _raise_if_slot_referenced(db, row.id)
+    db.query(Order).filter(Order.slot_id == row_id).update({"slot_id": None}, synchronize_session=False)
     db.delete(row)
     db.commit()

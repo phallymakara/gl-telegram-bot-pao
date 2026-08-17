@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
-import { api, OrderData, toNumber } from "../data/api";
+import { api, DashboardStatsData, OrderData, toNumber } from "../data/api";
 
 interface PhysicalOrdersPageProps {
   notify: (msg: string) => void;
@@ -22,6 +22,7 @@ export default function PhysicalOrdersPage({
   notify,
 }: PhysicalOrdersPageProps) {
   const [rows, setRows] = useState<OrderData[]>([]);
+  const [stats, setStats] = useState<DashboardStatsData | null>(null);
   const [form, setForm] = useState({
     customer_name: "",
     date: "",
@@ -36,6 +37,10 @@ export default function PhysicalOrdersPage({
       .get<OrderData[]>("/api/orders/?order_type=SELL")
       .then(setRows)
       .catch(() => notify("Failed to load orders"));
+    api
+      .get<DashboardStatsData>("/api/dashboard/stats")
+      .then(setStats)
+      .catch(() => {});
   }, []);
 
   function save() {
@@ -99,7 +104,8 @@ export default function PhysicalOrdersPage({
             label="Total Stock"
             value={
               <>
-                — <span className="text-sm font-normal text-slate-400">KG</span>
+                {toNumber(stats?.physical_stock ?? 0).toFixed(1)}{" "}
+                <span className="text-sm font-normal text-slate-400">KG</span>
               </>
             }
             sub="Active Inventory"
