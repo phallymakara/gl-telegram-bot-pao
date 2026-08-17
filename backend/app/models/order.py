@@ -1,8 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 
+# pyrefly: ignore [missing-import]
 from sqlalchemy import DateTime, ForeignKey, Numeric, String
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+# pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 
 from app.core.database import Base

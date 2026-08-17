@@ -71,7 +71,7 @@ def generate_invoice_text(order, user) -> str:
         f"Quantity       : {qty:g} Kg\n"
         f"Premium Price  : {premium_price_str}\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "🙏 Thank you for your purchase!\n"
+        "Thank you for your purchase!\n"
         "សូមអរគុណសម្រាប់ការជាវរបស់អ្នក។"
     )
     return text

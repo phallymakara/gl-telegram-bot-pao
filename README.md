@@ -33,69 +33,26 @@ A robust, multilingual Telegram bot built in Python to facilitate gold buying an
 
 ```text
 gold-telegram-bot/
-├── app/
-│   ├── api/                    # FastAPI application (app.api:app)
-│   │   ├── __init__.py         # FastAPI instance, CORS, router registration
-│   │   ├── dependencies.py     # DB session dependency
-│   │   ├── schemas.py          # Pydantic request/response models
-│   │   └── routes/
-│   │       ├── auth.py         # POST /api/auth/login, GET /api/auth/me
-│   │       ├── users.py        # /api/users
-│   │       ├── orders.py       # /api/orders
-│   │       ├── slots.py        # /api/slots
-│   │       ├── dashboard.py    # /api/dashboard
-│   │       ├── alerts.py       # /api/alerts
-│   │       ├── settings.py     # /api/settings
-│   │       ├── customers.py    # /api/customers
-│   │       └── inventory.py    # /api/inventory
-│   ├── bot/                    # Telegram bot handlers & flows
-│   │   ├── buy_handler.py      # Buy flow entry point
-│   │   ├── sell_handler.py     # Sell flow entry point
-│   │   ├── order_handler.py    # User order histories
-│   │   ├── order_flow.py       # Multi-step order state & quantity selection
-│   │   ├── keyboards.py        # Inline keyboard layouts
-│   │   ├── messages.py         # Error & status message constants
-│   │   └── handlers.py         # Central start & button router
-│   ├── config/
-│   │   ├── settings.py         # Bot configuration
-│   │   └── logger.py           # Unified logger configuration
-│   ├── constants/
-│   │   ├── callback.py         # Callback query prefix constants
-│   │   └── order.py            # Order-related constants
-│   ├── core/                   # Core backend configuration
-│   │   ├── config.py           # BOT_TOKEN, DATABASE_URL, SECRET_KEY, JWT settings
-│   │   ├── database.py         # SQLAlchemy engine, session, Base
-│   │   ├── security.py         # Password hashing & JWT helpers
-│   │   └── logging.py          # Logging configuration
-│   ├── db/
-│   │   └── base.py             # Registers all SQLAlchemy models
-│   ├── exceptions/
-│   │   └── order_exceptions.py # Custom exceptions (Stock, SlotNotFound)
-│   ├── models/                 # SQLAlchemy models
-│   │   ├── user.py             # Admin users & roles
-│   │   ├── customer.py         # Customers / whitelist
-│   │   ├── telegram_group.py   # Active telegram groups
-│   │   ├── slot_table.py       # Slot tables (inventory)
-│   │   ├── slot_row.py         # Slot rows (dates & premiums)
-│   │   ├── order.py            # Buy/sell orders
-│   │   ├── alert.py            # Alerts
-│   │   ├── inventory_transaction.py  # Stock movements
-│   │   └── daily_inventory.py  # Daily inventory snapshots
-│   ├── services/
-│   │   ├── db.py               # Shared DB helpers
-│   │   ├── order_service.py    # Buy/sell order wrappers
-│   │   ├── slot_service.py     # Stock check, retrieval, deduction
-│   │   ├── whitelist_service.py# Whitelisted user validation
-│   │   └── promotion_service.py# Promotion broadcasting background loop
-│   ├── utils/
-│   │   ├── helpers.py          # Invoices and price formatting
-│   │   └── translation.py      # Localized text and translation helper
-│   ├── main.py                 # Telegram bot entrypoint
-│   └── seed.py                 # Seed demo data + admin user
+├── backend/                    # Python Backend (API & Telegram Bot)
+│   ├── app/
+│   │   ├── api/                # FastAPI application (app.api:app)
+│   │   ├── bot/                # Telegram bot handlers & flows
+│   │   ├── config/             # Config & logger
+│   │   ├── constants/          # Constants
+│   │   ├── core/               # Database, security, core config
+│   │   ├── db/                 # Base model imports
+│   │   ├── exceptions/         # Custom exceptions
+│   │   ├── models/             # SQLAlchemy database models
+│   │   ├── services/           # Business logic & services
+│   │   ├── utils/              # Helpers & translation
+│   │   ├── main.py             # Telegram bot entrypoint
+│   │   └── seed.py             # Seed demo data + admin user
+│   ├── pyproject.toml          # Backend dependencies
+│   ├── uv.lock                 # Dependency lockfile
+│   ├── Dockerfile              # Backend container build file
+│   └── Dockerfile.dev          # Backend dev container build file
 ├── frontend/                   # React + Vite + Tailwind admin panel
-├── pyproject.toml              # Project dependency settings
-├── uv.lock                     # Dependency lockfile
-├── .env                        # Environment variables (ignored in git)
+├── .env                        # Environment variables
 ├── docker-compose.yml          # Full stack: db + bot + api + frontend
 └── docker-compose.dev.yml      # Dev: postgres + pgadmin
 ```
@@ -112,7 +69,7 @@ gold-telegram-bot/
 
 ## Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root or `backend/` directory:
 
 ```ini
 BOT_TOKEN=your_telegram_bot_token_here
@@ -134,24 +91,26 @@ SECRET_KEY=change-this-secret
 
 ```bash
 git clone git@github.com:phallymakara/gold-telegram-bot.git
-cd gold-telegram-bot
+cd gold-telegram-bot/backend
 ```
 
 ### 2. Configure Environment Variables
 
-Create a `.env` file as described above.
+Create a `.env` file in `backend/` as described above.
 
 ### 3. Install Dependencies
 
 Using `uv` (recommended):
 
 ```bash
+cd backend
 uv sync
 ```
 
 Using `pip`:
 
 ```bash
+cd backend
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
@@ -166,12 +125,14 @@ The admin API is a FastAPI application exposed at `app.api:app`.
 Using `uv`:
 
 ```bash
+cd backend
 uv run uvicorn app.api:app --host 0.0.0.0 --port 8000
 ```
 
 Using the virtual environment directly:
 
 ```bash
+cd backend
 .venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000
 ```
 
@@ -184,6 +145,7 @@ On startup the API creates all database tables automatically (via `Base.metadata
 ### Seeding Demo Data
 
 ```bash
+cd backend
 uv run python -m app.seed
 ```
 
@@ -201,6 +163,7 @@ This creates/drops tables and seeds:
 To start the polling bot (which also kicks off the background promotions loop):
 
 ```bash
+cd backend
 uv run python -m app.main
 ```
 
