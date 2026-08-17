@@ -120,12 +120,12 @@ pip install -e .
 
 ## How to Run the Project
 
-To run the full development environment, start the following 4 services across 4 separate terminals:
+To run the full development environment, start the 4 services across **4 separate terminal windows**:
 
 ### Development Architecture
 
 ```text
-                 DEVELOPMENT
+                 DEVELOPMENT STACK
 
        Docker
          │
@@ -139,20 +139,17 @@ To run the full development environment, start the following 4 services across 4
    :8000                   Bot
        │
        │
-    React
+    React Admin
    :5173
 ```
 
 ---
 
-### Commands to Run the Project (4 Terminals)
+### Step-by-Step Instructions (4 Terminals)
 
-Every time you start development, open 4 terminals and run:
-
-#### Terminal 1: PostgreSQL + pgAdmin (Docker)
-
+#### Terminal 1: Database & pgAdmin (Docker)
+Start PostgreSQL and pgAdmin containers in the background:
 ```bash
-cd D:\Company\Project\gl-telegram-bot-pao
 docker compose -f docker-compose.dev.yml up -d
 ```
 - **PostgreSQL**: `localhost:5050`
@@ -160,42 +157,41 @@ docker compose -f docker-compose.dev.yml up -d
 - **Check Status**: `docker compose -f docker-compose.dev.yml ps`
 
 #### Terminal 2: FastAPI Backend API
-
+Start the FastAPI server:
 ```bash
-cd D:\Company\Project\gl-telegram-bot-pao\backend
-uv run uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
+cd backend
+uv run python -m uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
 ```
-- **API Base**: `http://localhost:8000`
+- **API Base URL**: `http://localhost:8000`
 - **Swagger Docs**: `http://localhost:8000/docs`
 - **Health Check**: `http://localhost:8000/api/health`
 
 > [!NOTE]
-> Don't run `uvicorn app.main:app` — `app.main` is your Telegram bot, while `app.api:app` is your FastAPI application.
+> Run `app.api:app` for the FastAPI REST server. `app.main` is the Telegram Bot entry point.
 
 #### Terminal 3: Telegram Bot
-
+Start the Telegram polling bot & background promotions engine:
 ```bash
-cd D:\Company\Project\gl-telegram-bot-pao\backend
+cd backend
 uv run python -m app.main
 ```
-- Starts the Telegram polling bot and background promotions loop.
 
 #### Terminal 4: React Admin Frontend
-
+Start the React Vite development server:
 ```bash
-cd D:\Company\Project\gl-telegram-bot-pao\frontend
+cd frontend
 npm run dev
 ```
-- **Frontend App**: `http://localhost:5173`
+- **Frontend Panel**: `http://localhost:5173`
 
 ---
 
 ### Seeding Demo Data (Optional)
 
-To seed initial database records (admin user `admin`/`admin123`, customers, slots, orders):
+To reset/seed initial database records (admin user `admin`/`admin123`, customers, slots, and orders):
 
 ```bash
-cd D:\Company\Project\gl-telegram-bot-pao\backend
+cd backend
 uv run python -m app.seed
 ```
 
