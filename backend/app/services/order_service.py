@@ -4,20 +4,23 @@ import threading
 from decimal import Decimal
 from uuid import uuid4
 
-from app.core.database import SessionLocal
-from app.models.order import Order
-from app.models.customer import Customer
-from app.models.telegram_group import TelegramGroup
-from app.models.slot_table import SlotTable
-from app.models.slot_row import SlotRow
-from app.models.purchase_order import StockReturn
-from app.exceptions.order_exceptions import SlotNotFoundError, InsufficientStockError
-from app.services.slot_service import get_slot_by_date_sync, check_stock_sync, deduct_stock_sync, add_stock_to_table_sync
 from app.core.config import DEFAULT_GROUP_NAME, DEFAULT_SPOT_PRICE
+from app.core.database import SessionLocal
+from app.exceptions.order_exceptions import InsufficientStockError, SlotNotFoundError
+from app.models.customer import Customer
+from app.models.order import Order
+from app.models.purchase_order import StockReturn
+from app.models.slot_row import SlotRow
+from app.models.slot_table import SlotTable
+from app.models.telegram_group import TelegramGroup
+from app.services.slot_service import add_stock_to_table_sync, check_stock_sync, deduct_stock_sync, get_slot_by_date_sync
+from app.utils.generators import generate_order_no, generate_po_no
+from app.utils.pricing import calculate_order_total, calculate_premium_amount, calculate_unit_cost
 
 logger = logging.getLogger(__name__)
 
 order_lock = asyncio.Lock()
+
 
 
 def _find_or_create_customer(session, telegram_id: str, username: str) -> Customer:
@@ -83,22 +86,21 @@ def _place_order_sync(
         slot_pair = _find_slot_row(session, slot_date, order_type)
         slot_row, slot_table = slot_pair if slot_pair else (None, None)
 
-        premium_val = float(slot_info["premium"])
+        premium_val = Decimal(str(slot_info["premium"]))
         spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
-        total_amt = Decimal(str(quantity)) * (spot_price_dec * Decimal("32.148") + Decimal(str(premium_val)))
+        total_amt = calculate_order_total(quantity, spot_price_dec, premium_val)
 
         # Store perspective: Telegram user BUY = Store SELL (Gold OUT); Telegram user SELL = Store BUY (Gold IN/Buyback)
         store_txn_type = "SELL" if order_type == "BUY" else "BUY"
-        prefix = "ORD-S" if store_txn_type == "SELL" else "ORD-B"
 
         order = Order(
-            order_no=f"{prefix}-{uuid4().hex[:8].upper()}",
+            order_no=generate_order_no(store_txn_type),
             customer_id=customer.id,
             group_id=group.id,
             slot_id=slot_row.id if slot_row else None,
             quantity=Decimal(str(quantity)),
-            premium=Decimal(str(premium_val)),
-            premium_amount=Decimal(str(premium_val * quantity)),
+            premium=premium_val,
+            premium_amount=calculate_premium_amount(quantity, premium_val),
             transaction_type=store_txn_type,
             status="CONFIRMED",
             channel="TELEGRAM",
@@ -117,11 +119,10 @@ def _place_order_sync(
         elif store_txn_type == "BUY":
             from datetime import date
             from app.models.purchase_order import PurchaseOrder
-            from app.services.purchase_order_service import generate_po_no
 
             po_no = generate_po_no("BUYBACK")
             cust_name = customer.display_name or username or f"Telegram #{telegram_id}"
-            unit_cost_val = (spot_price_dec * Decimal("32.148")) + Decimal(str(premium_val))
+            unit_cost_val = calculate_unit_cost(spot_price_dec, premium_val)
 
             po = PurchaseOrder(
                 po_no=po_no,
@@ -131,7 +132,7 @@ def _place_order_sync(
                 slot_table_id=slot_table.id if slot_table else None,
                 quantity=Decimal(str(quantity)),
                 spot_price=spot_price_dec,
-                premium=Decimal(str(premium_val)),
+                premium=premium_val,
                 unit_cost=unit_cost_val,
                 total_cost=total_amt,
                 currency="USD",

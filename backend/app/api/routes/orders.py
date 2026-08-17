@@ -1,3 +1,6 @@
+from decimal import Decimal
+from uuid import uuid4
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
@@ -6,12 +9,10 @@ from app.api.schemas import OrderCreate, OrderResponse, OrderReturnRequest, Stoc
 from app.models.customer import Customer
 from app.models.order import Order
 from app.services.order_service import cancel_order_sync, return_order_sync
+from app.utils.generators import generate_order_no
+from app.utils.pricing import DEFAULT_SPOT_PRICE, calculate_order_total, calculate_premium_amount
 
 router = APIRouter()
-
-
-from uuid import uuid4
-from decimal import Decimal
 
 
 def _to_order_response(o: Order) -> OrderResponse:
@@ -40,8 +41,7 @@ def _to_order_response(o: Order) -> OrderResponse:
 def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     order_no = body.order_no
     if not order_no:
-        prefix = "ORD-B" if body.transaction_type.upper() == "BUY" else "ORD-S"
-        order_no = f"{prefix}-{uuid4().hex[:8].upper()}"
+        order_no = generate_order_no(body.transaction_type)
 
     existing = db.query(Order).filter(Order.order_no == order_no).first()
     if existing:
@@ -62,9 +62,10 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
             db.add(customer)
             db.flush()
 
-    premium_amount = body.quantity * body.premium
-    spot_price = body.spot_price or Decimal("4376.2")
-    total_amount = body.total_amount or (body.quantity * (spot_price * Decimal("32.148") + body.premium))
+    spot_price = body.spot_price or DEFAULT_SPOT_PRICE
+    premium_amount = calculate_premium_amount(body.quantity, body.premium)
+    total_amount = body.total_amount or calculate_order_total(body.quantity, spot_price, body.premium)
+
 
     order = Order(
         order_no=order_no,
@@ -136,14 +137,14 @@ def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)
         o.quantity = body.quantity
     if body.premium is not None:
         o.premium = body.premium
-        o.premium_amount = body.quantity * body.premium
+        o.premium_amount = calculate_premium_amount(o.quantity, body.premium)
     if body.spot_price is not None:
         o.spot_price = body.spot_price
     if body.total_amount is not None:
         o.total_amount = body.total_amount
     else:
-        spot_price = body.spot_price or o.spot_price or Decimal("4376.2")
-        o.total_amount = body.quantity * (spot_price * Decimal("32.148") + body.premium)
+        spot_price = body.spot_price or o.spot_price or DEFAULT_SPOT_PRICE
+        o.total_amount = calculate_order_total(o.quantity, spot_price, o.premium)
     if body.channel:
         o.channel = body.channel
 

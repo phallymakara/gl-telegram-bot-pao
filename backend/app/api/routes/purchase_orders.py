@@ -13,9 +13,12 @@ from app.api.schemas import (
 )
 from app.models.purchase_order import PurchaseOrder
 from app.models.slot_table import SlotTable
-from app.services.purchase_order_service import generate_po_no, receive_purchase_order_sync, return_purchase_order_sync
+from app.services.purchase_order_service import receive_purchase_order_sync, return_purchase_order_sync
+from app.utils.generators import generate_po_no
+from app.utils.pricing import DEFAULT_PREMIUM, DEFAULT_SPOT_PRICE, calculate_total_cost, calculate_unit_cost
 
 router = APIRouter()
+
 
 
 
@@ -92,12 +95,12 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
         slot_table_id = table.id if table else None
 
     unit_cost = body.unit_cost
-    spot_price = body.spot_price or Decimal("4376.2")
-    premium = body.premium or Decimal("200")
+    spot_price = body.spot_price or DEFAULT_SPOT_PRICE
+    premium = body.premium or DEFAULT_PREMIUM
     if unit_cost is None or unit_cost == Decimal(0):
-        unit_cost = (spot_price * Decimal("32.148")) + premium
+        unit_cost = calculate_unit_cost(spot_price, premium)
 
-    total_cost = body.quantity * unit_cost
+    total_cost = calculate_total_cost(body.quantity, unit_cost)
 
     po = PurchaseOrder(
         po_no=generate_po_no(po_type),
@@ -152,10 +155,10 @@ def update_purchase_order(po_id: int, body: PurchaseOrderUpdate, db: Session = D
     if body.received_date is not None:
         po.received_date = body.received_date
 
-    spot = po.spot_price or Decimal("4376.2")
-    prem = po.premium or Decimal("200")
-    po.unit_cost = (spot * Decimal("32.148")) + prem
-    po.total_cost = po.quantity * po.unit_cost
+    spot = po.spot_price or DEFAULT_SPOT_PRICE
+    prem = po.premium or DEFAULT_PREMIUM
+    po.unit_cost = calculate_unit_cost(spot, prem)
+    po.total_cost = calculate_total_cost(po.quantity, po.unit_cost)
 
     db.commit()
     db.refresh(po)

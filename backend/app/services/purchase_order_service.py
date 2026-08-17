@@ -1,22 +1,13 @@
 import logging
 from datetime import date
 from decimal import Decimal
-from uuid import uuid4
-
 from app.core.database import SessionLocal
 from app.models.purchase_order import PurchaseOrder, StockReturn
 from app.services.slot_service import add_stock_to_table_sync, deduct_stock_from_table_sync
+from app.utils.generators import generate_po_no, generate_return_no
 
 logger = logging.getLogger(__name__)
 
-
-def generate_po_no(po_type: str) -> str:
-    prefix = "PO-L" if po_type == "LOCAL" else ("PO-O" if po_type == "OVERSEA" else "PO-B")
-    return f"{prefix}-{uuid4().hex[:8].upper()}"
-
-
-def generate_return_no() -> str:
-    return f"RET-{uuid4().hex[:8].upper()}"
 
 
 def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:

@@ -16,6 +16,8 @@ from app.models.telegram_group import TelegramGroup
 from app.models.user import User
 
 from app.models.purchase_order import PurchaseOrder, Supplier
+from app.utils.pricing import DEFAULT_SPOT_PRICE, calculate_order_total, calculate_total_cost, calculate_unit_cost
+
 
 CUSTOMERS = [
     ("123456001", "makara", "Makara", "Phally", "Makara Phally"),
@@ -128,8 +130,8 @@ def seed():
 
         # Seed Purchase Orders
         for po_no, po_type, sup_name, qty, spot, prem, status, odate in PURCHASE_ORDERS:
-            unit_cost = (spot * Decimal("32.148")) + prem
-            total_cost = qty * unit_cost
+            unit_cost = calculate_unit_cost(spot, prem)
+            total_cost = calculate_total_cost(qty, unit_cost)
             po = PurchaseOrder(
                 po_no=po_no,
                 po_type=po_type,
@@ -153,9 +155,9 @@ def seed():
             created = now - timedelta(days=days_ago, hours=random.randint(0, 8))
             premium = slot_rows[r_idx].premium
             order_no = f"GL-2026-{i:04d}"
-            spot_price = Decimal("4376.20")
-            unit = (spot_price * Decimal("32.148")) + premium
-            tot = qty * unit
+            spot_price = DEFAULT_SPOT_PRICE
+            unit = calculate_unit_cost(spot_price, premium)
+            tot = calculate_total_cost(qty, unit)
             o = Order(
                 order_no=order_no,
                 customer_id=customers[c_idx].id,
