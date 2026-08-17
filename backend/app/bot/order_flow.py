@@ -155,7 +155,8 @@ async def handle_confirm_order(
         )
 
     except SlotNotFoundError as error:
-        await query.message.reply_text(f"❌ {error}")
+        await query.message.reply_text(str(error))
 
     except InsufficientStockError as error:
-        await query.message.reply_text(f"❌ {error}")
+        await query.message.reply_text(str(error))
+

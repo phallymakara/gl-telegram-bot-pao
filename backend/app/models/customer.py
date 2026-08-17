@@ -1,13 +1,11 @@
 from datetime import datetime
 
-# pyrefly: ignore [missing-import]
 from sqlalchemy import DateTime, String
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Mapped, mapped_column
-# pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 
 from app.core.database import Base
+
 
 
 class Customer(Base):

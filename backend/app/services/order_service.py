@@ -13,7 +13,7 @@ from app.models.slot_row import SlotRow
 from app.models.purchase_order import StockReturn
 from app.exceptions.order_exceptions import SlotNotFoundError, InsufficientStockError
 from app.services.slot_service import get_slot_by_date_sync, check_stock_sync, deduct_stock_sync, add_stock_to_table_sync
-from app.config.settings import DEFAULT_GROUP_NAME
+from app.core.config import DEFAULT_GROUP_NAME, DEFAULT_SPOT_PRICE
 
 logger = logging.getLogger(__name__)
 
@@ -65,14 +65,17 @@ def _place_order_sync(
     quantity: float,
     order_type: str,
 ) -> Order:
+    logger.info("Placing %s order: telegram_id=%s, username=%s, slot_date=%s, quantity=%.2f", order_type, telegram_id, username, slot_date, quantity)
     session = SessionLocal()
     try:
         slot_info = get_slot_by_date_sync(slot_date, order_type)
         if not slot_info:
+            logger.warning("Order failed: Slot not found for slot_date=%s, order_type=%s", slot_date, order_type)
             raise SlotNotFoundError("Slot not found")
 
         if order_type == "BUY":
             if not check_stock_sync(slot_date, quantity, order_type):
+                logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
                 raise InsufficientStockError("Insufficient stock")
 
         customer = _find_or_create_customer(session, telegram_id, username)
@@ -81,7 +84,7 @@ def _place_order_sync(
         slot_row, slot_table = slot_pair if slot_pair else (None, None)
 
         premium_val = float(slot_info["premium"])
-        spot_price_dec = Decimal("4376.20")
+        spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
         total_amt = Decimal(str(quantity)) * (spot_price_dec * Decimal("32.148") + Decimal(str(premium_val)))
 
         # Store perspective: Telegram user BUY = Store SELL (Gold OUT); Telegram user SELL = Store BUY (Gold IN/Buyback)
@@ -142,12 +145,15 @@ def _place_order_sync(
 
         session.commit()
         session.refresh(order)
+        logger.info("Successfully created order_no=%s for customer=%s, total_amount=%.2f", order.order_no, customer.display_name, total_amt)
         return order
-    except Exception:
+    except Exception as exc:
         session.rollback()
+        logger.error("Error placing order for telegram_id=%s: %s", telegram_id, exc, exc_info=True)
         raise
     finally:
         session.close()
+
 
 
 async def place_buy_order(

@@ -118,60 +118,92 @@ pip install -e .
 
 ---
 
-## Running the Backend API
+## How to Run the Project
 
-The admin API is a FastAPI application exposed at `app.api:app`.
+To run the full development environment, start the following 4 services across 4 separate terminals:
 
-Using `uv`:
+### Development Architecture
 
-```bash
-cd backend
-uv run uvicorn app.api:app --host 0.0.0.0 --port 8000
+```text
+                 DEVELOPMENT
+
+       Docker
+         │
+         ├── PostgreSQL :5050
+         └── pgAdmin    :5051
+                │
+                │
+       ┌────────┴─────────┐
+       │                  │
+   FastAPI              Telegram
+   :8000                   Bot
+       │
+       │
+    React
+   :5173
 ```
 
-Using the virtual environment directly:
+---
+
+### Commands to Run the Project (4 Terminals)
+
+Every time you start development, open 4 terminals and run:
+
+#### Terminal 1: PostgreSQL + pgAdmin (Docker)
 
 ```bash
-cd backend
-.venv\Scripts\python.exe -m uvicorn app.api:app --host 0.0.0.0 --port 8000
+cd D:\Company\Project\gl-telegram-bot-pao
+docker compose -f docker-compose.dev.yml up -d
 ```
+- **PostgreSQL**: `localhost:5050`
+- **pgAdmin**: `localhost:5051` (Login: `admin@goldsystem.com` / `admin`)
+- **Check Status**: `docker compose -f docker-compose.dev.yml ps`
 
-- API base URL: `http://localhost:8000`
-- Interactive docs (Swagger UI): `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/api/health`
-
-On startup the API creates all database tables automatically (via `Base.metadata.create_all`).
-
-### Seeding Demo Data
+#### Terminal 2: FastAPI Backend API
 
 ```bash
-cd backend
+cd D:\Company\Project\gl-telegram-bot-pao\backend
+uv run uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
+```
+- **API Base**: `http://localhost:8000`
+- **Swagger Docs**: `http://localhost:8000/docs`
+- **Health Check**: `http://localhost:8000/api/health`
+
+> [!NOTE]
+> Don't run `uvicorn app.main:app` — `app.main` is your Telegram bot, while `app.api:app` is your FastAPI application.
+
+#### Terminal 3: Telegram Bot
+
+```bash
+cd D:\Company\Project\gl-telegram-bot-pao\backend
+uv run python -m app.main
+```
+- Starts the Telegram polling bot and background promotions loop.
+
+#### Terminal 4: React Admin Frontend
+
+```bash
+cd D:\Company\Project\gl-telegram-bot-pao\frontend
+npm run dev
+```
+- **Frontend App**: `http://localhost:5173`
+
+---
+
+### Seeding Demo Data (Optional)
+
+To seed initial database records (admin user `admin`/`admin123`, customers, slots, orders):
+
+```bash
+cd D:\Company\Project\gl-telegram-bot-pao\backend
 uv run python -m app.seed
 ```
 
-This creates/drops tables and seeds:
-
-- 8 customers
-- 3 slot tables with slot rows
-- 20 orders + inventory transactions
-- Admin user: `admin` / `admin123`
-
 ---
 
-## Running the Telegram Bot
+## Production Deployment (Docker Compose)
 
-To start the polling bot (which also kicks off the background promotions loop):
-
-```bash
-cd backend
-uv run python -m app.main
-```
-
----
-
-## Running the Full Stack with Docker Compose
-
-### Production stack (`db` + `bot` + `api` + `frontend`)
+To run the complete production stack in containers (`db` + `bot` + `api` + `frontend`):
 
 ```bash
 docker compose up --build
@@ -188,7 +220,7 @@ docker compose -f docker-compose.dev.yml up -d
 | PostgreSQL (dev) | `localhost:5050` | Postgres 16, DB `gold_bot_db`, user/pass `postgres`/`password` |
 | pgAdmin (dev) | `localhost:5051` | `admin@goldsystem.com` / `admin` |
 | API | `localhost:8000` | FastAPI admin API |
-| Frontend | `localhost:80` | React admin panel |
+| Frontend | `localhost:5173` / `localhost:80` | React admin panel |
 
 ---
 
@@ -212,6 +244,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 ## Development & Customization
 
-- **Edit Translations**: To update button texts, welcome responses, or language strings, modify the dictionaries in `app/utils/translation.py`.
+- **Edit Translations**: To update button texts, welcome responses, or language strings, modify the dictionaries in `backend/app/utils/translation.py`.
 - **Log Levels**: Logs are printed using Python's standard logging module. You can check errors or startup flows via stdout logs.
 - **Whitelist Cache**: Whitelisted users are cached in memory with a Time-To-Live (TTL) of 5 minutes. To force reload after updating customers, restart the bot or wait for the cache TTL to expire.
+

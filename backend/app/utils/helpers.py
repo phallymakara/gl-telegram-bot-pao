@@ -2,6 +2,9 @@ from datetime import datetime
 
 
 def format_premium(premium) -> str:
+    """
+    Format a premium numeric or string value with an explicit '+' sign for positive numbers.
+    """
     try:
         val_str = str(premium).strip()
         if val_str.startswith("+") or val_str.startswith("-"):
@@ -17,6 +20,9 @@ def format_premium(premium) -> str:
 
 
 def generate_invoice_text(order, user) -> str:
+    """
+    Generate structured text for a Telegram order purchase invoice.
+    """
     now = datetime.now()
     date_str = now.strftime("%d-%b-%Y")
     time_str = now.strftime("%I:%M %p")
@@ -54,7 +60,7 @@ def generate_invoice_text(order, user) -> str:
         premium_price_str = f"-${abs(unit_price):,.2f}"
 
     text = (
-        "🧾 INVOICE / វិក្កយបត្រ\n"
+        "INVOICE / វិក្កយបត្រ\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"Invoice No : {invoice_no}\n"
         f"Order ID   : {order.order_no}\n"

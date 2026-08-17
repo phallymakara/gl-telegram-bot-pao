@@ -2,10 +2,12 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from app.core.database import engine, Base
 
 logger = logging.getLogger(__name__)
+
+import time
+from fastapi import Request
 
 app = FastAPI(title="Gold Bot Admin API")
 
@@ -18,21 +20,28 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+    logger.info(
+        "HTTP %s %s -> Status %d (%.2fms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
+    return response
+
+
+
 @app.on_event("startup")
 def on_startup():
     import app.db.base
     Base.metadata.create_all(bind=engine)
-    with engine.connect() as conn:
-        for sql in [
-            "ALTER TABLE customers ALTER COLUMN telegram_user_id DROP NOT NULL",
-            "ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_telegram_user_id_key",
-            "ALTER TABLE slot_rows ADD COLUMN IF NOT EXISTS qty NUMERIC(12, 2) DEFAULT 10.00",
-        ]:
-            try:
-                conn.execute(text(f"COMMIT"))
-                conn.execute(text(sql))
-            except Exception:
-                pass
+    logger.info("Database tables initialized successfully.")
+
 
 
 from app.api.routes import auth, users, orders, slots, dashboard, alerts, settings, customers, inventory, suppliers, purchase_orders

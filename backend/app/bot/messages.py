@@ -10,7 +10,7 @@ BUY_SLOT_MESSAGE = (
 
 SELL_NOT_READY_MESSAGE = "SELL flow will be added later."
 
-ORDER_CANCELLED_MESSAGE = "❌ Order cancelled."
+ORDER_CANCELLED_MESSAGE = "Order cancelled."
 
 SESSION_EXPIRED_MESSAGE = (
     "Order session expired. Please start again with /start."

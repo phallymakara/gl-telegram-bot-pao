@@ -1,9 +1,5 @@
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from app.utils.helpers import format_premium
-from app.utils.translation import t
-
-logger = logging.getLogger(__name__)
 
 from app.constants.callback import (
     BUY,
@@ -16,34 +12,39 @@ from app.constants.callback import (
     CONFIRM_ORDER,
     CANCEL_ORDER,
 )
+from app.utils.helpers import format_premium
+from app.utils.translation import t
+
+logger = logging.getLogger(__name__)
 
 
 LANG_MENU = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("English 🇬🇧", callback_data="LANG_EN"),
-        InlineKeyboardButton("ខ្មែរ 🇰🇭", callback_data="LANG_KH"),
+        InlineKeyboardButton("English", callback_data="LANG_EN"),
+        InlineKeyboardButton("ខ្មែរ", callback_data="LANG_KH"),
     ]
 ])
 
 
 MAIN_MENU = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("🔴 SELL", callback_data=SELL),
-        InlineKeyboardButton("🟢 BUY", callback_data=BUY),
-        
+        InlineKeyboardButton("SELL", callback_data=SELL),
+        InlineKeyboardButton("BUY", callback_data=BUY),
     ],
     [
-        InlineKeyboardButton("📋 My Orders", callback_data=MY_ORDERS),
+        InlineKeyboardButton("My Orders", callback_data=MY_ORDERS),
     ],
 ])
 
 
-def build_main_menu(lang="EN"):
+def build_main_menu(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct Telegram bot main menu keyboard according to selected language.
+    """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("sell", lang), callback_data=SELL),
             InlineKeyboardButton(t("buy", lang), callback_data=BUY),
-            
         ],
         [
             InlineKeyboardButton(t("my_orders", lang), callback_data=MY_ORDERS),
@@ -54,24 +55,25 @@ def build_main_menu(lang="EN"):
     ])
 
 
-def build_slot_keyboard(slots, order_type=BUY, lang="EN"):
+def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct keyboard listing available slot dates for selection.
+    """
     keyboard = []
-
     prefix = BUY_SLOT_PREFIX if order_type == BUY else SELL_SLOT_PREFIX
 
     for slot in slots:
-        # Hide slots with 0 or negative stock in the BUY flow
         if order_type == BUY:
             try:
-                stock_val = float(str(slot.get('stock_kg', 0)).strip())
+                stock_val = float(str(slot.get("stock_kg", 0)).strip())
             except (ValueError, TypeError):
                 stock_val = 0.0
             if stock_val <= 0:
                 continue
 
         label = t("slot_format", lang).format(
-            date=slot['slot_date'],
-            premium=format_premium(slot['premium']),
+            date=slot["slot_date"],
+            premium=format_premium(slot["premium"]),
         )
         keyboard.append([
             InlineKeyboardButton(
@@ -87,7 +89,10 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN"):
     return InlineKeyboardMarkup(keyboard)
 
 
-def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN"):
+def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct keyboard displaying quantity options (1kg - 5kg) based on available stock.
+    """
     logger.info("build_quantity_keyboard | stock=%s | order_type=%s", stock, order_type)
     if order_type == SELL or stock is None:
         max_allowed_qty = 5
@@ -96,7 +101,7 @@ def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN"):
             max_allowed_qty = int(float(stock))
         except (ValueError, TypeError):
             max_allowed_qty = 0
-            
+
     logger.info("build_quantity_keyboard | max_allowed_qty=%d", max_allowed_qty)
 
     buttons = []
@@ -104,8 +109,7 @@ def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN"):
         if q <= max_allowed_qty:
             buttons.append(InlineKeyboardButton(f"{q} kg", callback_data=f"{QTY_PREFIX}{q}"))
         else:
-            # Mark unavailable options as locked
-            buttons.append(InlineKeyboardButton(f"🔒 {q} kg", callback_data="IGNORE"))
+            buttons.append(InlineKeyboardButton(f"{q} kg (N/A)", callback_data="IGNORE"))
 
     keyboard = [
         [buttons[0], buttons[1]],
@@ -116,7 +120,10 @@ def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN"):
     return InlineKeyboardMarkup(keyboard)
 
 
-def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN"):
+def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct confirmation keyboard for order review step.
+    """
     prefix = BUY_SLOT_PREFIX if order_type == BUY else SELL_SLOT_PREFIX
 
     return InlineKeyboardMarkup([
@@ -133,7 +140,10 @@ def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN"):
     ])
 
 
-def build_back_main_keyboard(lang="EN"):
+def build_back_main_keyboard(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct generic back/done keyboard for simple views.
+    """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),

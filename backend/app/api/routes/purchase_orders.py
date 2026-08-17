@@ -1,17 +1,22 @@
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
-from app.api.schemas import PurchaseOrderCreate, PurchaseOrderResponse, POReturnRequest, StockReturnResponse
+from app.api.schemas import (
+    POReturnRequest,
+    PurchaseOrderCreate,
+    PurchaseOrderResponse,
+    PurchaseOrderUpdate,
+    StockReturnResponse,
+)
 from app.models.purchase_order import PurchaseOrder
 from app.models.slot_table import SlotTable
 from app.services.purchase_order_service import generate_po_no, receive_purchase_order_sync, return_purchase_order_sync
 
 router = APIRouter()
 
-
-from app.api.schemas import PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderResponse, POReturnRequest, StockReturnResponse
 
 
 def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:

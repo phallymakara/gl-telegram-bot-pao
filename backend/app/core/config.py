@@ -23,5 +23,11 @@ if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is not set in environment")
 
 # algorithm
-ALGORITH = "HS256"
+ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# default business constants
+DEFAULT_GROUP_NAME = os.getenv("DEFAULT_GROUP_NAME", "Telegram Bot")
+DEFAULT_SPOT_PRICE = "4376.20"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG").upper()
+
