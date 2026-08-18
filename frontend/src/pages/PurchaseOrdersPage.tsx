@@ -157,7 +157,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
               <div>
                 <h2 class="font-black text-base text-red-700 tracking-tight leading-tight">CHHAY VANN CO.,LTD</h2>
-                <p class="text-[10px] text-red-800 font-bold">Physical Gold Trading</p>
+                <p class="text-[10px] text-red-800 font-bold">Local Gold Trading</p>
                 <div class="text-[9px] text-red-900/80 leading-snug mt-0.5 space-y-0.5">
                   <p>Add: #31, St. 286, S/K. Olympic, Phnom Penh, Cambodia.</p>
                   <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
@@ -165,7 +165,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
             </div>
             <div class="text-right">
-              <div class="inline-block text-[10px] font-bold text-red-800 border-b border-red-800 pb-0.5 mb-1">Physical</div>
+              <div class="inline-block text-[10px] font-bold text-red-800 border-b border-red-800 pb-0.5 mb-1">Local</div>
               <div class="text-[11px] text-red-900 font-medium space-y-0.5">
                 <p>Re. No.: <span class="font-mono font-bold text-red-700 text-xs">${refNo}</span></p>
                 <p>Date: <span class="font-semibold text-slate-900 text-xs">${po.order_date || new Date().toISOString().split("T")[0]}</span></p>
@@ -211,7 +211,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </tbody>
             </table>
             <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
-              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Physical gold trade purchase order verified."}</span>
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Local gold trade purchase order verified."}</span>
             </div>
           </div>
 
@@ -293,7 +293,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <h2 class="font-black text-base text-red-700 tracking-tight leading-tight">
                   CHHAY VANN CO.,LTD
                 </h2>
-                <p class="text-[10px] text-red-800 font-bold">Physical Gold Trading</p>
+                <p class="text-[10px] text-red-800 font-bold">Local Gold Trading</p>
                 <div class="text-[9px] text-red-900/80 leading-snug mt-0.5 space-y-0.5">
                   <p>Add: #31, St. 286, S/K. Olympic, Phnom Penh, Cambodia.</p>
                   <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
@@ -302,7 +302,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             </div>
             <div class="text-right">
               <div class="inline-block text-[10px] font-bold text-red-800 border-b border-red-800 pb-0.5 mb-1">
-                Physical
+                Local
               </div>
               <div class="text-[11px] text-red-900 font-medium space-y-0.5">
                 <p>Re. No.: <span class="font-mono font-bold text-red-700 text-xs">${refNo}</span></p>
@@ -352,7 +352,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </tbody>
             </table>
             <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
-              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Physical gold trade purchase order verified."}</span>
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Local gold trade purchase order verified."}</span>
             </div>
           </div>
 
@@ -704,7 +704,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
             <MapPin size={16} className="text-slate-500 shrink-0" />
-            <span>Physical</span>
+            <span>Local</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
@@ -763,7 +763,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 >
                   <option value="ALL">All Types</option>
                   <option value="OVERSEA">Oversea</option>
-                  <option value="LOCAL">Physical</option>
+                  <option value="LOCAL">Local</option>
                   <option value="BUYBACK">Platform</option>
                 </select>
 
@@ -844,7 +844,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 >
                   <td className="px-5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{r.po_no}</td>
                   <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
-                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Physical" : "Platform"}
+                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
                   </td>
                   <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
                   <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)}</td>
@@ -1078,7 +1078,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Physical
+                  Local
                 </button>
               </div>
 
@@ -1456,7 +1456,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     <h2 className="font-black text-xl text-red-700 tracking-tight leading-tight">
                       CHHAY VANN CO.,LTD
                     </h2>
-                    <p className="text-[11px] text-red-800 font-medium">Physical Gold Trading</p>
+                    <p className="text-[11px] text-red-800 font-medium">Local Gold Trading</p>
                     <div className="text-[10px] text-red-900/80 leading-snug mt-1 space-y-0.5">
                       <p>Add: #31, St. 286, S/K. Olympic, Khan Chamkarmon, Phnom Penh, Cambodia.</p>
                       <p>H/P: +855 78 688 831 / 12 505 031 &nbsp;|&nbsp; Fax: +855 23 218 831</p>
@@ -1468,7 +1468,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 {/* Right Meta Info */}
                 <div className="text-left sm:text-right w-full sm:w-auto border-t sm:border-t-0 border-red-200 pt-2 sm:pt-0">
                   <div className="inline-block text-xs font-bold text-red-800 border-b-2 border-red-800 pb-0.5 mb-2">
-                    Physical
+                    Local
                   </div>
                   <div className="text-xs text-red-900 font-medium space-y-1">
                     <p>Re. No.: <span className="font-mono font-bold text-red-700 text-sm">A {invoiceModalPo.po_no.replace("PO-2026-", "0062")}</span></p>
@@ -1554,7 +1554,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 {/* Notes section */}
                 <div className="p-2.5 border-t border-red-700 bg-red-50/20 text-xs text-red-900">
                   <span className="font-semibold">Other / 其它:</span> &nbsp;
-                  <span className="text-slate-800 italic">{invoiceModalPo.notes || "Physical gold trade purchase order verified."}</span>
+                  <span className="text-slate-800 italic">{invoiceModalPo.notes || "Local gold trade purchase order verified."}</span>
                 </div>
               </div>
 
