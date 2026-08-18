@@ -1,3 +1,8 @@
+"""
+Customer Orders API routes.
+Provides endpoints for creating, querying, updating, cancelling, and returning customer gold orders (BUY / SELL).
+"""
+
 from decimal import Decimal
 from uuid import uuid4
 
@@ -16,6 +21,7 @@ router = APIRouter()
 
 
 def _to_order_response(o: Order) -> OrderResponse:
+    """Helper mapper converting Order model entity to OrderResponse DTO schema."""
     cname = o.customer_name or (o.customer.display_name if o.customer else o.username)
     return OrderResponse(
         id=o.id,
@@ -39,14 +45,22 @@ def _to_order_response(o: Order) -> OrderResponse:
 
 @router.post("/", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 def create_order(body: OrderCreate, db: Session = Depends(get_db)):
+    """
+    Create a new manual or admin platform order.
+    Generates unique order number (ORD-S / ORD-B), registers customer if needed,
+    and calculates total amount using standard Troy Ounce pricing formula.
+    """
     order_no = body.order_no
     if not order_no:
+        # Generate prefix based on transaction type (ORD-S for SELL, ORD-B for BUY)
         order_no = generate_order_no(body.transaction_type)
 
+    # Ensure order_no uniqueness in case of collision
     existing = db.query(Order).filter(Order.order_no == order_no).first()
     if existing:
         order_no = f"{order_no}-{uuid4().hex[:4].upper()}"
 
+    # Auto-lookup or register customer by name if provided
     customer = None
     if body.customer_name:
         customer = (
@@ -62,10 +76,10 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
             db.add(customer)
             db.flush()
 
+    # Perform price calculations using standard shared pricing utilities
     spot_price = body.spot_price or DEFAULT_SPOT_PRICE
     premium_amount = calculate_premium_amount(body.quantity, body.premium)
     total_amount = body.total_amount or calculate_order_total(body.quantity, spot_price, body.premium)
-
 
     order = Order(
         order_no=order_no,
@@ -96,6 +110,11 @@ def list_orders(
     channel: str = "",
     db: Session = Depends(get_db),
 ):
+    """
+    Retrieve list of orders with eager-loaded customer, group, and slot relations.
+    Supports filtering by search (order_no), status_filter, order_type (BUY/SELL), and channel.
+    Limits output to latest 200 records.
+    """
     q = db.query(Order).options(
         joinedload(Order.customer),
         joinedload(Order.group),
@@ -115,21 +134,28 @@ def list_orders(
 
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieve single order detail by order ID.
+    Raises HTTP 404 if the order does not exist.
+    """
     o = db.query(Order).options(
         joinedload(Order.customer),
         joinedload(Order.group),
         joinedload(Order.slot),
     ).filter(Order.id == order_id).first()
     if not o:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     return _to_order_response(o)
 
 
 @router.put("/{order_id}", response_model=OrderResponse)
 def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)):
+    """
+    Update details of an existing order by ID and recalculate total amounts.
+    """
     o = db.query(Order).filter(Order.id == order_id).first()
     if not o:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if body.customer_name:
         o.customer_name = body.customer_name
@@ -155,9 +181,13 @@ def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)
 
 @router.delete("/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Delete an order by ID.
+    Returns HTTP 204 No Content upon deletion.
+    """
     o = db.query(Order).filter(Order.id == order_id).first()
     if not o:
-        raise HTTPException(status_code=404, detail="Order not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     db.delete(o)
     db.commit()
     return None
@@ -165,12 +195,16 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{order_id}/cancel", response_model=OrderResponse)
 def cancel_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Cancel an active order and revert reserved stock.
+    Delegates inventory adjustment to order_service.
+    """
     try:
         cancel_order_sync(order_id)
     except ValueError as e:
         o = db.query(Order).filter(Order.id == order_id).first()
         if not o:
-            raise HTTPException(status_code=404, detail="Order not found")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         o.status = "CANCELLED"
         db.commit()
         db.refresh(o)
@@ -179,10 +213,15 @@ def cancel_order(order_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{order_id}/return", response_model=StockReturnResponse)
 def return_order(order_id: int, body: OrderReturnRequest, db: Session = Depends(get_db)):
+    """
+    Process stock return for an order (customer returns gold back to store stock).
+    Delegates transaction processing to order_service.
+    """
     try:
         stock_return = return_order_sync(order_id, body.quantity, body.reason)
     except ValueError as e:
         message = str(e)
-        code = 404 if "not found" in message else 409
+        code = status.HTTP_404_NOT_FOUND if "not found" in message else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=message)
     return stock_return
+

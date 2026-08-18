@@ -1,16 +1,23 @@
+"""
+Slot & Inventory Physical Stock Service.
+Handles querying available slot rows, deducting physical stock on orders, crediting stock on PO receipts,
+and recording inventory transaction logs.
+"""
+
 import logging
 from datetime import date, datetime
 from decimal import Decimal
 
 from app.core.database import SessionLocal
-from app.models.slot_table import SlotTable
-from app.models.slot_row import SlotRow
 from app.models.inventory_transaction import InventoryTransaction
+from app.models.slot_row import SlotRow
+from app.models.slot_table import SlotTable
 
 logger = logging.getLogger(__name__)
 
 
 def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
+    """Map SlotRow entity to dictionary payload."""
     return {
         "slot_date": slot_row.slot_date.isoformat() if isinstance(slot_row.slot_date, (date, datetime)) else str(slot_row.slot_date),
         "premium": float(slot_row.premium),
@@ -22,6 +29,10 @@ def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
 
 
 def _resolve_target_store_type(order_type: str) -> str:
+    """
+    Resolve user action perspective to store slot table type.
+    User BUY -> Store SELL slot table. User SELL -> Store BUY slot table.
+    """
     if not order_type:
         return "SELL"
     op = order_type.strip().upper()
@@ -33,6 +44,10 @@ def _resolve_target_store_type(order_type: str) -> str:
 
 
 def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
+    """
+    Query active trading slots for the requested order type.
+    Merges duplicate slot dates across tables and sums total available stock.
+    """
     session = SessionLocal()
     try:
         query = session.query(SlotTable).filter(SlotTable.is_active == True)
@@ -59,6 +74,7 @@ def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
 
 
 def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
+    """Internal helper to locate active slot rows matching target date string."""
     session = SessionLocal()
     try:
         target = slot_date.strip()
@@ -83,6 +99,10 @@ def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
 
 
 def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | None:
+    """
+    Retrieve single slot details for a specific date and order type.
+    Sums total stock across matching slot tables.
+    """
     slots = _matching_slots_sync(slot_date, order_type)
     if not slots:
         return None
@@ -93,6 +113,9 @@ def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | Non
 
 
 def check_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
+    """
+    Verify whether sufficient stock is available on the slot date to fulfill quantity.
+    """
     slot = get_slot_by_date_sync(slot_date, order_type)
     if not slot:
         return False
@@ -100,6 +123,10 @@ def check_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -
 
 
 def deduct_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
+    """
+    Deduct physical gold quantity from matching active slot tables.
+    Rolls back transaction if total stock across available tables is insufficient.
+    """
     session = SessionLocal()
     try:
         target = slot_date.strip()
@@ -149,6 +176,10 @@ def add_stock_to_table_sync(
     remark: str | None = None,
     order_id: int | None = None,
 ) -> SlotTable:
+    """
+    Credit physical gold stock to a target slot table and record an InventoryTransaction audit log entry.
+    Used when POs are received or customer returns are processed.
+    """
     session = SessionLocal()
     try:
         table = None
@@ -164,6 +195,7 @@ def add_stock_to_table_sync(
         stock_before = table.stock
         table.stock = stock_before + Decimal(quantity)
 
+        # Log audit trail for stock increment
         session.add(InventoryTransaction(
             slot_table_id=table.id,
             order_id=order_id,
@@ -191,6 +223,10 @@ def deduct_stock_from_table_sync(
     remark: str | None = None,
     order_id: int | None = None,
 ) -> SlotTable:
+    """
+    Deduct physical gold stock from a target slot table and record an InventoryTransaction audit log entry.
+    Throws ValueError if table stock is insufficient.
+    """
     session = SessionLocal()
     try:
         table = None
@@ -210,6 +246,7 @@ def deduct_stock_from_table_sync(
 
         table.stock = stock_before - quantity
 
+        # Log audit trail for stock decrement
         session.add(InventoryTransaction(
             slot_table_id=table.id,
             order_id=order_id,
@@ -228,3 +265,4 @@ def deduct_stock_from_table_sync(
         raise
     finally:
         session.close()
+

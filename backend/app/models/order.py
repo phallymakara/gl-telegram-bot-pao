@@ -1,17 +1,22 @@
+"""
+Customer Order Database Model Entity.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
-# pyrefly: ignore [missing-import]
 from sqlalchemy import DateTime, ForeignKey, Numeric, String
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-# pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 
 class Order(Base):
+    """
+    SQLAlchemy ORM model representing customer gold orders (BUY or SELL transactions).
+    Stores order quantities (kg), premium amounts, channel source (TELEGRAM/PHONE/WALK_IN), and status.
+    """
     __tablename__ = "orders"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -44,3 +49,4 @@ class Order(Base):
     customer: Mapped["Customer | None"] = relationship("Customer")
     group: Mapped["TelegramGroup | None"] = relationship("TelegramGroup")
     slot: Mapped["SlotRow | None"] = relationship("SlotRow")
+

@@ -1,24 +1,29 @@
+"""
+Database Seed Script.
+Populates PostgreSQL database with default administrative credentials, whitelisted customers,
+trading slot tables, supplier purchase orders, customer orders, and inventory audit logs.
+"""
+
 import random
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import delete, func
 
-from app.core.database import Base, engine, SessionLocal
+from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
 from app.models.alert import Alert
 from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
+from app.models.purchase_order import PurchaseOrder, Supplier
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
 from app.models.telegram_group import TelegramGroup
 from app.models.user import User
-
-from app.models.purchase_order import PurchaseOrder, Supplier
 from app.utils.pricing import DEFAULT_SPOT_PRICE, calculate_order_total, calculate_total_cost, calculate_unit_cost
 
-
+# Seed data dataset: Whitelisted Telegram customers
 CUSTOMERS = [
     ("123456001", "makara", "Makara", "Phally", "Makara Phally"),
     ("123456002", "sokun", "Sokun", "Nisa", "Sokun Nisa"),
@@ -30,12 +35,14 @@ CUSTOMERS = [
     ("123456008", "davy", "Davy", "Hour", "Davy Hour"),
 ]
 
+# Seed data dataset: Trading Slot Tables and date-based premium rows
 SLOT_TABLES = [
     {"name": "99.99% Gold Kilobar", "stock": Decimal("50.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
     {"name": "Local Gold Bar 99.99%", "stock": Decimal("51.000"), "rows": [("2026-08-10", 300), ("2026-08-11", 300), ("2026-08-12", 400)]},
     {"name": "General Gold Slot", "stock": Decimal("60.000"), "rows": [("2026-08-10", 350)]},
 ]
 
+# Seed data dataset: Supplier Purchase Orders (LOCAL, OVERSEA, BUYBACK)
 PURCHASE_ORDERS = [
     ("PO-2026-001", "OVERSEA", "Swiss Refining Corp", Decimal("1.000"), Decimal("4376.20"), Decimal("200.00"), "RECEIVED", "2026-08-15"),
     ("PO-2026-002", "LOCAL", "Phnom Penh Gold", Decimal("2.500"), Decimal("4375.00"), Decimal("150.00"), "RECEIVED", "2026-08-14"),
@@ -47,6 +54,7 @@ PURCHASE_ORDERS = [
     ("PO-2026-009", "LOCAL", "Phnom Penh Refinery", Decimal("4.000"), Decimal("4372.00"), Decimal("160.00"), "RECEIVED", "2026-08-08"),
 ]
 
+# Seed data dataset: Initial customer orders (BUY & SELL)
 ORDERS = [
     # (customer_index, table_index, row_index, type, qty, status, channel, days_ago)
     (0, 0, 0, "BUY", Decimal("2.500"), "COMPLETED", "TELEGRAM", 0),
@@ -61,14 +69,20 @@ ORDERS = [
 
 
 def seed():
+    """
+    Main seed execution routine.
+    Recreates database schema tables and populates baseline entities.
+    """
     db = SessionLocal()
     try:
+        # Section 1: Reset database schema and recreate all metadata tables
         Base.metadata.drop_all(bind=engine)
         import app.db.base
         Base.metadata.create_all(bind=engine)
         db.close()
         db = SessionLocal()
 
+        # Section 2: Clear existing records in sequence
         db.execute(delete(InventoryTransaction))
         db.execute(delete(Alert))
         db.execute(delete(PurchaseOrder))
@@ -79,6 +93,7 @@ def seed():
         db.execute(delete(Customer))
         db.execute(delete(TelegramGroup))
 
+        # Section 3: Seed default super administrator user (admin / admin123)
         if not db.query(User).filter(User.username == "admin").first():
             db.add(User(
                 name="Admin User",
@@ -89,10 +104,12 @@ def seed():
                 is_active=True,
             ))
 
+        # Section 4: Seed default Telegram bot group channel
         group = TelegramGroup(telegram_group_id="-1000000000001", group_name="Telegram Bot", is_active=True)
         db.add(group)
         db.flush()
 
+        # Section 5: Seed whitelisted Telegram customers
         customers = []
         for tg_id, username, first, last, display in CUSTOMERS:
             c = Customer(
@@ -106,6 +123,7 @@ def seed():
             customers.append(c)
         db.flush()
 
+        # Section 6: Seed slot tables and child slot date rows
         slot_tables = []
         slot_rows = []
         for order, spec in enumerate(SLOT_TABLES, start=1):
@@ -128,7 +146,7 @@ def seed():
                 slot_rows.append(sr)
         db.flush()
 
-        # Seed Purchase Orders
+        # Section 7: Seed supplier purchase orders (calculate unit cost using Troy oz formula)
         for po_no, po_type, sup_name, qty, spot, prem, status, odate in PURCHASE_ORDERS:
             unit_cost = calculate_unit_cost(spot, prem)
             total_cost = calculate_total_cost(qty, unit_cost)
@@ -150,6 +168,7 @@ def seed():
             db.add(po)
         db.flush()
 
+        # Section 8: Seed initial customer orders and inventory transactions
         now = datetime.utcnow()
         for i, (c_idx, t_idx, r_idx, ttype, qty, status, channel, days_ago) in enumerate(ORDERS, start=1):
             created = now - timedelta(days=days_ago, hours=random.randint(0, 8))
@@ -181,6 +200,7 @@ def seed():
             db.add(o)
             db.flush()
 
+            # Record inventory movement for active sell orders
             if ttype == "SELL" and status != "CANCELLED":
                 table = slot_tables[t_idx]
                 after = max(Decimal("0"), table.stock - qty)
@@ -209,3 +229,4 @@ def seed():
 
 if __name__ == "__main__":
     seed()
+

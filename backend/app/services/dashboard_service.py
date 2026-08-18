@@ -1,14 +1,25 @@
+"""
+Dashboard Analytics Service.
+Calculates high-level admin metrics including gold inventory breakdown, channel sales, buyback volumes, and revenue trend points.
+"""
+
 from datetime import date, datetime, timedelta
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.order import Order
-from app.models.slot_table import SlotTable
 from app.models.purchase_order import PurchaseOrder
+from app.models.slot_table import SlotTable
 from app.schemas.dashboard import DashboardStats, RevenuePoint
 
 
 def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardStats:
+    """
+    Calculate aggregated dashboard statistics.
+    Computes total physical gold, incoming PO stock, gold inflows (Overseas/Local/Customer),
+    and channel outflows (Telegram/Phone/Walk-in).
+    Supports optional target_date filtering for historical inventory simulation.
+    """
     today = date.today()
     total_gold = db.query(func.coalesce(func.sum(SlotTable.stock), 0)).scalar()
     total_orders = db.query(func.count(Order.id)).scalar()
@@ -66,7 +77,7 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         incoming_po = float(total_inc_q.scalar())
         remaining_incoming = float(rem_inc_q.scalar())
 
-    # Gold IN breakdown
+    # Gold IN breakdown by source (Oversea POs, Local POs, Customer Buybacks)
     gold_in_overseas = float(db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
         PurchaseOrder.po_type == "OVERSEA"
     ).scalar())
@@ -84,7 +95,7 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     gold_in_customer = po_buyback + order_buyback
     gold_in_total = gold_in_overseas + gold_in_local + gold_in_customer
 
-    # Gold OUT breakdown
+    # Gold OUT breakdown by channel (Telegram, Phone, Walk-in)
     gold_out_telegram = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
         Order.transaction_type == "SELL",
         Order.channel.in_(["TELEGRAM", None])
@@ -101,6 +112,7 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     ).scalar())
     gold_out_total = gold_out_telegram + gold_out_phone + gold_out_walkin
 
+    # Reserved physical gold calculation (active pending/processing orders)
     reserved = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
         Order.status.in_(["CONFIRMED", "PENDING", "PROCESSING"])
     ).scalar())
@@ -135,6 +147,9 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
 
 
 def calculate_revenue_points(db: Session, range_param: str = "week") -> list[RevenuePoint]:
+    """
+    Calculate daily revenue points aggregated over the requested time window (week or month).
+    """
     today = date.today()
     if range_param == "week":
         start = today - timedelta(days=6)
@@ -154,3 +169,4 @@ def calculate_revenue_points(db: Session, range_param: str = "week") -> list[Rev
         .all()
     )
     return [RevenuePoint(day=str(r.day), buy=r.buy or 0, sell=r.sell or 0) for r in rows]
+

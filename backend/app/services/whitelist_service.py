@@ -1,7 +1,13 @@
+"""
+Telegram Whitelist & Security Service.
+Provides in-memory cached database customer whitelist lookups and security decorator to block unauthorized Telegram bot access.
+"""
+
 import asyncio
-import time
 import logging
+import time
 from functools import wraps
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -12,12 +18,17 @@ from app.utils.translation import t
 
 logger = logging.getLogger(__name__)
 
+# Short-lived in-memory cache for customer whitelist queries (5 seconds TTL)
 _cached_users = set()
 _last_fetch_time = 0
 CACHE_TTL = 5
 
 
 async def load_whitelist(force_refresh=False) -> set:
+    """
+    Retrieve set of authorized Telegram user IDs and usernames from customer whitelist table.
+    Caches result for 5 seconds to reduce database round-trips during rapid bot interactions.
+    """
     global _cached_users, _last_fetch_time
     current_time = time.time()
     if not force_refresh and (current_time - _last_fetch_time < CACHE_TTL):
@@ -43,6 +54,9 @@ async def load_whitelist(force_refresh=False) -> set:
 
 
 async def is_user_allowed(username: str, telegram_id: str) -> bool:
+    """
+    Check if username or telegram_id exists in the active whitelist set.
+    """
     allowed_list = await load_whitelist()
     clean_username = username.strip().lower().lstrip("@") if username else ""
     str_tg_id = str(telegram_id).strip()
@@ -50,6 +64,10 @@ async def is_user_allowed(username: str, telegram_id: str) -> bool:
 
 
 def restricted(func):
+    """
+    Security decorator for Telegram bot command and callback handlers.
+    Verifies user authorization against customer whitelist. Blocks unauthorized users and prints terminal security alert logs.
+    """
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user = update.effective_user
@@ -71,6 +89,7 @@ def restricted(func):
                 username,
                 allowed_list,
             )
+            # Emit explicit terminal alert log with instructions on how to whitelist user
             print(
                 f"\n[SECURITY ALERT] Unauthorized Telegram user blocked!\n"
                 f"  - Telegram User ID : {telegram_id}\n"
@@ -88,3 +107,4 @@ def restricted(func):
 
         return await func(update, context, *args, **kwargs)
     return wrapper
+

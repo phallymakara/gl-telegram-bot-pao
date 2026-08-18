@@ -1,17 +1,22 @@
+"""
+Inventory Audit Trail Database Model Entity.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
-# pyrefly: ignore [missing-import]
 from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
-# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-# pyrefly: ignore [missing-import]
 from sqlalchemy.sql import func
 
 from app.core.database import Base
 
 
 class InventoryTransaction(Base):
+    """
+    SQLAlchemy ORM model representing physical inventory stock audit log transactions.
+    Tracks stock_before, quantity movement (kg), stock_after, transaction_type (BUY/SELL/PO_RECEIVE/PO_RETURN/RESTOCK), and remarks.
+    """
     __tablename__ = "inventory_transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -32,4 +37,4 @@ class InventoryTransaction(Base):
 
     slot_table: Mapped["SlotTable"] = relationship("SlotTable")
     order: Mapped["Order | None"] = relationship("Order")
-    creator: Mapped["User | None"] = relationship("User")
+    creator: Mapped["User | None"] = relationship("User")

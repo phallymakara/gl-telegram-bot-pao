@@ -1,6 +1,13 @@
+"""
+Supplier Purchase Order Service.
+Provides business logic for receiving supplier gold purchase orders (crediting physical inventory stock)
+and returning POs back to suppliers (deducting physical stock).
+"""
+
 import logging
 from datetime import date
 from decimal import Decimal
+
 from app.core.database import SessionLocal
 from app.models.purchase_order import PurchaseOrder, StockReturn
 from app.services.slot_service import add_stock_to_table_sync, deduct_stock_from_table_sync
@@ -9,8 +16,10 @@ from app.utils.generators import generate_po_no, generate_return_no
 logger = logging.getLogger(__name__)
 
 
-
 def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
+    """
+    Mark a supplier purchase order as RECEIVED and credit physical gold quantity to the target slot table.
+    """
     session = SessionLocal()
     try:
         po = session.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
@@ -29,6 +38,7 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
     finally:
         session.close()
 
+    # Credit physical stock to inventory slot table
     add_stock_to_table_sync(
         slot_table_id=po.slot_table_id,
         quantity=Decimal(po.quantity),
@@ -39,6 +49,10 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
 
 
 def return_purchase_order_sync(po_id: int, quantity: Decimal, reason: str | None) -> StockReturn:
+    """
+    Process stock return to supplier for a received PO.
+    Deducts gold stock from inventory table and creates a PO_RETURN StockReturn record.
+    """
     session = SessionLocal()
     try:
         po = session.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
@@ -62,6 +76,7 @@ def return_purchase_order_sync(po_id: int, quantity: Decimal, reason: str | None
     finally:
         session.close()
 
+    # Deduct stock from target inventory table
     deduct_stock_from_table_sync(
         slot_table_id=slot_table_id,
         quantity=quantity,
@@ -88,3 +103,4 @@ def return_purchase_order_sync(po_id: int, quantity: Decimal, reason: str | None
         raise
     finally:
         session.close()
+

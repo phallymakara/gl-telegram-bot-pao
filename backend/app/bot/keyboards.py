@@ -1,23 +1,28 @@
+"""
+Telegram Bot Inline Keyboards Builder.
+Constructs multi-language inline keyboard markup for menus, slot selection, quantity selection, and confirmation actions.
+"""
+
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.constants.callback import (
-    BUY,
-    SELL,
-    MY_ORDERS,
     BACK_MAIN,
+    BUY,
     BUY_SLOT_PREFIX,
-    SELL_SLOT_PREFIX,
-    QTY_PREFIX,
-    CONFIRM_ORDER,
     CANCEL_ORDER,
+    CONFIRM_ORDER,
+    MY_ORDERS,
+    QTY_PREFIX,
+    SELL,
+    SELL_SLOT_PREFIX,
 )
 from app.utils.helpers import format_premium
 from app.utils.translation import t
 
 logger = logging.getLogger(__name__)
 
-
+# Default language selection keyboard
 LANG_MENU = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("English", callback_data="LANG_EN"),
@@ -25,7 +30,7 @@ LANG_MENU = InlineKeyboardMarkup([
     ]
 ])
 
-
+# Default main menu keyboard template
 MAIN_MENU = InlineKeyboardMarkup([
     [
         InlineKeyboardButton("SELL", callback_data=SELL),
@@ -39,7 +44,7 @@ MAIN_MENU = InlineKeyboardMarkup([
 
 def build_main_menu(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct Telegram bot main menu keyboard according to selected language.
+    Construct Telegram bot main menu inline keyboard with translated labels.
     """
     return InlineKeyboardMarkup([
         [
@@ -48,6 +53,7 @@ def build_main_menu(lang="EN") -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(t("my_orders", lang), callback_data=MY_ORDERS),
+
         ],
         [
             InlineKeyboardButton(t("switch_lang", lang), callback_data="SWITCH_LANG"),

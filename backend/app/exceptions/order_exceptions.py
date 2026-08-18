@@ -1,8 +1,14 @@
+"""
+Domain Order Exception Classes.
+Custom exceptions for domain-level validation failures during order processing.
+"""
+
+
 class SlotNotFoundError(Exception):
-    """Raised when the selected slot does not exist."""
+    """Raised when the selected slot date or row does not exist."""
     pass
 
 
 class InsufficientStockError(Exception):
-    """Raised when stock is not enough for the requested quantity."""
-    pass
+    """Raised when available physical gold stock is insufficient for the requested quantity."""
+    pass

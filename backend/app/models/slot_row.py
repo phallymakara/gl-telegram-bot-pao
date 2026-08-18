@@ -1,3 +1,7 @@
+"""
+Slot Row Database Model Entity.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -9,6 +13,10 @@ from app.core.database import Base
 
 
 class SlotRow(Base):
+    """
+    SQLAlchemy ORM model representing individual date-based trading slot rows within a SlotTable.
+    Stores slot_date, premium price differential, and allocated slot quantity limit.
+    """
     __tablename__ = "slot_rows"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -26,4 +34,4 @@ class SlotRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    slot_table: Mapped["SlotTable"] = relationship("SlotTable", back_populates="rows")
+    slot_table: Mapped["SlotTable"] = relationship("SlotTable", back_populates="rows")

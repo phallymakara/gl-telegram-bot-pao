@@ -1,3 +1,7 @@
+"""
+Gold Supplier Database Model Entity.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String, Text
@@ -8,6 +12,10 @@ from app.core.database import Base
 
 
 class Supplier(Base):
+    """
+    SQLAlchemy ORM model representing gold suppliers (LOCAL or OVERSEA).
+    Stores supplier name, contact details, phone, email, and address.
+    """
     __tablename__ = "suppliers"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -24,3 +32,4 @@ class Supplier(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+

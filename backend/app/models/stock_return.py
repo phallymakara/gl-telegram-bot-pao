@@ -1,3 +1,7 @@
+"""
+Stock Return Database Model Entity.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -9,6 +13,10 @@ from app.core.database import Base
 
 
 class StockReturn(Base):
+    """
+    SQLAlchemy ORM model representing physical stock return transactions (PO_RETURN to supplier or CUSTOMER_RETURN to store).
+    Tracks return_no, return_type, return quantity (kg), and return reasons.
+    """
     __tablename__ = "stock_returns"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -31,3 +39,4 @@ class StockReturn(Base):
     order: Mapped["Order | None"] = relationship("Order")
     slot_table: Mapped["SlotTable"] = relationship("SlotTable")
     creator: Mapped["User | None"] = relationship("User")
+

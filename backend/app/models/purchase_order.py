@@ -1,3 +1,7 @@
+"""
+Supplier Purchase Order Database Model Entity.
+"""
+
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -6,17 +10,21 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.core.database import Base
-from app.models.supplier import Supplier
 from app.models.stock_return import StockReturn
+from app.models.supplier import Supplier
 
 
 class PurchaseOrder(Base):
+    """
+    SQLAlchemy ORM model representing supplier gold purchase orders (LOCAL, OVERSEA, or BUYBACK).
+    Tracks ordered physical gold quantity (kg), unit cost, shipping/tracking info for overseas POs, and receipt status.
+    """
     __tablename__ = "purchase_orders"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     po_no: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
-    po_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # "LOCAL" | "OVERSEA"
+    po_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)  # "LOCAL" | "OVERSEA" | "BUYBACK"
 
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
@@ -51,3 +59,4 @@ class PurchaseOrder(Base):
     supplier: Mapped["Supplier | None"] = relationship("Supplier")
     slot_table: Mapped["SlotTable | None"] = relationship("SlotTable")
     creator: Mapped["User | None"] = relationship("User")
+

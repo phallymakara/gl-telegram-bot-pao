@@ -1,3 +1,7 @@
+"""
+Alert & Promotional Broadcast Database Model Entity.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -9,6 +13,10 @@ from app.core.database import Base
 
 
 class Alert(Base):
+    """
+    SQLAlchemy ORM model representing promotional and low-stock alert broadcast configurations.
+    Stores title, message text, discount rules, active timeframe, and slot table associations.
+    """
     __tablename__ = "alerts"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -35,4 +43,4 @@ class Alert(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     creator: Mapped["User | None"] = relationship("User")
-    slot_table: Mapped["SlotTable | None"] = relationship("SlotTable")
+    slot_table: Mapped["SlotTable | None"] = relationship("SlotTable")

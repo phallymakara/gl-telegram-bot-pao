@@ -1,3 +1,8 @@
+"""
+General Bot & Format Helper Utilities.
+Exports formatting functions for premium values, invoice text generation, and re-exports pricing and generator helpers.
+"""
+
 from datetime import datetime
 
 from app.utils.generators import generate_order_no, generate_po_no, generate_return_no
@@ -14,7 +19,7 @@ from app.utils.pricing import (
 
 def format_premium(premium) -> str:
     """
-    Format a premium numeric or string value with an explicit '+' sign for positive numbers.
+    Format a premium numeric or string value with an explicit '+' sign for non-negative numbers (e.g. +200).
     """
     try:
         val_str = str(premium).strip()
@@ -32,7 +37,8 @@ def format_premium(premium) -> str:
 
 def generate_invoice_text(order, user) -> str:
     """
-    Generate structured text for a Telegram order purchase invoice.
+    Generate structured text for a Telegram order purchase invoice receipt.
+    Includes formatted date, customer metadata, slot date, order quantity, and premium pricing details.
     """
     now = datetime.now()
     date_str = now.strftime("%d-%b-%Y")
@@ -49,6 +55,7 @@ def generate_invoice_text(order, user) -> str:
     username = f"@{user.username}" if user.username else "N/A"
     tg_id = str(user.id)
 
+    # Sanitize and parse premium value
     try:
         raw_premium = str(order.premium).strip().replace(",", "")
         is_negative = raw_premium.startswith("-")
@@ -92,3 +99,4 @@ def generate_invoice_text(order, user) -> str:
         "សូមអរគុណសម្រាប់ការជាវរបស់អ្នក។"
     )
     return text
+

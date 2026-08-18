@@ -1,3 +1,8 @@
+"""
+Dashboard & Analytics API routes.
+Provides endpoints for retrieving high-level gold trading statistics and revenue chart trend metrics.
+"""
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -10,9 +15,18 @@ router = APIRouter()
 
 @router.get("/stats", response_model=DashboardStats)
 def get_stats(target_date: str = "", db: Session = Depends(get_db)):
+    """
+    Retrieve comprehensive gold inventory, buy/sell volumes, PO metrics, and status breakdowns.
+    Delegates calculation logic to dashboard_service.
+    """
     return calculate_dashboard_stats(db, target_date)
 
 
 @router.get("/revenue", response_model=list[RevenuePoint])
 def get_revenue(range: str = "week", db: Session = Depends(get_db)):
+    """
+    Retrieve aggregated buy and sell volume data points for analytics charts.
+    Supported ranges: 'week', 'month', 'year'.
+    """
     return calculate_revenue_points(db, range)
+

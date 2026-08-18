@@ -1,3 +1,7 @@
+"""
+Slot Table Database Model Entity.
+"""
+
 from datetime import datetime
 from decimal import Decimal
 
@@ -9,6 +13,10 @@ from app.core.database import Base
 
 
 class SlotTable(Base):
+    """
+    SQLAlchemy ORM model representing trading slot table containers (e.g., SELL Table 99.99% Gold, BUY Table).
+    Tracks physical stock balance (kg), active status, and contains child SlotRow dates.
+    """
     __tablename__ = "slot_tables"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -26,4 +34,4 @@ class SlotTable(Base):
         "SlotRow",
         back_populates="slot_table",
         cascade="all, delete-orphan",
-    )
+    )

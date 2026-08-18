@@ -1,3 +1,8 @@
+"""
+Order Management & Placement Service.
+Provides thread-safe async and synchronous order placement routines, customer registration, stock deduction/restocking, order cancellation, and customer return processing.
+"""
+
 import asyncio
 import logging
 import threading
@@ -19,11 +24,12 @@ from app.utils.pricing import calculate_order_total, calculate_premium_amount, c
 
 logger = logging.getLogger(__name__)
 
+# Global async mutex lock ensuring atomic order placement operations during concurrent Telegram user requests
 order_lock = asyncio.Lock()
 
 
-
 def _find_or_create_customer(session, telegram_id: str, username: str) -> Customer:
+    """Helper to locate an existing whitelisted customer by Telegram ID or register a new customer entry."""
     customer = session.query(Customer).filter(Customer.telegram_user_id == telegram_id).first()
     if not customer:
         customer = Customer(telegram_user_id=telegram_id, username=username, display_name=username)
@@ -33,6 +39,7 @@ def _find_or_create_customer(session, telegram_id: str, username: str) -> Custom
 
 
 def _get_or_create_default_group(session) -> TelegramGroup:
+    """Helper to fetch or initialize the default Telegram bot channel group entity."""
     group = session.query(TelegramGroup).filter(TelegramGroup.group_name == DEFAULT_GROUP_NAME).first()
     if not group:
         group = TelegramGroup(telegram_group_id="default_bot", group_name=DEFAULT_GROUP_NAME, is_active=True)
@@ -42,6 +49,7 @@ def _get_or_create_default_group(session) -> TelegramGroup:
 
 
 def _find_slot_row(session, slot_date: str, order_type: str) -> tuple[SlotRow, SlotTable] | None:
+    """Helper to locate the underlying SlotRow and parent SlotTable matching slot_date and order perspective."""
     target = slot_date.strip()
     store_type = "SELL" if order_type.upper() in ("BUY", "SELL_SLOT") else "BUY"
     query = session.query(SlotTable).filter(SlotTable.is_active == True)
@@ -68,9 +76,15 @@ def _place_order_sync(
     quantity: float,
     order_type: str,
 ) -> Order:
+    """
+    Synchronous implementation for placing customer gold orders.
+    Validates slot existence, checks stock, creates customer order record,
+    deducts stock for BUY orders, or creates BUYBACK purchase order for SELL orders.
+    """
     logger.info("Placing %s order: telegram_id=%s, username=%s, slot_date=%s, quantity=%.2f", order_type, telegram_id, username, slot_date, quantity)
     session = SessionLocal()
     try:
+        # Section 1: Check slot details and stock availability
         slot_info = get_slot_by_date_sync(slot_date, order_type)
         if not slot_info:
             logger.warning("Order failed: Slot not found for slot_date=%s, order_type=%s", slot_date, order_type)
@@ -81,11 +95,13 @@ def _place_order_sync(
                 logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
                 raise InsufficientStockError("Insufficient stock")
 
+        # Section 2: Locate customer profile and slot entities
         customer = _find_or_create_customer(session, telegram_id, username)
         group = _get_or_create_default_group(session)
         slot_pair = _find_slot_row(session, slot_date, order_type)
         slot_row, slot_table = slot_pair if slot_pair else (None, None)
 
+        # Section 3: Calculate order totals
         premium_val = Decimal(str(slot_info["premium"]))
         spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
         total_amt = calculate_order_total(quantity, spot_price_dec, premium_val)
@@ -93,6 +109,7 @@ def _place_order_sync(
         # Store perspective: Telegram user BUY = Store SELL (Gold OUT); Telegram user SELL = Store BUY (Gold IN/Buyback)
         store_txn_type = "SELL" if order_type == "BUY" else "BUY"
 
+        # Section 4: Create Order record in database
         order = Order(
             order_no=generate_order_no(store_txn_type),
             customer_id=customer.id,
@@ -114,6 +131,7 @@ def _place_order_sync(
         session.add(order)
         session.flush()
 
+        # Section 5: Execute physical stock movement
         if store_txn_type == "SELL" and slot_table:
             deduct_stock_sync(slot_date, quantity, order_type)
         elif store_txn_type == "BUY":
@@ -124,6 +142,7 @@ def _place_order_sync(
             cust_name = customer.display_name or username or f"Telegram #{telegram_id}"
             unit_cost_val = calculate_unit_cost(spot_price_dec, premium_val)
 
+            # Record customer buyback purchase order in system
             po = PurchaseOrder(
                 po_no=po_no,
                 po_type="BUYBACK",
@@ -156,13 +175,16 @@ def _place_order_sync(
         session.close()
 
 
-
 async def place_buy_order(
     telegram_id: str,
     username: str,
     slot_date: str,
     quantity: float,
 ) -> Order:
+    """
+    Thread-safe async wrapper for placing customer gold buy orders.
+    Acquires order_lock mutex to prevent concurrent race conditions.
+    """
     async with order_lock:
         return await asyncio.to_thread(
             _place_order_sync, telegram_id, username, slot_date, quantity, "BUY"
@@ -175,6 +197,10 @@ async def place_sell_order(
     slot_date: str,
     quantity: float,
 ) -> Order:
+    """
+    Thread-safe async wrapper for placing customer gold sell (buyback) orders.
+    Acquires order_lock mutex to prevent concurrent race conditions.
+    """
     async with order_lock:
         return await asyncio.to_thread(
             _place_order_sync, telegram_id, username, slot_date, quantity, "SELL"
@@ -182,6 +208,9 @@ async def place_sell_order(
 
 
 def cancel_order_sync(order_id: int) -> Order:
+    """
+    Cancel an existing order and credit reserved gold stock back to the associated slot table.
+    """
     session = SessionLocal()
     try:
         order = session.query(Order).filter(Order.id == order_id).first()
@@ -205,6 +234,7 @@ def cancel_order_sync(order_id: int) -> Order:
     finally:
         session.close()
 
+    # Credit stock back to slot table on order cancellation
     if transaction_type == "BUY" and slot_table_id:
         add_stock_to_table_sync(
             slot_table_id=slot_table_id,
@@ -217,6 +247,10 @@ def cancel_order_sync(order_id: int) -> Order:
 
 
 def return_order_sync(order_id: int, quantity: Decimal, reason: str | None) -> StockReturn:
+    """
+    Process stock return for a customer order.
+    Restocks gold onto target slot table and generates a StockReturn record.
+    """
     session = SessionLocal()
     try:
         order = session.query(Order).filter(Order.id == order_id).first()
@@ -235,6 +269,7 @@ def return_order_sync(order_id: int, quantity: Decimal, reason: str | None) -> S
     finally:
         session.close()
 
+    # Credit stock back to inventory slot table
     add_stock_to_table_sync(
         slot_table_id=slot_table_id,
         quantity=quantity,
@@ -265,6 +300,10 @@ def return_order_sync(order_id: int, quantity: Decimal, reason: str | None) -> S
 
 
 def get_orders_by_telegram_id_sync(telegram_id: str) -> list[dict]:
+    """
+    Retrieve customer order history list for a specific Telegram User ID.
+    Returns latest 10 orders sorted by creation date descending.
+    """
     session = SessionLocal()
     try:
         orders = (
@@ -290,3 +329,4 @@ def get_orders_by_telegram_id_sync(telegram_id: str) -> list[dict]:
         return result
     finally:
         session.close()
+

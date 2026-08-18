@@ -1,3 +1,7 @@
+"""
+Admin User Database Model Entity.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String
@@ -8,6 +12,10 @@ from app.core.database import Base
 
 
 class User(Base):
+    """
+    SQLAlchemy ORM model representing admin platform users.
+    Stores username, bcrypt password hash, role (e.g. ADMIN), and active flag status.
+    """
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -23,4 +31,4 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

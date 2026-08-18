@@ -1,3 +1,7 @@
+"""
+Telegram Group Channel Database Model Entity.
+"""
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String
@@ -8,6 +12,10 @@ from app.core.database import Base
 
 
 class TelegramGroup(Base):
+    """
+    SQLAlchemy ORM model representing authorized Telegram group channels.
+    Stores telegram_group_id, group_name, and active status flag.
+    """
     __tablename__ = "telegram_groups"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
@@ -18,4 +26,4 @@ class TelegramGroup(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
