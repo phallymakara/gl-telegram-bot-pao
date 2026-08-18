@@ -37,6 +37,7 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         po_type=po.po_type,
         supplier_id=po.supplier_id,
         supplier_name=supplier_name,
+        product_type=po.product_type,
         slot_table_id=po.slot_table_id,
         slot_table_name=po.slot_table.table_name if po.slot_table else None,
         quantity=po.quantity,
@@ -125,6 +126,7 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
         po_type=po_type,
         supplier_id=body.supplier_id,
         supplier_name=body.supplier_name,
+        product_type=body.product_type,
         slot_table_id=slot_table_id,
         quantity=body.quantity,
         spot_price=spot_price,
@@ -161,6 +163,8 @@ def update_purchase_order(po_id: int, body: PurchaseOrderUpdate, db: Session = D
         po.po_type = body.po_type.upper()
     if body.supplier_name is not None:
         po.supplier_name = body.supplier_name
+    if body.product_type is not None:
+        po.product_type = body.product_type
     if body.quantity is not None:
         po.quantity = body.quantity
     if body.spot_price is not None:

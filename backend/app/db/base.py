@@ -15,6 +15,7 @@ from app.models.purchase_order import PurchaseOrder
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
 from app.models.stock_return import StockReturn
+from app.models.product import Product
 from app.models.supplier import Supplier
 from app.models.telegram_group import TelegramGroup
 from app.models.user import User

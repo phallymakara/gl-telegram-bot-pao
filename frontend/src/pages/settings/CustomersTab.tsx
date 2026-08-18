@@ -95,7 +95,7 @@ export default function CustomersTab({
                     </td>
                     <td className="px-4 py-3 text-slate-500 font-mono text-xs">{c.telegram_user_id}</td>
                     <td className="px-4 py-3 text-slate-400 text-xs">
-                      {new Date(c.created_at).toLocaleDateString()}
+                      {c.created_at ? new Date(c.created_at).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <IconBtn title="Remove User" tone="danger" onClick={() => removeCustomer(c.id)}>

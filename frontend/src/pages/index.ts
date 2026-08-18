@@ -21,6 +21,15 @@ export { default as SlotsPage } from "./SlotsPage";
 // Inventory Stock Ledger (Route: "inventory-ledger", "inventory")
 export { default as InventoryPage } from "./InventoryPage";
 
+// Customers Master Data (Route: "customers")
+export { default as CustomersPage } from "./CustomersPage";
+
+// Vendors Master Data (Route: "vendors")
+export { default as VendorsPage } from "./VendorsPage";
+
+// Products Master Data (Route: "products")
+export { default as ProductsPage } from "./ProductsPage";
+
 // Delivery Notes (Route: "delivery-notes")
 export { default as DeliveryNotesPage } from "./DeliveryNotesPage";
 

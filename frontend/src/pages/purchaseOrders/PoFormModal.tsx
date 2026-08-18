@@ -1,10 +1,203 @@
 /**
  * @file PoFormModal.tsx
- * @description Modal form component for creating and editing Local & Oversea Purchase Orders.
+ * @description Modal form component for creating Purchase Orders with database vendor/customer and product type search comboboxes.
  */
 
-import { X } from "lucide-react";
-import { SupplierData } from "../../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
+import { CustomerData, customersApi, productsApi, SupplierData, VendorData, vendorsApi } from "../../api";
+
+interface PartyOption {
+  name: string;
+  category: "Vendor" | "Customer";
+  code?: string;
+}
+
+interface ProductOption {
+  name: string;
+  conversion_factor?: number | null;
+}
+
+function SearchablePartySelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: PartyOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter(
+      (opt) =>
+        opt.name.toLowerCase().includes(q) ||
+        (opt.code && opt.code.toLowerCase().includes(q))
+    );
+  }, [options, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search by code or name..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching record found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-semibold text-slate-800">{opt.name}</span>
+                  {opt.code && (
+                    <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                      {opt.code}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableProductSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProducts(
+          data.map((p) => ({
+            name: p.name,
+            conversion_factor: p.conversion_factor,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return products;
+    return products.filter((p) => p.name.toLowerCase().includes(q));
+  }, [products, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search and select product type..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching product found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-slate-800">{opt.name}</span>
+                {opt.conversion_factor !== undefined && opt.conversion_factor !== null && (
+                  <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                    {opt.conversion_factor}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PoFormModalProps {
   isOpen: boolean;
@@ -14,6 +207,7 @@ interface PoFormModalProps {
     vendor_type: "Swiss" | "DB" | "SV";
     vendor_name: string;
     customer_name: string;
+    product_type?: string;
     trade_date: string;
     expected_delivery: string;
     trade_type: "BUY" | "SELL";
@@ -33,7 +227,7 @@ interface PoFormModalProps {
 }
 
 /**
- * Purchase order creation and update form modal.
+ * Purchase Order creation form modal component.
  */
 export default function PoFormModal({
   isOpen,
@@ -43,6 +237,45 @@ export default function PoFormModal({
   suppliers,
   onSave,
 }: PoFormModalProps) {
+  const [customerOptions, setCustomerOptions] = useState<PartyOption[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<PartyOption[]>([]);
+
+  useEffect(() => {
+    customersApi
+      .getCustomers()
+      .then((data) => {
+        setCustomerOptions(
+          data.map((c) => ({
+            name: c.name || c.display_name || `Customer #${c.id}`,
+            category: "Customer" as const,
+            code: c.customer_code || `CUST-${String(c.id).padStart(3, "0")}`,
+          }))
+        );
+      })
+      .catch(() => {});
+
+    vendorsApi
+      .getVendors()
+      .then((data) => {
+        setVendorOptions(
+          data.map((v) => ({
+            name: v.name,
+            category: "Vendor" as const,
+            code: v.vendor_code || `VEND-${String(v.id).padStart(3, "0")}`,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  const combinedPartyOptions = useMemo(() => {
+    const map = new Map<string, PartyOption>();
+    [...vendorOptions, ...customerOptions].forEach((item) => {
+      map.set(item.name.toLowerCase() + (item.code ? `-${item.code.toLowerCase()}` : ""), item);
+    });
+    return Array.from(map.values());
+  }, [vendorOptions, customerOptions]);
+
   if (!isOpen) return null;
 
   return (
@@ -73,19 +306,24 @@ export default function PoFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Supplier</label>
-              <select
-                value={form.vendor_name}
-                onChange={(e) => setForm((f: any) => ({ ...f, vendor_name: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name} ({s.supplier_type})
-                  </option>
-                ))}
-              </select>
+              <label className="text-xs font-semibold text-slate-600">Vendor *</label>
+              <SearchablePartySelect
+                value={form.vendor_name || form.customer_name || ""}
+                onChange={(val) =>
+                  setForm((f: any) => ({ ...f, vendor_name: val, customer_name: val }))
+                }
+                options={combinedPartyOptions}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Product Type *</label>
+              <SearchableProductSelect
+                value={form.product_type || ""}
+                onChange={(val) => setForm((f: any) => ({ ...f, product_type: val }))}
+              />
             </div>
           </div>
 
@@ -136,7 +374,7 @@ export default function PoFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Expected Delivery</label>
+              <label className="text-xs font-semibold text-slate-600">Expected Delivery *</label>
               <input
                 type="date"
                 value={form.expected_delivery}
@@ -147,10 +385,10 @@ export default function PoFormModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600">Notes & Special Instructions</label>
+            <label className="text-xs font-semibold text-slate-600">Notes / Remarks</label>
             <textarea
               rows={2}
-              placeholder="Add shipping or assay notes..."
+              placeholder="Enter purchase order notes..."
               value={form.note}
               onChange={(e) => setForm((f: any) => ({ ...f, note: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -168,7 +406,7 @@ export default function PoFormModal({
             onClick={onSave}
             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-xs"
           >
-            Create Purchase Order
+            Create Order
           </button>
         </div>
       </div>

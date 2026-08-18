@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from "react";
-import { TrendingUp, Users, BarChart3, Send, Shield, Cloud } from "lucide-react";
+import { TrendingUp, BarChart3, Send, Shield, Cloud } from "lucide-react";
 import Sidebar from "./layouts/Sidebar";
 import Topbar from "./layouts/Topbar";
 import GoodsReceiptPage from "./pages/GoodsReceiptPage";
@@ -17,6 +17,9 @@ import PhysicalOrdersPage from "./pages/PhysicalOrdersPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
 import SlotsPage from "./pages/SlotsPage";
 import InventoryPage from "./pages/InventoryPage";
+import CustomersPage from "./pages/CustomersPage";
+import VendorsPage from "./pages/VendorsPage";
+import ProductsPage from "./pages/ProductsPage";
 import AlertsPage from "./pages/AlertsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -44,10 +47,9 @@ export default function App() {
 
   const simplePages: Record<string, React.ComponentType<any>> = {
     "gold-prices": TrendingUp,
-    customers: Users,
     "telegram-bot": Send,
     "audit-logs": Shield,
-    backup: Cloud
+    backup: Cloud,
   };
 
   const isCustomFullPage =
@@ -63,6 +65,9 @@ export default function App() {
     page === "invoice" ||
     page === "delivery-notes" ||
     page === "inventory-ledger" ||
+    page === "customers" ||
+    page === "vendors" ||
+    page === "products" ||
     page === "reports" ||
     page === "low-stock-alerts" ||
     page === "discount-promotions" ||
@@ -98,6 +103,9 @@ export default function App() {
           {page === "sell-orders" && <PlatformOrdersPage notify={notify} />}
           {page === "delivery-notes" && <DeliveryNotesPage notify={notify} />}
           {page === "inventory-ledger" && <InventoryPage notify={notify} />}
+          {page === "customers" && <CustomersPage notify={notify} />}
+          {page === "vendors" && <VendorsPage notify={notify} />}
+          {page === "products" && <ProductsPage notify={notify} />}
           {page === "reports" && <ReportsPage notify={notify} />}
 
           {page === "platform-orders" && <PlatformOrdersPage notify={notify} />}
@@ -132,5 +140,3 @@ export default function App() {
     </div>
   );
 }
-
-

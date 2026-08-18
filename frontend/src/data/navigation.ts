@@ -41,7 +41,10 @@ export const NAV_ITEMS: NavItem[] = [
     ]
   },
   {
-    id: "master-stock", label: "Master & Stock", icon: Layers, children: [
+    id: "master-data", label: "Master Data", icon: Layers, children: [
+      { id: "customers", label: "Customers", icon: Users },
+      { id: "vendors", label: "Vendors", icon: Store },
+      { id: "products", label: "Products", icon: Package },
       { id: "inventory-ledger", label: "Inventory Ledger", icon: Archive },
     ]
   },
@@ -63,8 +66,11 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "gold-out": ["Dashboard", "Gold Out (Selling)"],
   "sell-orders": ["Dashboard", "Gold Out (Selling)", "Sell Orders"],
   "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
-  "master-stock": ["Dashboard", "Master & Stock"],
-  "inventory-ledger": ["Dashboard", "Master & Stock", "Inventory Ledger"],
+  "master-data": ["Dashboard", "Master Data"],
+  "inventory-ledger": ["Dashboard", "Master Data", "Inventory Ledger"],
+  "customers": ["Dashboard", "Master Data", "Customers"],
+  "vendors": ["Dashboard", "Master Data", "Vendors"],
+  "products": ["Dashboard", "Master Data", "Products"],
   "platform-orders": ["Dashboard", "Orders", "Platform Orders"],
   "physical-orders": ["Dashboard", "Orders", "Physical Orders"],
   "po-local": ["Dashboard", "Purchase Orders", "Local PO"],
@@ -72,7 +78,6 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "slots": ["Dashboard", "Slots"],
   "gold-prices": ["Dashboard", "Gold Prices"],
   "inventory": ["Dashboard", "Inventory"],
-  "customers": ["Dashboard", "Customers"],
   "telegram-bot": ["Dashboard", "Telegram Bot"],
   "user-management": ["Dashboard", "User Management"],
   "audit-logs": ["Dashboard", "Audit Logs"],
@@ -103,6 +108,8 @@ export const TOPBAR_ICON: Record<string, any> = {
   "gold-prices": "menu",
   "inventory": "menu",
   "customers": "menu",
+  "vendors": "menu",
+  "products": "menu",
   "telegram-bot": "menu",
   "audit-logs": "menu",
   "backup": "menu",
@@ -125,7 +132,9 @@ export const PAGE_TITLE: Record<string, string> = {
   "slots": "Slots Management",
   "gold-prices": "Gold Prices",
   "inventory": "Inventory",
-  "customers": "Customers",
+  "customers": "Customers Master Data",
+  "vendors": "Vendors Master Data",
+  "products": "Products Master Data",
   "telegram-bot": "Telegram Bot",
   "user-management": "User Management",
   "audit-logs": "Audit Logs",
@@ -134,9 +143,6 @@ export const PAGE_TITLE: Record<string, string> = {
   "settings": "Settings",
   "backup": "Backup",
 };
-
-
-
 
 export const PAGE_SUBTITLE: Record<string, string> = {
 };

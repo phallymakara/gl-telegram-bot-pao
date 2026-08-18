@@ -19,7 +19,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
@@ -31,6 +31,9 @@ import StatusBadge from "../components/StatusBadge";
 
 import {
   api,
+  customersApi,
+  vendorsApi,
+  productsApi,
   DashboardStatsData,
   PurchaseOrderData,
   SlotTableData,
@@ -45,15 +48,207 @@ interface PurchaseOrdersPageProps {
   notify: (msg: string) => void;
 }
 
-/**
- * Purchase Orders procurement management page component.
- */
+interface PartyOption {
+  name: string;
+  category: "Vendor" | "Customer";
+  code?: string;
+  contact?: string;
+}
+
+function SearchablePartySelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: PartyOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return options;
+    return options.filter(
+      (opt) =>
+        opt.name.toLowerCase().includes(q) ||
+        opt.category.toLowerCase().includes(q) ||
+        (opt.code && opt.code.toLowerCase().includes(q)) ||
+        (opt.contact && opt.contact.toLowerCase().includes(q))
+    );
+  }, [options, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search by code or name..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching record found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-semibold text-slate-800">{opt.name}</span>
+                  {opt.code && (
+                    <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                      {opt.code}
+                    </span>
+                  )}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ProductOption {
+  name: string;
+  conversion_factor?: number | null;
+}
+
+function SearchableProductSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProducts(
+          data.map((p) => ({
+            name: p.name,
+            conversion_factor: p.conversion_factor,
+          }))
+        );
+      })
+      .catch(() => { });
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return products;
+    return products.filter((p) => p.name.toLowerCase().includes(q));
+  }, [products, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search and select product type..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching product found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-slate-800">{opt.name}</span>
+                {opt.conversion_factor !== undefined && opt.conversion_factor !== null && (
+                  <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                    {opt.conversion_factor}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const emptyForm = {
   purchase_source: "OVERSEA" as "OVERSEA" | "LOCAL" | "BUYBACK",
   vendor_type: "Swiss" as "Swiss" | "DB" | "SV",
   vendor_name: "",
   customer_name: "",
+  product_type: "",
   spot_price: "",
   premium: "",
   amount_kg: "",
@@ -95,7 +290,47 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
+  const [customerList, setCustomerList] = useState<PartyOption[]>([]);
+  const [vendorList, setVendorList] = useState<PartyOption[]>([]);
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
+
+  useEffect(() => {
+    customersApi
+      .getCustomers()
+      .then((data) => {
+        setCustomerList(
+          data.map((c) => ({
+            name: c.name || c.display_name || `Customer #${c.id}`,
+            category: "Customer" as const,
+            code: c.customer_code || `CUST-${String(c.id).padStart(3, "0")}`,
+            contact: c.contact || undefined,
+          }))
+        );
+      })
+      .catch(() => { });
+
+    vendorsApi
+      .getVendors()
+      .then((data) => {
+        setVendorList(
+          data.map((v) => ({
+            name: v.name,
+            category: "Vendor" as const,
+            code: v.vendor_code || `VEND-${String(v.id).padStart(3, "0")}`,
+            contact: v.phone || v.email || undefined,
+          }))
+        );
+      })
+      .catch(() => { });
+  }, []);
+
+  const combinedPartyOptions = useMemo(() => {
+    const map = new Map<string, PartyOption>();
+    [...vendorList, ...customerList].forEach((item) => {
+      map.set(item.name.toLowerCase() + (item.code ? `-${item.code.toLowerCase()}` : ""), item);
+    });
+    return Array.from(map.values());
+  }, [vendorList, customerList]);
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingPoId, setEditingPoId] = useState<number | null>(null);
@@ -416,6 +651,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       vendor_type: "Swiss",
       vendor_name: po.supplier_name || "",
       customer_name: po.supplier_name || "",
+      product_type: (po as any).product_type || "",
       spot_price: po.spot_price ? String(po.spot_price) : "4376.2",
       premium: po.premium ? String(po.premium) : "200",
       amount_kg: String(po.quantity || 1),
@@ -458,6 +694,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         return;
       }
       supplierName = form.customer_name;
+    }
+
+    if (!form.received_date) {
+      notify("Please select Expected Received Date");
+      return;
     }
 
     const spotPrice = Number(form.spot_price) || 4376.2;
@@ -1082,73 +1323,43 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </button>
               </div>
 
-              {form.purchase_source === "OVERSEA" && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor Type *</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["Swiss", "DB", "SV"] as const).map((vt) => (
-                      <button
-                        key={vt}
-                        type="button"
-                        onClick={() => setForm({ ...form, vendor_type: vt })}
-                        className={`py-2 text-xs font-medium rounded-lg border transition-all ${form.vendor_type === vt
-                          ? "border-indigo-600 bg-indigo-50/50 text-indigo-600 font-semibold"
-                          : "border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                      >
-                        {vt}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {form.purchase_source === "LOCAL" && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor Name *</label>
-                  <input
-                    type="text"
-                    value={form.vendor_name}
-                    onChange={(e) => setForm({ ...form, vendor_name: e.target.value })}
-                    placeholder="Enter vendor name..."
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-              )}
-
-              {form.purchase_source === "BUYBACK" && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Customer Name *</label>
-                  <input
-                    type="text"
-                    value={form.customer_name}
-                    onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
-                    placeholder="fill customer name"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
-              )}
-
-              {/* Order Date (Placed under Vendor) */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
-                <input
-                  type="date"
-                  value={form.order_date}
-                  onChange={(e) => setForm({ ...form, order_date: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor *</label>
+                <SearchablePartySelect
+                  value={form.vendor_name || form.customer_name || ""}
+                  onChange={(val) => setForm({ ...form, vendor_name: val, customer_name: val })}
+                  options={combinedPartyOptions}
                 />
               </div>
 
-              {/* Expected Received Date (Placed below Order Date) */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Received Date</label>
-                <input
-                  type="date"
-                  value={form.received_date}
-                  onChange={(e) => setForm({ ...form, received_date: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type *</label>
+                <SearchableProductSelect
+                  value={form.product_type || ""}
+                  onChange={(val) => setForm({ ...form, product_type: val })}
                 />
+              </div>
+
+              {/* Order Date & Expected Received Date in 2 columns */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
+                  <input
+                    type="date"
+                    value={form.order_date}
+                    onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Received Date *</label>
+                  <input
+                    type="date"
+                    value={form.received_date}
+                    onChange={(e) => setForm({ ...form, received_date: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               {/* Spot Price & Premium */}

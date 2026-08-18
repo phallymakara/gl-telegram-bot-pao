@@ -28,6 +28,7 @@ class PurchaseOrder(Base):
 
     supplier_id: Mapped[int | None] = mapped_column(ForeignKey("suppliers.id"), nullable=True, index=True)
     supplier_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    product_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     slot_table_id: Mapped[int | None] = mapped_column(ForeignKey("slot_tables.id"), nullable=True, index=True)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)

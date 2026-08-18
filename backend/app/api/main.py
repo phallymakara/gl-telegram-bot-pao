@@ -3,6 +3,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.database import Base, engine
@@ -39,6 +40,22 @@ async def log_requests(request: Request, call_next):
 def on_startup():
     import app.db.base
     Base.metadata.create_all(bind=engine)
+
+    # Safely migrate existing tables by auto-adding new columns if not present
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_code VARCHAR(50);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS name VARCHAR(150);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS contact VARCHAR(150);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS sex VARCHAR(20);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS dob VARCHAR(50);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS nation VARCHAR(100);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address VARCHAR(255);"))
+            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"))
+            conn.commit()
+    except Exception as err:
+        logger.warning("Auto column migration notice: %s", err)
+
     logger.info("Database tables initialized successfully.")
 
 
