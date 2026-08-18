@@ -1,3 +1,8 @@
+/**
+ * @file main.tsx
+ * @description Frontend entry point mounting the root React application onto the HTML DOM element (#root).
+ */
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'

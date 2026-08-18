@@ -1,3 +1,8 @@
+/**
+ * @file navigation.ts
+ * @description Centralized navigation schema definition providing sidebar links, route titles, icon mappings, breadcrumbs, and subtitle definitions.
+ */
+
 import {
   Home, ShoppingCart, Calendar, TrendingUp, Archive, Users, FileText,
   BarChart3, Send, User, Shield, Bell, Settings as SettingsIcon, Cloud, Store, Monitor, Package, Tag,
@@ -5,12 +10,14 @@ import {
 } from "lucide-react";
 import React from "react";
 
+/** Interface representing a sub-menu navigation link */
 export interface NavSubItem {
   id: string;
   label: string;
   icon?: React.ComponentType<any>;
 }
 
+/** Interface representing a top-level sidebar navigation menu item */
 export interface NavItem {
   id: string;
   label: string;

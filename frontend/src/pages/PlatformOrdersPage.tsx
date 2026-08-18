@@ -1,14 +1,24 @@
+/**
+ * @file PlatformOrdersPage.tsx
+ * @description Platform Orders page component managing online and Telegram bot orders, filtering by order source/channel, status updating, and invoice modal views.
+ */
+
 import { Eye, FileText, MoreHorizontal, Package, Pencil, PhoneCall, Plus, Printer, RotateCcw, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
-import { api, OrderData, DashboardStatsData, toNumber } from "../data/api";
+import { api, OrderData, DashboardStatsData, toNumber } from "../api";
 
 interface PlatformOrdersPageProps {
+  /** Toast notification callback */
   notify: (msg: string) => void;
 }
+
+/**
+ * Main Platform & Online Orders page component.
+ */
 
 export default function PlatformOrdersPage({
   notify,

@@ -17,11 +17,19 @@ import {
   Store,
   Truck,
 } from "lucide-react";
+/**
+ * @file DashboardPage.tsx
+ * @description System overview dashboard page rendering real-time KPI metrics, stock balances, and incoming/outgoing gold summaries.
+ */
+
 import { useEffect, useState } from "react";
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
-import { api, DashboardStatsData, toNumber } from "../data/api";
+import { api, DashboardStatsData, toNumber } from "../api";
 
+/**
+ * Main dashboard page component displaying system KPI statistics cards and inventory breakdown.
+ */
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
 

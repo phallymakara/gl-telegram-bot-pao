@@ -1,3 +1,8 @@
+/**
+ * @file UsersPage.tsx
+ * @description User Management page component for creating, updating, activating/deactivating, and removing admin and staff accounts.
+ */
+
 import React, { useState, useEffect } from "react";
 import { Users, User, Shield, Plus, EyeOff, Eye, Pencil, Trash2 } from "lucide-react";
 import Card from "../components/Card";
@@ -5,11 +10,16 @@ import StatCard from "../components/StatCard";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
 import IconBtn from "../components/IconBtn";
-import { api, UserData } from "../data/api";
+import { api, UserData } from "../api";
 
 interface UsersPageProps {
+  /** Toast notification trigger callback */
   notify: (msg: string) => void;
 }
+
+/**
+ * System User Management page component.
+ */
 
 export default function UsersPage({ notify }: UsersPageProps) {
   const [users, setUsers] = useState<UserData[]>([]);

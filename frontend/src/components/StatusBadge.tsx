@@ -1,9 +1,18 @@
+/**
+ * @file StatusBadge.tsx
+ * @description Color-coded badge pill component mapping order, user, and PO status strings to visual Tailwind pill styles.
+ */
+
 import React from "react";
 
 interface StatusBadgeProps {
+  /** Target status text label */
   status: string;
 }
 
+/**
+ * Status badge pill component rendered in tables and details cards.
+ */
 export default function StatusBadge({ status }: StatusBadgeProps) {
   const map: Record<string, string> = {
     Completed: "bg-emerald-50 text-emerald-700",
@@ -21,6 +30,7 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     "Awaiting Receipt": "bg-amber-50 text-amber-700",
     Returned: "bg-rose-50 text-rose-700",
   };
+
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${map[status] || "bg-slate-100 text-slate-600"}`}>
       {status}

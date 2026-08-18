@@ -1,16 +1,30 @@
+/**
+ * @file Sidebar.tsx
+ * @description Application sidebar navigation layout component supporting desktop collapsible mode and mobile slide-over drawers.
+ */
+
 import React from "react";
 import { Diamond, User, ChevronDown } from "lucide-react";
 import { NAV_ITEMS } from "../data/navigation";
 
 interface SidebarProps {
+  /** Active page route key */
   page: string;
+  /** Navigation callback handler */
   setPage: (page: string) => void;
+  /** Mobile drawer visibility state */
   mobileOpen: boolean;
+  /** Mobile drawer callback toggle */
   setMobileOpen: (open: boolean) => void;
+  /** Desktop sidebar collapse state */
   desktopOpen: boolean;
+  /** Desktop sidebar toggle callback */
   setDesktopOpen: (open: boolean) => void;
 }
 
+/**
+ * Main collapsible sidebar navigation component.
+ */
 export default function Sidebar({
   page,
   setPage,

@@ -1,12 +1,23 @@
+/**
+ * @file SlotsPage.tsx
+ * @description Slot Pricing Tables page component for configuring premium rates by slot date for buyback and sell modes.
+ */
+
 import React, { useState, useEffect } from "react";
 import { Plus, Calendar, Trash2, Pencil, MoreHorizontal, X, Save, Check, Package, Truck } from "lucide-react";
 import Card from "../components/Card";
-import { api, SlotTableData, DashboardStatsData, toNumber } from "../data/api";
+import { api, SlotTableData, DashboardStatsData, toNumber } from "../api";
 
 interface SlotsPageProps {
+  /** Mode ("buyback" for buyback slots, "sell" for sell premium slots) */
   mode?: "buyback" | "sell";
+  /** Toast notification callback */
   notify: (msg: string) => void;
 }
+
+/**
+ * Slot Tables management page component.
+ */
 
 interface SlotRowItem {
   id: number;

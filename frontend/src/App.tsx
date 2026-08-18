@@ -1,3 +1,8 @@
+/**
+ * @file App.tsx
+ * @description Main application container component managing page routing state, layout shell (Sidebar & Topbar), toast notification state, and page component rendering.
+ */
+
 import React, { useState, useRef } from "react";
 import { TrendingUp, Users, BarChart3, Send, Shield, Cloud } from "lucide-react";
 import Sidebar from "./layouts/Sidebar";
@@ -19,6 +24,9 @@ import ComingSoon from "./components/ComingSoon";
 import Toast from "./components/Toast";
 import { PAGE_TITLE } from "./data/navigation";
 
+/**
+ * Root React App component managing top-level route switching and toast notifications.
+ */
 export default function App() {
   const [page, setPage] = useState("dashboard");
   const [mobileOpen, setMobileOpen] = useState(false);

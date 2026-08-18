@@ -1,10 +1,19 @@
+/**
+ * @file Toast.tsx
+ * @description Floating notification toast banner component displayed at bottom-right corner upon user actions.
+ */
+
 import React from "react";
 import { Check } from "lucide-react";
 
 interface ToastProps {
+  /** Notification message string to display, or null when hidden */
   toast: string | null;
 }
 
+/**
+ * Toast notification overlay component.
+ */
 export default function Toast({ toast }: ToastProps) {
   if (!toast) return null;
   return (

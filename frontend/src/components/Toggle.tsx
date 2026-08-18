@@ -1,10 +1,20 @@
+/**
+ * @file Toggle.tsx
+ * @description Smooth animated UI toggle switch component.
+ */
+
 import React from "react";
 
 interface ToggleProps {
+  /** Boolean state indicating whether switch is active */
   on: boolean;
+  /** Click event handler callback */
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
+/**
+ * Toggle switch button component used for boolean settings and status switches.
+ */
 export default function Toggle({ on, onClick }: ToggleProps) {
   return (
     <button

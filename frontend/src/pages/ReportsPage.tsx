@@ -8,13 +8,23 @@ import {
   Calendar,
   FileSpreadsheet
 } from "lucide-react";
+/**
+ * @file ReportsPage.tsx
+ * @description Reports & Analytics page component rendering sales volume summaries, buy/sell ratios, and revenue distribution charts.
+ */
+
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
-import { api, DashboardStatsData, RevenuePointData, toNumber } from "../data/api";
+import { api, DashboardStatsData, RevenuePointData, toNumber } from "../api";
 
 interface ReportsPageProps {
+  /** Toast notification trigger callback */
   notify: (msg: string) => void;
 }
+
+/**
+ * Reports and analytics summary page component.
+ */
 
 export default function ReportsPage({ notify }: ReportsPageProps) {
   const [stats, setStats] = useState<DashboardStatsData | null>(null);

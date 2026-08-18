@@ -24,6 +24,11 @@ import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
+/**
+ * @file PurchaseOrdersPage.tsx
+ * @description Purchase Orders page component managing local and oversea gold supplier procurement, shipping tracking, stock receipt verification, and returns.
+ */
+
 import {
   api,
   DashboardStatsData,
@@ -31,12 +36,18 @@ import {
   SlotTableData,
   SupplierData,
   toNumber,
-} from "../data/api";
+} from "../api";
 
 interface PurchaseOrdersPageProps {
+  /** Optional Purchase Order type filter ("LOCAL" | "OVERSEA" | "BUYBACK" | "") */
   poType?: "LOCAL" | "OVERSEA" | "BUYBACK" | "";
+  /** Toast notification callback */
   notify: (msg: string) => void;
 }
+
+/**
+ * Purchase Orders procurement management page component.
+ */
 
 const emptyForm = {
   purchase_source: "OVERSEA" as "OVERSEA" | "LOCAL" | "BUYBACK",

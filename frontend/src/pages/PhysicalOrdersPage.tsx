@@ -12,12 +12,21 @@ import { useEffect, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
-import { api, DashboardStatsData, OrderData, toNumber } from "../data/api";
+/**
+ * @file PhysicalOrdersPage.tsx
+ * @description Physical Gold Orders page component for recording over-the-counter and physical store transactions.
+ */
+
+import { api, DashboardStatsData, OrderData, toNumber } from "../api";
 
 interface PhysicalOrdersPageProps {
+  /** Toast notification trigger callback */
   notify: (msg: string) => void;
 }
 
+/**
+ * Physical Gold Orders management page component.
+ */
 export default function PhysicalOrdersPage({
   notify,
 }: PhysicalOrdersPageProps) {

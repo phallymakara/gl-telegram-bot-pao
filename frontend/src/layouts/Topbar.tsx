@@ -1,12 +1,22 @@
+/**
+ * @file Topbar.tsx
+ * @description Top header bar layout component rendering page title, dynamic breadcrumbs, notification icon, and mobile menu triggers.
+ */
+
 import React from "react";
 import { Menu, ChevronRight, Bell, Diamond } from "lucide-react";
 import { TOPBAR_ICON, BREADCRUMBS, PAGE_SUBTITLE } from "../data/navigation";
 
 interface TopbarProps {
+  /** Active page route key */
   page: string;
+  /** Navigation callback handler */
   setPage: (page: string) => void;
+  /** Mobile drawer toggle callback */
   setMobileOpen: (open: boolean) => void;
+  /** Desktop sidebar collapse state */
   desktopOpen: boolean;
+  /** Desktop sidebar toggle callback */
   setDesktopOpen: (open: boolean) => void;
 }
 

@@ -1,17 +1,32 @@
+/**
+ * @file StatCard.tsx
+ * @description Dashboard KPI metric card component displaying an icon, primary value metric, sub-label, and optional sparkline chart.
+ */
+
 import React from "react";
 import Card from "./Card";
 import MiniSpark from "./MiniSpark";
 
 interface StatCardProps {
+  /** Lucide icon component */
   icon: React.ComponentType<any>;
+  /** Metric label description */
   label: string;
+  /** Primary metric value (number, text, or element) */
   value: React.ReactNode;
+  /** Secondary subtitle or helper context string */
   sub?: string;
+  /** Tailwind color tint utility string */
   tint: string;
+  /** SVG sparkline path string */
   spark?: string;
+  /** Sparkline stroke color */
   sparkColor?: string;
 }
 
+/**
+ * Metric KPI card component rendered across page headers and dashboard summaries.
+ */
 export default function StatCard({
   icon: Icon,
   label,

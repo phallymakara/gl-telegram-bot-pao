@@ -1,12 +1,23 @@
+/**
+ * @file SearchInput.tsx
+ * @description Styled search text input component featuring a search icon prefix and clean focus styling.
+ */
+
 import React from "react";
 import { Search } from "lucide-react";
 
 interface SearchInputProps {
+  /** Current text query value */
   value: string;
+  /** Callback triggered when input value changes */
   onChange: (value: string) => void;
+  /** Placeholder hint text */
   placeholder?: string;
 }
 
+/**
+ * Standard search field input used across tables and list views.
+ */
 export default function SearchInput({ value, onChange, placeholder }: SearchInputProps) {
   return (
     <div className="relative flex-1 min-w-[220px]">
