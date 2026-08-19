@@ -4,7 +4,7 @@
  */
 
 // Base URL prefix for API calls (empty string defaults to current host origin)
-const BASE = "";
+const BASE = import.meta.env.VITE_API_URL || "";
 
 /**
  * Generic HTTP request helper function.

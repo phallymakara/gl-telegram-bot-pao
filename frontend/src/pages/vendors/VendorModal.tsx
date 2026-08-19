@@ -86,19 +86,6 @@ export default function VendorModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Supplier Category</label>
-              <select
-                value={form.supplier_type}
-                onChange={(e) => setForm((f) => ({ ...f, supplier_type: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="Oversea Refiner">Oversea Refiner (Swiss/Global)</option>
-                <option value="Local Bullion Dealer">Local Bullion Dealer</option>
-                <option value="Vault Custodian">Vault Custodian</option>
-                <option value="Mint Supplier">Mint Supplier</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Contact Person</label>
               <input
                 type="text"
@@ -108,9 +95,6 @@ export default function VendorModal({
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Phone Number</label>
               <input
@@ -121,16 +105,17 @@ export default function VendorModal({
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Email Address</label>
-              <input
-                type="email"
-                placeholder="supplier@refinery.com"
-                value={form.email}
-                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Email Address</label>
+            <input
+              type="email"
+              placeholder="supplier@refinery.com"
+              value={form.email}
+              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
           </div>
 
           <div className="space-y-1.5">

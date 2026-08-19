@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class SupplierCreate(BaseModel):
     name: str
-    supplier_type: str
+    supplier_type: str = "LOCAL"
     contact_person: str | None = None
     phone: str | None = None
     email: str | None = None

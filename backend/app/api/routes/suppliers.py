@@ -32,7 +32,7 @@ def create_supplier(body: SupplierCreate, db: Session = Depends(get_db)):
     """
     supplier = Supplier(
         name=body.name,
-        supplier_type=body.supplier_type.upper(),
+        supplier_type=(body.supplier_type or "LOCAL").upper(),
         contact_person=body.contact_person,
         phone=body.phone,
         email=body.email,
@@ -54,7 +54,8 @@ def update_supplier(supplier_id: int, body: SupplierCreate, db: Session = Depend
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     supplier.name = body.name
-    supplier.supplier_type = body.supplier_type.upper()
+    if body.supplier_type:
+        supplier.supplier_type = body.supplier_type.upper()
     supplier.contact_person = body.contact_person
     supplier.phone = body.phone
     supplier.email = body.email
