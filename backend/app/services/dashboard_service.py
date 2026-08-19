@@ -105,22 +105,30 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     gold_in_total = gold_in_overseas + gold_in_local
 
     # Gold OUT breakdown: Overseas vs Local (Local = Platform + Physical)
-    gold_out_overseas = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        Order.transaction_type == "SELL",
-        Order.region == "OVERSEAS"
-    ).scalar() or 0)
+    try:
+        gold_out_overseas = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            Order.transaction_type == "SELL",
+            Order.region == "OVERSEAS"
+        ).scalar() or 0)
 
-    gold_out_platform = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        Order.transaction_type == "SELL",
-        Order.region == "LOCAL",
-        Order.channel.in_(["TELEGRAM", None])
-    ).scalar() or 0)
+        gold_out_platform = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            Order.transaction_type == "SELL",
+            or_(Order.region == "LOCAL", Order.region.is_(None)),
+            Order.channel.in_(["TELEGRAM", None])
+        ).scalar() or 0)
 
-    gold_out_physical = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        Order.transaction_type == "SELL",
-        Order.region == "LOCAL",
-        Order.channel.in_(["PHONE", "WALK_IN"])
-    ).scalar() or 0)
+        gold_out_physical = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            Order.transaction_type == "SELL",
+            or_(Order.region == "LOCAL", Order.region.is_(None)),
+            Order.channel.in_(["PHONE", "WALK_IN"])
+        ).scalar() or 0)
+    except Exception:
+        db.rollback()
+        gold_out_overseas = 0.0
+        gold_out_platform = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            Order.transaction_type == "SELL"
+        ).scalar() or 0)
+        gold_out_physical = 0.0
 
     gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
 
@@ -261,22 +269,26 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
         buy_by_day[d] = float(row.qty or 0)
 
     # --- Gold OUT from SELL orders (grouped by date + region + channel) ---
-    sell_rows = (
-        db.query(
-            func.date(Order.created_at).label("day"),
-            Order.region.label("region"),
-            Order.channel.label("channel"),
-            func.coalesce(func.sum(Order.quantity), 0).label("qty"),
+    try:
+        sell_rows = (
+            db.query(
+                func.date(Order.created_at).label("day"),
+                Order.region.label("region"),
+                Order.channel.label("channel"),
+                func.coalesce(func.sum(Order.quantity), 0).label("qty"),
+            )
+            .filter(
+                Order.created_at.isnot(None),
+                func.date(Order.created_at) >= window_start,
+                func.date(Order.created_at) <= window_end,
+                Order.transaction_type == "SELL",
+            )
+            .group_by(func.date(Order.created_at), Order.region, Order.channel)
+            .all()
         )
-        .filter(
-            Order.created_at.isnot(None),
-            func.date(Order.created_at) >= window_start,
-            func.date(Order.created_at) <= window_end,
-            Order.transaction_type == "SELL",
-        )
-        .group_by(func.date(Order.created_at), Order.region, Order.channel)
-        .all()
-    )
+    except Exception:
+        db.rollback()
+        sell_rows = []
     out_by_day: dict[date, dict[str, float]] = {}
     for row in sell_rows:
         d = row.day
