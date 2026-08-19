@@ -29,15 +29,26 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     Supports optional target_date filtering for historical inventory simulation.
     """
     today = date.today()
+    target_dt: date | None = None
+    if target_date and target_date.strip():
+        try:
+            target_dt = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            target_dt = None
+
     total_gold = float(db.query(func.coalesce(func.sum(SlotTable.stock), 0)).scalar() or 0)
     total_orders = int(db.query(func.count(Order.id)).scalar() or 0)
+
     sold_today = int(db.query(func.count(Order.id)).filter(
-        Order.transaction_type == "SELL",
-        func.date(Order.created_at) == today,
+        func.upper(Order.transaction_type) == "SELL",
+        func.date(Order.created_at) == (target_dt or today),
+        Order.status != "CANCELLED",
     ).scalar() or 0)
+
     buy_today = int(db.query(func.count(Order.id)).filter(
-        Order.transaction_type == "BUY",
-        func.date(Order.created_at) == today,
+        func.upper(Order.transaction_type) == "BUY",
+        func.date(Order.created_at) == (target_dt or today),
+        Order.status != "CANCELLED",
     ).scalar() or 0)
 
     physical_stock = total_gold
@@ -56,78 +67,101 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         "20": (22.0, 13.0),
     }
 
-    if target_date and target_date.strip():
-        try:
-            parsed = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-            day_key = str(parsed.day)
-            date_match = or_(
-                func.date(PurchaseOrder.expected_date) == parsed,
-                func.date(PurchaseOrder.order_date) == parsed,
-                func.date(PurchaseOrder.received_date) == parsed,
-            )
-            total_inc_q = total_inc_q.filter(date_match)
-            rem_inc_q = rem_inc_q.filter(date_match)
+    if target_dt:
+        day_key = str(target_dt.day)
+        date_match = or_(
+            func.date(PurchaseOrder.expected_date) == target_dt,
+            func.date(PurchaseOrder.order_date) == target_dt,
+            func.date(PurchaseOrder.received_date) == target_dt,
+        )
+        total_inc_q = total_inc_q.filter(date_match)
+        rem_inc_q = rem_inc_q.filter(date_match)
 
-            db_inc = float(total_inc_q.scalar() or 0)
-            db_rem = float(rem_inc_q.scalar() or 0)
+        db_inc = float(total_inc_q.scalar() or 0)
+        db_rem = float(rem_inc_q.scalar() or 0)
 
-            if day_key in SIMULATED_DATES:
-                sim_inc, sim_rem = SIMULATED_DATES[day_key]
-                incoming_po = sim_inc
-                remaining_incoming = sim_rem
-            else:
-                incoming_po = db_inc
-                remaining_incoming = db_rem
-        except ValueError:
-            incoming_po = float(total_inc_q.scalar() or 0)
-            remaining_incoming = float(rem_inc_q.scalar() or 0)
+        if day_key in SIMULATED_DATES:
+            sim_inc, sim_rem = SIMULATED_DATES[day_key]
+            incoming_po = sim_inc
+            remaining_incoming = sim_rem
+        else:
+            incoming_po = db_inc
+            remaining_incoming = db_rem
     else:
         incoming_po = float(total_inc_q.scalar() or 0)
         remaining_incoming = float(rem_inc_q.scalar() or 0)
 
     # Gold IN breakdown by source (Oversea POs, Local POs = Platform + Customer Buybacks = Physical)
-    gold_in_overseas = float(db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.po_type == "OVERSEA"
+    po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
+        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
+    )
+    if target_dt:
+        po_base = po_base.filter(or_(
+            func.date(PurchaseOrder.expected_date) == target_dt,
+            func.date(PurchaseOrder.order_date) == target_dt,
+            func.date(PurchaseOrder.received_date) == target_dt,
+        ))
+
+    gold_in_overseas = float(po_base.filter(
+        func.upper(PurchaseOrder.po_type) == "OVERSEA"
     ).scalar() or 0)
 
-    gold_in_local_platform = float(db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.po_type == "LOCAL"
+    gold_in_local_platform = float(po_base.filter(
+        func.upper(PurchaseOrder.po_type) == "LOCAL"
     ).scalar() or 0)
 
-    po_buyback = float(db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.po_type == "BUYBACK"
+    po_buyback = float(po_base.filter(
+        func.upper(PurchaseOrder.po_type) == "BUYBACK"
     ).scalar() or 0)
-    order_buyback = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        Order.transaction_type == "BUY"
-    ).scalar() or 0)
+
+    q_buy = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+        func.upper(Order.transaction_type) == "BUY",
+        Order.status != "CANCELLED",
+    )
+    if target_dt:
+        q_buy = q_buy.filter(func.date(Order.created_at) == target_dt)
+
+    order_buyback = float(q_buy.scalar() or 0)
     gold_in_local_physical = po_buyback + order_buyback
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
 
     # Gold OUT breakdown: Overseas vs Local (Local = Platform + Physical)
     try:
-        gold_out_overseas = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            Order.transaction_type == "SELL",
-            Order.region == "OVERSEAS"
+        q_sell = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            func.upper(Order.transaction_type) == "SELL",
+            Order.status != "CANCELLED",
+        )
+        if target_dt:
+            q_sell = q_sell.filter(func.date(Order.created_at) == target_dt)
+
+        gold_out_overseas = float(q_sell.filter(
+            func.upper(Order.region) == "OVERSEAS"
         ).scalar() or 0)
 
-        gold_out_platform = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            Order.transaction_type == "SELL",
-            or_(Order.region == "LOCAL", Order.region.is_(None)),
-            Order.channel.in_(["TELEGRAM", None])
+        gold_out_platform = float(q_sell.filter(
+            or_(Order.region.is_(None), func.upper(Order.region) == "LOCAL"),
+            or_(
+                Order.channel.is_(None),
+                Order.channel == "",
+                func.upper(Order.channel).in_(["TELEGRAM", "WEB", "PLATFORM"])
+            )
         ).scalar() or 0)
 
-        gold_out_physical = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            Order.transaction_type == "SELL",
-            or_(Order.region == "LOCAL", Order.region.is_(None)),
-            Order.channel.in_(["PHONE", "WALK_IN"])
+        gold_out_physical = float(q_sell.filter(
+            or_(Order.region.is_(None), func.upper(Order.region) == "LOCAL"),
+            func.upper(Order.channel).in_(["PHONE", "WALK_IN", "WALK-IN", "POS"])
         ).scalar() or 0)
     except Exception:
         db.rollback()
+        q_sell_fallback = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
+            func.upper(Order.transaction_type) == "SELL",
+            Order.status != "CANCELLED",
+        )
+        if target_dt:
+            q_sell_fallback = q_sell_fallback.filter(func.date(Order.created_at) == target_dt)
         gold_out_overseas = 0.0
-        gold_out_platform = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            Order.transaction_type == "SELL"
-        ).scalar() or 0)
+        gold_out_platform = float(q_sell_fallback.scalar() or 0)
         gold_out_physical = 0.0
 
     gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
@@ -181,10 +215,10 @@ def calculate_revenue_points(db: Session, range_param: str = "week") -> list[Rev
     rows = (
         db.query(
             func.date(Order.created_at).label("day"),
-            func.sum(Order.premium_amount).filter(Order.transaction_type == "BUY").label("buy"),
-            func.sum(Order.premium_amount).filter(Order.transaction_type == "SELL").label("sell"),
+            func.sum(Order.premium_amount).filter(func.upper(Order.transaction_type) == "BUY").label("buy"),
+            func.sum(Order.premium_amount).filter(func.upper(Order.transaction_type) == "SELL").label("sell"),
         )
-        .filter(func.date(Order.created_at) >= start)
+        .filter(func.date(Order.created_at) >= start, Order.status != "CANCELLED")
         .group_by(func.date(Order.created_at))
         .order_by(func.date(Order.created_at))
         .all()
@@ -221,7 +255,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
             PurchaseOrder.expected_date.isnot(None),
             func.date(PurchaseOrder.expected_date) >= window_start,
             func.date(PurchaseOrder.expected_date) <= window_end,
-            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED"]),
+            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"]),
         )
         .group_by(func.date(PurchaseOrder.expected_date), PurchaseOrder.po_type)
         .all()
@@ -238,7 +272,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                 continue
         if d not in po_by_day:
             po_by_day[d] = {"OVERSEA": 0, "LOCAL": 0}
-        key = row.po_type if row.po_type in ("OVERSEA", "LOCAL") else "LOCAL"
+        key = row.po_type.upper() if row.po_type and row.po_type.upper() in ("OVERSEA", "LOCAL") else "LOCAL"
         po_by_day[d][key] = float(row.qty or 0)
 
     # --- Gold IN from Customer BUY orders (grouped by date) ---
@@ -251,7 +285,8 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
             Order.created_at.isnot(None),
             func.date(Order.created_at) >= window_start,
             func.date(Order.created_at) <= window_end,
-            Order.transaction_type == "BUY",
+            func.upper(Order.transaction_type) == "BUY",
+            Order.status != "CANCELLED",
         )
         .group_by(func.date(Order.created_at))
         .all()
@@ -281,7 +316,8 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                 Order.created_at.isnot(None),
                 func.date(Order.created_at) >= window_start,
                 func.date(Order.created_at) <= window_end,
-                Order.transaction_type == "SELL",
+                func.upper(Order.transaction_type) == "SELL",
+                Order.status != "CANCELLED",
             )
             .group_by(func.date(Order.created_at), Order.region, Order.channel)
             .all()
@@ -301,11 +337,11 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                 continue
         if d not in out_by_day:
             out_by_day[d] = {"overseas": 0, "platform": 0, "physical": 0}
-        region = row.region or "LOCAL"
-        ch = row.channel or "TELEGRAM"
+        region = (row.region or "LOCAL").upper()
+        ch = (row.channel or "TELEGRAM").upper()
         if region == "OVERSEAS":
             out_by_day[d]["overseas"] += float(row.qty or 0)
-        elif ch in ("TELEGRAM",):
+        elif ch in ("TELEGRAM", "WEB", "PLATFORM") or not ch:
             out_by_day[d]["platform"] += float(row.qty or 0)
         else:
             out_by_day[d]["physical"] += float(row.qty or 0)
