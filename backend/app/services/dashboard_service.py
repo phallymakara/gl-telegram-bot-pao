@@ -93,26 +93,6 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
 
     gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
 
-    # Incoming PO queries (count status INCOMING and CONFIRMED)
-    total_inc_q = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])
-    )
-    rem_inc_q = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])
-    )
-
-    if target_dt:
-        date_match = or_(
-            func.date(PurchaseOrder.expected_date) == target_dt,
-            func.date(PurchaseOrder.order_date) == target_dt,
-            func.date(PurchaseOrder.received_date) == target_dt,
-        )
-        total_inc_q = total_inc_q.filter(date_match)
-        rem_inc_q = rem_inc_q.filter(date_match)
-
-    incoming_po = float(total_inc_q.scalar() or 0)
-    remaining_incoming = float(rem_inc_q.scalar() or 0)
-
     # Gold IN breakdown by source (Oversea POs, Local POs = Platform + Customer Buybacks = Physical)
     po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
         PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
@@ -139,6 +119,8 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     gold_in_local_physical = po_buyback + order_buyback
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
+    incoming_po = gold_in_total
+    remaining_incoming = gold_in_total
 
     # Reserved physical gold calculation (active pending/processing orders)
     reserved = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
