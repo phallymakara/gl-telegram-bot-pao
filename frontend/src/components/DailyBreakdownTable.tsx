@@ -144,25 +144,42 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {row.orders.map((o: DailyOrderDetailData) => (
-                    <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-white/60">
-                      <td className="py-1.5 px-2 font-medium text-slate-700">{o.order_no}</td>
-                      <td className="py-1.5 px-2">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          o.transaction_type === "BUY"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-indigo-100 text-indigo-700"
-                        }`}>
-                          {o.transaction_type}
-                        </span>
-                      </td>
-                      <td className="py-1.5 px-2 text-slate-600">{o.customer_name || "-"}</td>
-                      <td className="py-1.5 px-2 text-slate-600">{o.channel || "-"}</td>
-                      <td className="py-1.5 px-2 text-right font-medium text-slate-700">{fmt(o.quantity)}</td>
-                      <td className="py-1.5 px-2 text-slate-600">{o.status}</td>
-                      <td className="py-1.5 px-2 text-slate-500">{formatTime(o.created_at)}</td>
-                    </tr>
-                  ))}
+                  {row.orders.map((o: DailyOrderDetailData) => {
+                    const rawCh = (o.channel || "").toUpperCase();
+                    return (
+                      <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-white/60">
+                        <td className="py-1.5 px-2 font-medium text-slate-700">{o.order_no}</td>
+                        <td className="py-1.5 px-2">
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            o.transaction_type === "BUY"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-indigo-100 text-indigo-700"
+                          }`}>
+                            {o.transaction_type}
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-slate-600">{o.customer_name || "-"}</td>
+                        <td className="py-1.5 px-2">
+                          {rawCh === "OVERSEA" || rawCh === "OVERSEAS" ? (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                              Oversea
+                            </span>
+                          ) : rawCh === "TELEGRAM" ? (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                              Local (Telegram)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              Local (Physical)
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 px-2 text-right font-medium text-slate-700">{fmt(o.quantity)}</td>
+                        <td className="py-1.5 px-2 text-slate-600">{o.status}</td>
+                        <td className="py-1.5 px-2 text-slate-500">{formatTime(o.created_at)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
