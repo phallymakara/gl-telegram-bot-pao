@@ -423,13 +423,29 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
       {selectedSlotType === "SELL" && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
           <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
+            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium border-b border-slate-100 pb-2 mb-2.5">
               <Package size={16} className="text-slate-500 shrink-0" />
               <span>Current Physical Stock</span>
             </div>
-            <div className="mt-2.5 flex items-baseline">
+            <div className="mt-1 flex items-baseline">
               <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.physical_stock ?? 0).toFixed(1)}</span>
               <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-slate-200 mt-3 pt-3 border-t border-slate-100">
+              <div className="pr-3">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Available</div>
+                <div className="flex items-baseline">
+                  <span className="text-lg font-bold text-emerald-700">{toNumber(stats?.available ?? 0).toFixed(1)}</span>
+                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
+                </div>
+              </div>
+              <div className="pl-3">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reserved</div>
+                <div className="flex items-baseline">
+                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved ?? 0).toFixed(1)}</span>
+                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -470,6 +486,23 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     {toNumber(stats?.remaining_incoming ?? 0).toFixed(1)}
                   </span>
                   <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100">
+              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Overseas</div>
+                <div className="flex items-baseline">
+                  <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_overseas ?? 0).toFixed(1)}</span>
+                  <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
+                </div>
+              </div>
+              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Local</div>
+                <div className="flex items-baseline">
+                  <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local ?? 0).toFixed(1)}</span>
+                  <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
                 </div>
               </div>
             </div>
