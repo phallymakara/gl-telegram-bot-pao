@@ -15,6 +15,7 @@ export interface OrderData {
   sales_person?: string | null;
   group_name: string | null;
   slot_date: string | null;
+  slot_date_str?: string | null;
   quantity: number;
   premium: number;
   premium_amount: number;
@@ -22,6 +23,7 @@ export interface OrderData {
   status: string;
   created_at: string;
   channel?: string;
+  region?: string | null;
   telegram_user_id?: string | null;
   username?: string | null;
   order_source?: string;

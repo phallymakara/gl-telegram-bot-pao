@@ -30,6 +30,7 @@ def _to_order_response(o: Order) -> OrderResponse:
         sales_person=o.sales_person,
         group_name=o.group.group_name if o.group else None,
         slot_date=o.slot.slot_date if o.slot else None,
+        slot_date_str=o.slot_date_str or (o.created_at.strftime("%Y-%m-%d") if o.created_at else None),
         quantity=o.quantity,
         premium=o.premium,
         premium_amount=o.premium_amount,

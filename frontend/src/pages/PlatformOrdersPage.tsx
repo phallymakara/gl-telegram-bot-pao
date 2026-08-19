@@ -1118,6 +1118,7 @@ export default function PlatformOrdersPage({
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                 {[
                   "Order No",
+                  "Order Date",
                   "Customer",
                   "Sales Person",
                   "Channel",
@@ -1159,6 +1160,9 @@ export default function PlatformOrdersPage({
                   >
                     <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">
                       {r.order_no}
+                    </td>
+                    <td className="px-5 py-2 text-slate-500 font-medium whitespace-nowrap text-xs">
+                      {r.slot_date_str || r.order_date || (r.created_at ? r.created_at.split("T")[0] : "—")}
                     </td>
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {r.customer_name || "—"}

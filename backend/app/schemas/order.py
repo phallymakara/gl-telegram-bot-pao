@@ -48,6 +48,7 @@ class OrderResponse(BaseModel):
     sales_person: str | None = None
     group_name: str | None = None
     slot_date: date | None = None
+    slot_date_str: str | None = None
     quantity: Decimal
     premium: Decimal
     premium_amount: Decimal
