@@ -324,7 +324,7 @@ export default function PhysicalOrdersPage({
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
-                  Premium *
+                  Premium ( Kg/USD) *
                 </label>
                 <input
                   value={form.premium}

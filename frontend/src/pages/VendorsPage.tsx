@@ -192,6 +192,7 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
         openEditModal={openEditModal}
         toggleStatus={toggleStatus}
         deleteVendor={deleteVendor}
+        notify={notify}
       />
 
       <VendorModal

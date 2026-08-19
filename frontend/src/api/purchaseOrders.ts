@@ -64,6 +64,25 @@ export interface StockReturnData {
   created_at: string;
 }
 
+export interface CalculatePricingPayload {
+  product_type?: string | null;
+  spot_price?: number | string | null;
+  premium?: number | string | null;
+  quantity?: number | string | null;
+  total_cost?: number | string | null;
+  last_edited_field?: string | null;
+}
+
+export interface CalculatePricingResult {
+  conversion_factor: number;
+  unit_cost: number;
+  spot_price?: number | null;
+  premium?: number | null;
+  quantity?: number | null;
+  total_cost?: number | null;
+  solved_field?: string | null;
+}
+
 /**
  * Purchase Orders API service handling operations for purchase orders, suppliers, and stock returns.
  */
@@ -98,6 +117,13 @@ export const purchaseOrdersApi = {
    */
   deletePurchaseOrder: (id: number) =>
     api.delete<void>(`/api/purchase-orders/${id}`),
+
+  /**
+   * Calculates dynamic pricing variables via backend solver.
+   * @param data Pricing calculation payload.
+   */
+  calculatePricing: (data: CalculatePricingPayload) =>
+    api.post<CalculatePricingResult>("/api/purchase-orders/calculate", data),
 
   /**
    * Fetches the active suppliers list.

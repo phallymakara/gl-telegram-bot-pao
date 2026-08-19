@@ -218,6 +218,8 @@ def cancel_order_sync(order_id: int) -> Order:
             raise ValueError(f"Order {order_id} not found")
         if order.status == "CANCELLED":
             raise ValueError(f"Order {order_id} is already cancelled")
+        if order.status in ("COLLECTED", "COMPLETED"):
+            raise ValueError(f"Order {order_id} is collected and cannot be cancelled")
 
         slot_table_id = order.slot.slot_table_id if order.slot else None
         if order.transaction_type == "BUY" and not slot_table_id:

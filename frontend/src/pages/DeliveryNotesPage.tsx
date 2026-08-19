@@ -113,6 +113,7 @@ export default function DeliveryNotesPage({ notify }: DeliveryNotesPageProps) {
         setSearch={setSearch}
         openModal={() => setIsOpen(true)}
         deleteDelivery={deleteDelivery}
+        notify={notify}
       />
 
       <DeliveryModal

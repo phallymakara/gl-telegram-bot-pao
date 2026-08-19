@@ -4,9 +4,9 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Archive, Boxes, TrendingUp } from "lucide-react";
+import { Archive, Boxes, TrendingUp, Warehouse } from "lucide-react";
 import StatCard from "../components/StatCard";
-import { api, InventoryData, toNumber } from "../api";
+import { api, dashboardApi, DashboardStatsData, InventoryData, toNumber } from "../api";
 import InventoryTable from "./inventory/InventoryTable";
 import AdjustmentModal from "./inventory/AdjustmentModal";
 
@@ -20,6 +20,7 @@ interface InventoryPageProps {
  */
 export default function InventoryPage({ notify }: InventoryPageProps) {
   const [rows, setRows] = useState<InventoryData[]>([]);
+  const [stats, setStats] = useState<DashboardStatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -46,6 +47,11 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
       .then(setRows)
       .catch(() => notify("Failed to load inventory"))
       .finally(() => setLoading(false));
+
+    dashboardApi
+      .getStats()
+      .then(setStats)
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -85,6 +91,13 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
     [rows]
   );
 
+  const currentStockKg = useMemo(() => {
+    if (stats?.physical_stock != null) return toNumber(stats.physical_stock);
+    if (stats?.available != null) return toNumber(stats.available);
+    if (stats?.total_gold != null) return toNumber(stats.total_gold);
+    return totalStockKg;
+  }, [stats, totalStockKg]);
+
   function clearDateFilter() {
     setStartDate("");
     setEndDate("");
@@ -118,6 +131,7 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
           reason: "",
         });
         notify("Stock adjustment recorded");
+        loadData();
       })
       .catch((e: Error) => notify(e.message));
   }
@@ -128,33 +142,37 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
       .then(() => {
         setRows((r) => r.filter((x) => x.id !== id));
         notify("Inventory record deleted");
+        loadData();
       })
       .catch(() => notify("Failed to delete record"));
   }
 
   return (
     <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 flex-shrink-0">
         <StatCard
-          icon={Boxes}
+          label="Current Stock"
+          value={`${currentStockKg.toFixed(2)} KG`}
+          sub="Real-time physical vault stock"
+          valueClassName="text-lg font-bold text-slate-800"
+        />
+        <StatCard
           label="Total Net Gold Stock"
           value={`${totalStockKg.toFixed(2)} KG`}
           sub="Combined physical vault inventory"
-          tint="bg-amber-50 text-amber-600"
+          valueClassName="text-lg font-bold text-slate-800"
         />
         <StatCard
-          icon={Archive}
           label="Total Stock Inflow"
           value={`+${totalInflowKg.toFixed(2)} KG`}
           sub="Received from POs & buybacks"
-          tint="bg-emerald-50 text-emerald-600"
+          valueClassName="text-lg font-bold text-emerald-600"
         />
         <StatCard
-          icon={TrendingUp}
           label="Total Stock Outflow"
           value={`-${totalOutflowKg.toFixed(2)} KG`}
           sub="Dispatched to customer sales"
-          tint="bg-indigo-50 text-indigo-600"
+          valueClassName="text-lg font-bold text-indigo-600"
         />
       </div>
 
@@ -172,6 +190,7 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
         clearDateFilter={clearDateFilter}
         openAdjustmentModal={() => setIsAdjustmentModalOpen(true)}
         deleteRow={deleteRow}
+        notify={notify}
       />
 
       <AdjustmentModal

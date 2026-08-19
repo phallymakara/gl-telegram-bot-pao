@@ -5,7 +5,14 @@ from app.schemas.slot import SlotRowCreate, SlotRowResponse, SlotTableCreate, Sl
 from app.schemas.alert import AlertCreate, AlertResponse
 from app.schemas.inventory import DailyInventoryCreate, DailyInventoryResponse
 from app.schemas.supplier import SupplierCreate, SupplierResponse
-from app.schemas.purchase_order import PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderResponse, POReturnRequest
+from app.schemas.purchase_order import (
+    CalculatePricingRequest,
+    CalculatePricingResponse,
+    POReturnRequest,
+    PurchaseOrderCreate,
+    PurchaseOrderResponse,
+    PurchaseOrderUpdate,
+)
 from app.schemas.stock_return import StockReturnResponse
 from app.schemas.dashboard import DashboardStats, RevenuePoint
 
@@ -33,6 +40,8 @@ __all__ = [
     "PurchaseOrderUpdate",
     "PurchaseOrderResponse",
     "POReturnRequest",
+    "CalculatePricingRequest",
+    "CalculatePricingResponse",
     "StockReturnResponse",
     "DashboardStats",
     "RevenuePoint",

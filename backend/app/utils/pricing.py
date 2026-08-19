@@ -31,14 +31,16 @@ def to_decimal(value: Decimal | float | str | None, default: Decimal = Decimal(0
 def calculate_unit_cost(
     spot_price: Decimal | float | str | None,
     premium: Decimal | float | str | None,
+    conversion_factor: Decimal | float | str | None = None,
 ) -> Decimal:
     """
-    Calculate unit cost per Kilogram based on spot price (per Troy oz) and premium:
-    formula: unit_cost = (spot_price * 32.148) + premium
+    Calculate unit cost per Kilogram based on spot price, premium, and conversion factor:
+    formula: unit_cost = (spot_price * conversion_factor) + premium
     """
     spot_dec = to_decimal(spot_price, DEFAULT_SPOT_PRICE)
     prem_dec = to_decimal(premium, DEFAULT_PREMIUM)
-    return (spot_dec * TROY_OUNCES_PER_KG) + prem_dec
+    factor_dec = to_decimal(conversion_factor, TROY_OUNCES_PER_KG) if conversion_factor is not None else TROY_OUNCES_PER_KG
+    return (spot_dec * factor_dec) + prem_dec
 
 
 def calculate_total_cost(

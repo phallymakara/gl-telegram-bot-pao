@@ -111,7 +111,7 @@ export default function CreateOrderModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Premium ($/KG)</label>
+              <label className="text-xs font-semibold text-slate-600">Premium ( Kg/USD)</label>
               <input
                 type="number"
                 step="0.01"

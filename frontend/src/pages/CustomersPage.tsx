@@ -197,6 +197,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
         openEditModal={openEditModal}
         toggleStatus={toggleStatus}
         deleteCustomer={deleteCustomer}
+        notify={notify}
       />
 
       <CustomerModal

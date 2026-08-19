@@ -10,17 +10,20 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
 from app.api.schemas import (
+    CalculatePricingRequest,
+    CalculatePricingResponse,
     POReturnRequest,
     PurchaseOrderCreate,
     PurchaseOrderResponse,
     PurchaseOrderUpdate,
     StockReturnResponse,
 )
+from app.models.product import Product
 from app.models.purchase_order import PurchaseOrder
 from app.models.slot_table import SlotTable
 from app.services.purchase_order_service import receive_purchase_order_sync, return_purchase_order_sync
 from app.utils.generators import generate_po_no
-from app.utils.pricing import DEFAULT_PREMIUM, DEFAULT_SPOT_PRICE, calculate_total_cost, calculate_unit_cost
+from app.utils.pricing import DEFAULT_PREMIUM, DEFAULT_SPOT_PRICE, TROY_OUNCES_PER_KG, calculate_total_cost, calculate_unit_cost
 
 router = APIRouter()
 
@@ -56,6 +59,79 @@ def _to_response(po: PurchaseOrder) -> PurchaseOrderResponse:
         customs_fee=po.customs_fee,
         port_of_origin=po.port_of_origin,
         created_at=po.created_at,
+    )
+
+
+@router.post("/calculate", response_model=CalculatePricingResponse)
+def calculate_pricing(body: CalculatePricingRequest, db: Session = Depends(get_db)):
+    """
+    Calculate conversion factor, unit cost, and solve any 4th missing variable (spot_price, premium, quantity, total_cost).
+    Formula: Total Cost = Quantity * ((Spot Price * Conversion Factor) + Premium)
+    """
+    factor = TROY_OUNCES_PER_KG
+    if body.product_type:
+        prod = db.query(Product).filter(Product.name == body.product_type, Product.is_active == True).first()
+        if prod and prod.conversion_factor:
+            factor = Decimal(str(prod.conversion_factor))
+
+    s_val = body.spot_price
+    p_val = body.premium
+    q_val = body.quantity
+    t_val = body.total_cost
+
+    has_s = s_val is not None and s_val > Decimal(0)
+    has_p = p_val is not None
+    has_q = q_val is not None and q_val > Decimal(0)
+    has_t = t_val is not None and t_val > Decimal(0)
+
+    count = sum([1 for x in [has_s, has_p, has_q, has_t] if x])
+    solved_field = None
+
+    if count == 3:
+        if not has_t and has_s and has_p and has_q and q_val > Decimal(0):
+            unit_cost = (s_val * factor) + p_val
+            t_val = (q_val * unit_cost).quantize(Decimal("0.01"))
+            solved_field = "total_cost"
+        elif not has_q and has_s and has_p and has_t:
+            unit_cost = (s_val * factor) + p_val
+            if unit_cost > Decimal(0):
+                q_val = (t_val / unit_cost).quantize(Decimal("0.001"))
+                solved_field = "quantity"
+        elif not has_p and has_s and has_q and has_t and q_val > Decimal(0):
+            per_kg = t_val / q_val
+            spot_kg = s_val * factor
+            p_val = (per_kg - spot_kg).quantize(Decimal("0.01"))
+            solved_field = "premium"
+        elif not has_s and has_p and has_q and has_t and q_val > Decimal(0) and factor > Decimal(0):
+            per_kg = t_val / q_val
+            spot_kg = per_kg - p_val
+            s_val = (spot_kg / factor).quantize(Decimal("0.01"))
+            solved_field = "spot_price"
+
+    elif count == 4:
+        last = body.last_edited_field
+        if last in ("spot_price", "premium", "quantity", "product_type"):
+            unit_cost = (s_val * factor) + p_val
+            t_val = (q_val * unit_cost).quantize(Decimal("0.01"))
+            solved_field = "total_cost"
+        elif last in ("total_cost", "price"):
+            unit_cost = (s_val * factor) + p_val
+            if unit_cost > Decimal(0):
+                q_val = (t_val / unit_cost).quantize(Decimal("0.001"))
+                solved_field = "quantity"
+
+    unit_cost = Decimal(0)
+    if s_val is not None:
+        unit_cost = (s_val * factor) + (p_val or Decimal(0))
+
+    return CalculatePricingResponse(
+        conversion_factor=factor,
+        unit_cost=unit_cost,
+        spot_price=s_val,
+        premium=p_val,
+        quantity=q_val,
+        total_cost=t_val,
+        solved_field=solved_field,
     )
 
 
@@ -113,16 +189,22 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
         slot_table_id = table.id if table else None
 
     # Calculate unit cost and total cost via standard pricing helpers
+    factor = TROY_OUNCES_PER_KG
+    if body.product_type:
+        prod = db.query(Product).filter(Product.name == body.product_type).first()
+        if prod and prod.conversion_factor:
+            factor = Decimal(str(prod.conversion_factor))
+
     unit_cost = body.unit_cost
     spot_price = body.spot_price or DEFAULT_SPOT_PRICE
     premium = body.premium or DEFAULT_PREMIUM
     if unit_cost is None or unit_cost == Decimal(0):
-        unit_cost = calculate_unit_cost(spot_price, premium)
+        unit_cost = calculate_unit_cost(spot_price, premium, conversion_factor=factor)
 
     total_cost = calculate_total_cost(body.quantity, unit_cost)
 
     po = PurchaseOrder(
-        po_no=generate_po_no(po_type),
+        po_no=body.po_no or generate_po_no(po_type),
         po_type=po_type,
         supplier_id=body.supplier_id,
         supplier_name=body.supplier_name,
@@ -180,9 +262,15 @@ def update_purchase_order(po_id: int, body: PurchaseOrderUpdate, db: Session = D
     if body.received_date is not None:
         po.received_date = body.received_date
 
+    factor = TROY_OUNCES_PER_KG
+    if po.product_type:
+        prod = db.query(Product).filter(Product.name == po.product_type).first()
+        if prod and prod.conversion_factor:
+            factor = Decimal(str(prod.conversion_factor))
+
     spot = po.spot_price or DEFAULT_SPOT_PRICE
     prem = po.premium or DEFAULT_PREMIUM
-    po.unit_cost = calculate_unit_cost(spot, prem)
+    po.unit_cost = calculate_unit_cost(spot, prem, conversion_factor=factor)
     po.total_cost = calculate_total_cost(po.quantity, po.unit_cost)
 
     db.commit()

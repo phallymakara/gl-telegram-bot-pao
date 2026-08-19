@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class PurchaseOrderCreate(BaseModel):
+    po_no: str | None = None
     po_type: str
     supplier_id: int | None = None
     supplier_name: str | None = None
@@ -22,6 +23,7 @@ class PurchaseOrderCreate(BaseModel):
     tracking_no: str | None = None
     customs_fee: Decimal | None = None
     port_of_origin: str | None = None
+
 
 
 class PurchaseOrderUpdate(BaseModel):
@@ -71,3 +73,22 @@ class PurchaseOrderResponse(BaseModel):
 class POReturnRequest(BaseModel):
     quantity: Decimal
     reason: str | None = None
+
+
+class CalculatePricingRequest(BaseModel):
+    product_type: str | None = None
+    spot_price: Decimal | None = None
+    premium: Decimal | None = None
+    quantity: Decimal | None = None
+    total_cost: Decimal | None = None
+    last_edited_field: str | None = None
+
+
+class CalculatePricingResponse(BaseModel):
+    conversion_factor: Decimal
+    unit_cost: Decimal
+    spot_price: Decimal | None = None
+    premium: Decimal | None = None
+    quantity: Decimal | None = None
+    total_cost: Decimal | None = None
+    solved_field: str | None = None

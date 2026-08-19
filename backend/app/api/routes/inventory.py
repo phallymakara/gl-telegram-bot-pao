@@ -73,13 +73,19 @@ def list_inventory(
         if month is not None and o_date.month != month:
             continue
 
+        status_upper = (o.status or "").upper()
+        is_sell = (o.transaction_type or "SELL").upper() == "SELL"
+
+        # Store perspective: SELL reduces physical gold (-qty), BUY increases stock (+qty)
+        # SELL orders only cut stock when status is COLLECTED, COMPLETED, or DELIVERED (not CONFIRMED / PENDING)
+        if is_sell and status_upper not in ["COLLECTED", "COMPLETED", "DELIVERED"]:
+            continue
+
         party_name = o.customer_name or (f"@{o.username}" if o.username else "Customer")
         channel_name = o.channel or ("TELEGRAM" if o.telegram_user_id else "WALK_IN")
         name_label = f"Sell Order ({channel_name})"
 
         qty = Decimal(str(o.quantity))
-        is_sell = (o.transaction_type or "SELL").upper() == "SELL"
-        # Store perspective: SELL reduces physical gold (-qty), BUY increases stock (+qty)
         stock_movement = -qty if is_sell else qty
 
         results.append({

@@ -1,7 +1,10 @@
 import {
   Calendar,
   CheckCircle2,
+  ChevronDown,
   Clock,
+  Download,
+  FileSpreadsheet,
   FileText,
   Globe,
   MapPin,
@@ -34,6 +37,7 @@ import {
   customersApi,
   vendorsApi,
   productsApi,
+  purchaseOrdersApi,
   DashboardStatsData,
   PurchaseOrderData,
   SlotTableData,
@@ -166,10 +170,12 @@ function SearchableProductSelect({
       .getProducts()
       .then((data) => {
         setProducts(
-          data.map((p) => ({
-            name: p.name,
-            conversion_factor: p.conversion_factor,
-          }))
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
         );
       })
       .catch(() => { });
@@ -253,6 +259,7 @@ const emptyForm = {
   premium: "",
   amount_kg: "",
   quantity: "",
+  price: "",
   unit_cost: "",
   currency: "USD",
   order_date: new Date().toISOString().split("T")[0],
@@ -284,14 +291,220 @@ function formatParty(r: PurchaseOrderData): string {
   return name || "—";
 }
 
+function ExportPoDropdown({
+  rows,
+  notify,
+}: {
+  rows: any[];
+  notify?: (msg: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  function handleExportExcel() {
+    setOpen(false);
+    const headers = ["PO No", "Type", "Party", "Amount (KG)", "Price (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
+    const exportRows = rows.map((r) => [
+      `"${(r.po_no || "").replace(/"/g, '""')}"`,
+      `"${(r.po_type || "").replace(/"/g, '""')}"`,
+      `"${(r.supplier_name || "").replace(/"/g, '""')}"`,
+      `"${toNumber(r.quantity).toFixed(3)}"`,
+      `"${toNumber(r.total_cost).toFixed(2)}"`,
+      `"${toNumber(r.spot_price).toFixed(2)}"`,
+      `"${toNumber(r.premium).toFixed(2)}"`,
+      `"${(r.order_date || "").replace(/"/g, '""')}"`,
+      `"${(r.received_date || "").replace(/"/g, '""')}"`,
+      `"${(r.status || "").replace(/"/g, '""')}"`,
+      `"${(r.notes || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...exportRows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Purchase_Orders_Report_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (notify) notify("Exported Purchase Orders to Excel (.csv)");
+  }
+
+  function handleExportPdf() {
+    setOpen(false);
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const tableRowsHtml = rows
+      .map(
+        (r) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: bold; color: #1e293b;">${r.po_no || "—"}</td>
+          <td style="padding: 8px 10px; color: #475569;">${r.po_type || "—"}</td>
+          <td style="padding: 8px 10px; font-weight: 600; color: #0f172a;">${r.supplier_name || "—"}</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 600; text-align: right; color: #0f172a;">${toNumber(r.quantity).toFixed(3)} KG</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; text-align: right; color: #4338ca;">$${toNumber(r.total_cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px 10px; color: #64748b;">${r.order_date || "—"}</td>
+          <td style="padding: 8px 10px;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #e0e7ff; color: #3730a3;">${r.status || "—"}</span>
+          </td>
+        </tr>
+      `
+      )
+      .join("");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Purchase Orders Report</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+          .title { font-size: 20px; font-weight: bold; color: #1e1b4b; }
+          .meta { font-size: 12px; color: #64748b; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #f8fafc; text-align: left; padding: 10px 10px; font-weight: 600; color: #64748b; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 11px; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">Purchase Orders Summary Report</div>
+            <div class="meta">Exported on ${dateStr} | Total Orders: ${rows.length}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>PO No</th>
+              <th>Type</th>
+              <th>Party</th>
+              <th style="text-align: right;">Amount</th>
+              <th style="text-align: right;">Price (USD)</th>
+              <th>Order Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+        <div class="footer">Confidential — Purchase Procurement Audit Log</div>
+      </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 300);
+
+    if (notify) notify("Prepared PDF export for print/download");
+  }
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+      >
+        <Download size={14} className="text-slate-500" />
+        <span>Export</span>
+        <ChevronDown size={13} className="text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileSpreadsheet size={14} className="text-emerald-600" />
+            <span>Export as Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileText size={14} className="text-rose-600" />
+            <span>Export as PDF</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function getNextPoNo(existingRows: PurchaseOrderData[]): string {
+  const year = new Date().getFullYear();
+  let maxSeq = 0;
+  existingRows.forEach((r) => {
+    if (r.po_no) {
+      const match = r.po_no.match(/(\d+)$/);
+      if (match) {
+        const seq = parseInt(match[1], 10);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    }
+  });
+  const nextSeq = String(maxSeq + 1).padStart(3, "0");
+  return `PO-${year}-${nextSeq}`;
+}
+
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
   const [rows, setRows] = useState<PurchaseOrderData[]>([]);
+  const [generatedPoNo, setGeneratedPoNo] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
   const [customerList, setCustomerList] = useState<PartyOption[]>([]);
   const [vendorList, setVendorList] = useState<PartyOption[]>([]);
+  const [productList, setProductList] = useState<ProductOption[]>([]);
   const [slotTables, setSlotTables] = useState<SlotTableData[]>([]);
 
   useEffect(() => {
@@ -322,6 +535,20 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         );
       })
       .catch(() => { });
+
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProductList(
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
+        );
+      })
+      .catch(() => { });
   }, []);
 
   const combinedPartyOptions = useMemo(() => {
@@ -331,9 +558,82 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     });
     return Array.from(map.values());
   }, [vendorList, customerList]);
+
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingPoId, setEditingPoId] = useState<number | null>(null);
+
+  const matchedProduct = useMemo(() => {
+    if (!form.product_type?.trim()) return null;
+    return productList.find(
+      (p) => p.name.toLowerCase() === form.product_type.trim().toLowerCase()
+    );
+  }, [productList, form.product_type]);
+
+  const conversionFactorDisplay =
+    matchedProduct && matchedProduct.conversion_factor != null
+      ? matchedProduct.conversion_factor
+      : "None";
+
+  const autoCalculatedPrice = useMemo(() => {
+    const spot = Number(form.spot_price) || 0;
+    const prem = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 0;
+    const qty = Number(form.amount_kg) || Number(form.quantity) || 0;
+    const factor = matchedProduct && matchedProduct.conversion_factor != null ? matchedProduct.conversion_factor : 32.148;
+    if (spot > 0 && qty > 0) {
+      const unitCost = (spot * factor) + prem;
+      return (qty * unitCost).toFixed(2);
+    }
+    return "";
+  }, [form.spot_price, form.premium, form.amount_kg, form.quantity, matchedProduct]);
+
+  function updateFormField(
+    field: "spot_price" | "premium" | "amount_kg" | "price" | "product_type",
+    value: string
+  ) {
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === "amount_kg") {
+        next.quantity = value;
+      }
+
+      let backendLastEdited = field as string;
+      if (field === "amount_kg") backendLastEdited = "quantity";
+      if (field === "price") backendLastEdited = "total_cost";
+
+      const payload = {
+        product_type: next.product_type || null,
+        spot_price: next.spot_price !== "" && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
+        premium: next.premium !== "" && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
+        quantity: next.amount_kg !== "" && !isNaN(Number(next.amount_kg)) ? Number(next.amount_kg) : null,
+        total_cost: next.price !== "" && !isNaN(Number(next.price)) ? Number(next.price) : null,
+        last_edited_field: backendLastEdited,
+      };
+
+      purchaseOrdersApi
+        .calculatePricing(payload)
+        .then((res) => {
+          if (!res.solved_field) return;
+          setForm((f) => {
+            const updated = { ...f };
+            if (res.solved_field === "total_cost" && res.total_cost != null && field !== "price") {
+              updated.price = String(res.total_cost);
+            } else if (res.solved_field === "quantity" && res.quantity != null && field !== "amount_kg") {
+              updated.amount_kg = String(res.quantity);
+              updated.quantity = String(res.quantity);
+            } else if (res.solved_field === "premium" && res.premium != null && field !== "premium") {
+              updated.premium = String(res.premium);
+            } else if (res.solved_field === "spot_price" && res.spot_price != null && field !== "spot_price") {
+              updated.spot_price = String(res.spot_price);
+            }
+            return updated;
+          });
+        })
+        .catch(() => {});
+
+      return next;
+    });
+  }
   const [returnTarget, setReturnTarget] = useState<PurchaseOrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
@@ -646,6 +946,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
   function openEditPoModal(po: PurchaseOrderData) {
     setEditingPoId(po.id);
+    setGeneratedPoNo(po.po_no || "");
     setForm({
       purchase_source: (po.po_type as "OVERSEA" | "LOCAL" | "BUYBACK") || "OVERSEA",
       vendor_type: "Swiss",
@@ -656,6 +957,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       premium: po.premium ? String(po.premium) : "200",
       amount_kg: String(po.quantity || 1),
       quantity: String(po.quantity || 1),
+      price: po.total_cost ? String(po.total_cost) : "",
       unit_cost: String(po.unit_cost || 140786.078),
       currency: "USD",
       order_date: po.order_date || new Date().toISOString().split("T")[0],
@@ -669,6 +971,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   function openNewPoModal() {
     setEditingPoId(null);
     const source = (poType === "LOCAL" || poType === "OVERSEA") ? poType : "OVERSEA";
+    const nextPoNo = getNextPoNo(rows);
+    setGeneratedPoNo(nextPoNo);
     setForm({
       ...emptyForm,
       purchase_source: source,
@@ -704,8 +1008,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     const spotPrice = Number(form.spot_price) || 4376.2;
     const premium = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 200;
     const qty = Number(form.amount_kg) || Number(form.quantity) || 1.0;
-    const unitCost = (spotPrice * 32.148) + premium;
-    const totalCost = qty * unitCost;
+    const factor = matchedProduct && matchedProduct.conversion_factor != null ? matchedProduct.conversion_factor : 32.148;
+    const unitCost = (spotPrice * factor) + premium;
+    const totalCost = form.price !== "" ? Number(form.price) : (qty * unitCost);
 
     if (editingPoId !== null) {
       api
@@ -732,6 +1037,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     } else {
       api
         .post<PurchaseOrderData>("/api/purchase-orders/", {
+          po_no: generatedPoNo,
           po_type: form.purchase_source,
           supplier_name: supplierName,
           quantity: qty,
@@ -1045,32 +1351,35 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
             </div>
 
-            <button
-              onClick={openNewPoModal}
-              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none self-start lg:self-auto"
-            >
-              <Plus size={16} /> New Purchase
-            </button>
+            <div className="flex items-center gap-2 self-start lg:self-auto">
+              <ExportPoDropdown rows={filteredNumericRows} notify={notify} />
+              <button
+                onClick={openNewPoModal}
+                className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
+              >
+                <Plus size={16} /> New Purchase
+              </button>
+            </div>
           </div>
         </div>
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+              <tr className="text-left text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                 {[
                   "PO No",
                   "Type",
                   "Party",
                   "Amount (KG)",
-                  "Spot Price",
-                  "Premium",
+                  "Spot Price (oz)",
+                  "Premium ( Kg/USD)",
                   "Total Price",
                   "Order Date",
                   "Expected Receive Date",
                   "Status",
                   "Actions",
                 ].map((h) => (
-                  <th key={h} className={`px-5 py-2.5 font-bold text-black whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
+                  <th key={h} className={`px-5 py-2.5 font-semibold text-slate-400 whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -1289,7 +1598,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">New Purchase</h3>
+              <div>
+                <h3 className="font-semibold text-slate-800 text-lg">
+                  {editingPoId ? "Edit Purchase Order" : "New Purchase"}
+                </h3>
+                <p className="text-xs font-mono font-semibold text-indigo-600 mt-0.5 flex items-center gap-1">
+                  <span className="text-slate-400 font-sans font-medium">PO No:</span> {generatedPoNo || "PO-2026-001"}
+                </p>
+              </div>
               <button
                 type="button"
                 aria-label="Close dialog"
@@ -1336,7 +1652,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type *</label>
                 <SearchableProductSelect
                   value={form.product_type || ""}
-                  onChange={(val) => setForm({ ...form, product_type: val })}
+                  onChange={(val) => updateFormField("product_type", val)}
                 />
               </div>
 
@@ -1365,24 +1681,27 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               {/* Spot Price & Premium */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Spot Price *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Spot Price (oz) *</label>
                   <input
                     type="text"
                     value={form.spot_price}
-                    onChange={(e) => setForm({ ...form, spot_price: e.target.value.replace(/[^0-9.]/g, "") })}
+                    onChange={(e) => updateFormField("spot_price", e.target.value.replace(/[^0-9.]/g, ""))}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                   <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1">
-                    <span>Conversion factor:</span> <span className="font-semibold text-indigo-600">32.148</span>
+                    <span>Conversion factor:</span>{" "}
+                    <span className={`font-semibold font-mono ${conversionFactorDisplay === "None" ? "text-slate-400" : "text-indigo-600"}`}>
+                      {conversionFactorDisplay}
+                    </span>
                   </p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( Kg/USD) *</label>
                   <input
                     type="text"
                     value={form.premium}
-                    onChange={(e) => setForm({ ...form, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
+                    onChange={(e) => updateFormField("premium", e.target.value.replace(/[^0-9.-]/g, ""))}
                     placeholder="0.00"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
@@ -1395,22 +1714,31 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <input
                   type="text"
                   value={form.amount_kg}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.]/g, "");
-                    setForm({ ...form, amount_kg: val, quantity: val });
-                  }}
+                  onChange={(e) => updateFormField("amount_kg", e.target.value.replace(/[^0-9.]/g, ""))}
                   placeholder="0.00"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
+              {/* Price */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Note</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Price (USD)</label>
+                <input
+                  type="text"
+                  value={form.price}
+                  onChange={(e) => updateFormField("price", e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="0.00"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800 bg-slate-50/80"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Remark</label>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
-                  placeholder="Order note..."
+                  placeholder="Order remark..."
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>

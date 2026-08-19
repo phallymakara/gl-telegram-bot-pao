@@ -5,7 +5,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import { CustomerData, customersApi, productsApi, SupplierData, VendorData, vendorsApi } from "../../api";
+import { CustomerData, customersApi, productsApi, purchaseOrdersApi, SupplierData, VendorData, vendorsApi } from "../../api";
 
 interface PartyOption {
   name: string;
@@ -122,10 +122,12 @@ function SearchableProductSelect({
       .getProducts()
       .then((data) => {
         setProducts(
-          data.map((p) => ({
-            name: p.name,
-            conversion_factor: p.conversion_factor,
-          }))
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
         );
       })
       .catch(() => {});
@@ -202,6 +204,7 @@ function SearchableProductSelect({
 interface PoFormModalProps {
   isOpen: boolean;
   onClose: () => void;
+  poNo?: string;
   form: {
     purchase_source: "OVERSEA" | "LOCAL" | "BUYBACK";
     vendor_type: "Swiss" | "DB" | "SV";
@@ -214,6 +217,7 @@ interface PoFormModalProps {
     qty_kg: string;
     spot_price: string;
     premium: string;
+    price?: string;
     currency: "USD" | "KHR";
     note: string;
     shipping_method?: string;
@@ -232,6 +236,7 @@ interface PoFormModalProps {
 export default function PoFormModal({
   isOpen,
   onClose,
+  poNo,
   form,
   setForm,
   suppliers,
@@ -239,6 +244,7 @@ export default function PoFormModal({
 }: PoFormModalProps) {
   const [customerOptions, setCustomerOptions] = useState<PartyOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<PartyOption[]>([]);
+  const [productList, setProductList] = useState<ProductOption[]>([]);
 
   useEffect(() => {
     customersApi
@@ -266,6 +272,20 @@ export default function PoFormModal({
         );
       })
       .catch(() => {});
+
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProductList(
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
+        );
+      })
+      .catch(() => {});
   }, []);
 
   const combinedPartyOptions = useMemo(() => {
@@ -276,15 +296,90 @@ export default function PoFormModal({
     return Array.from(map.values());
   }, [vendorOptions, customerOptions]);
 
+  const matchedProduct = useMemo(() => {
+    if (!form.product_type?.trim()) return null;
+    return productList.find(
+      (p) => p.name.toLowerCase() === form.product_type?.trim().toLowerCase()
+    );
+  }, [productList, form.product_type]);
+
+  const conversionFactorDisplay =
+    matchedProduct && matchedProduct.conversion_factor != null
+      ? matchedProduct.conversion_factor
+      : "None";
+
+  const autoCalculatedPrice = useMemo(() => {
+    const spot = Number(form.spot_price) || 0;
+    const prem = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 0;
+    const qty = Number(form.qty_kg) || 0;
+    const factor = matchedProduct && matchedProduct.conversion_factor != null ? matchedProduct.conversion_factor : 32.148;
+    if (spot > 0 && qty > 0) {
+      const unitCost = (spot * factor) + prem;
+      return (qty * unitCost).toFixed(2);
+    }
+    return "";
+  }, [form.spot_price, form.premium, form.qty_kg, matchedProduct]);
+
+  function updateFormField(
+    field: "spot_price" | "premium" | "qty_kg" | "price" | "product_type",
+    value: string
+  ) {
+    setForm((prev: any) => {
+      const next = { ...prev, [field]: value };
+
+      let backendLastEdited = field as string;
+      if (field === "qty_kg") backendLastEdited = "quantity";
+      if (field === "price") backendLastEdited = "total_cost";
+
+      const payload = {
+        product_type: next.product_type || null,
+        spot_price: next.spot_price !== "" && next.spot_price !== undefined && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
+        premium: next.premium !== "" && next.premium !== undefined && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
+        quantity: next.qty_kg !== "" && next.qty_kg !== undefined && !isNaN(Number(next.qty_kg)) ? Number(next.qty_kg) : null,
+        total_cost: next.price !== "" && next.price !== undefined && !isNaN(Number(next.price)) ? Number(next.price) : null,
+        last_edited_field: backendLastEdited,
+      };
+
+      purchaseOrdersApi
+        .calculatePricing(payload)
+        .then((res) => {
+          if (!res.solved_field) return;
+          setForm((f: any) => {
+            const updated = { ...f };
+            if (res.solved_field === "total_cost" && res.total_cost != null && field !== "price") {
+              updated.price = String(res.total_cost);
+            } else if (res.solved_field === "quantity" && res.quantity != null && field !== "qty_kg") {
+              updated.qty_kg = String(res.quantity);
+            } else if (res.solved_field === "premium" && res.premium != null && field !== "premium") {
+              updated.premium = String(res.premium);
+            } else if (res.solved_field === "spot_price" && res.spot_price != null && field !== "spot_price") {
+              updated.spot_price = String(res.spot_price);
+            }
+            return updated;
+          });
+        })
+        .catch(() => {});
+
+      return next;
+    });
+  }
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <h3 className="font-semibold text-slate-800 text-base">
-            Create Purchase Order ({form.purchase_source})
-          </h3>
+          <div>
+            <h3 className="font-semibold text-slate-800 text-base">
+              New Purchase
+            </h3>
+            {poNo && (
+              <p className="text-xs font-mono font-semibold text-indigo-600 mt-0.5 flex items-center gap-1">
+                <span className="text-slate-400 font-sans font-medium">PO No:</span> {poNo}
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
@@ -322,42 +417,61 @@ export default function PoFormModal({
               <label className="text-xs font-semibold text-slate-600">Product Type *</label>
               <SearchableProductSelect
                 value={form.product_type || ""}
-                onChange={(val) => setForm((f: any) => ({ ...f, product_type: val }))}
+                onChange={(val) => updateFormField("product_type", val)}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Quantity (KG)</label>
+              <label className="text-xs font-semibold text-slate-600">Quantity (KG) *</label>
               <input
                 type="number"
                 step="0.01"
                 placeholder="10.00"
                 value={form.qty_kg}
-                onChange={(e) => setForm((f: any) => ({ ...f, qty_kg: e.target.value }))}
+                onChange={(e) => updateFormField("qty_kg", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Spot Price ($/oz)</label>
+              <label className="text-xs font-semibold text-slate-600">Price (USD)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={form.price ?? ""}
+                onChange={(e) => updateFormField("price", e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800 bg-slate-50/80"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Spot Price (oz) *</label>
               <input
                 type="number"
                 step="0.01"
                 placeholder="2750.00"
                 value={form.spot_price}
-                onChange={(e) => setForm((f: any) => ({ ...f, spot_price: e.target.value }))}
+                onChange={(e) => updateFormField("spot_price", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
+              <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1">
+                <span>Conversion factor:</span>{" "}
+                <span className={`font-semibold font-mono ${conversionFactorDisplay === "None" ? "text-slate-400" : "text-indigo-600"}`}>
+                  {conversionFactorDisplay}
+                </span>
+              </p>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Premium ($/KG)</label>
+              <label className="text-xs font-semibold text-slate-600">Premium ( Kg/USD) *</label>
               <input
                 type="number"
                 step="0.01"
                 placeholder="300.00"
                 value={form.premium}
-                onChange={(e) => setForm((f: any) => ({ ...f, premium: e.target.value }))}
+                onChange={(e) => updateFormField("premium", e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
@@ -385,10 +499,10 @@ export default function PoFormModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600">Notes / Remarks</label>
+            <label className="text-xs font-semibold text-slate-600">Remark</label>
             <textarea
               rows={2}
-              placeholder="Enter purchase order notes..."
+              placeholder="Enter purchase order remark..."
               value={form.note}
               onChange={(e) => setForm((f: any) => ({ ...f, note: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

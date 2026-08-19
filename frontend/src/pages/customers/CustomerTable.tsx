@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { Globe, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, Globe, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
 import Card from "../../components/Card";
 import StatusBadge from "../../components/StatusBadge";
 import { CustomerData } from "../../api";
@@ -18,6 +18,198 @@ interface CustomerTableProps {
   openEditModal: (c: CustomerData) => void;
   toggleStatus: (c: CustomerData) => void;
   deleteCustomer: (id: number) => void;
+  notify?: (msg: string) => void;
+}
+
+function ExportDropdown({
+  customers,
+  notify,
+}: {
+  customers: CustomerData[];
+  notify?: (msg: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  function handleExportExcel() {
+    setOpen(false);
+    const headers = ["Customer Code", "Customer Name", "Contact", "Sex", "DOB", "Nation", "Address", "Status"];
+    const rows = customers.map((c, i) => [
+      `"${(c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`).replace(/"/g, '""')}"`,
+      `"${(c.name || "").replace(/"/g, '""')}"`,
+      `"${(c.contact || "").replace(/"/g, '""')}"`,
+      `"${(c.sex || "").replace(/"/g, '""')}"`,
+      `"${(c.dob || "").replace(/"/g, '""')}"`,
+      `"${(c.nation || "").replace(/"/g, '""')}"`,
+      `"${(c.address || "").replace(/"/g, '""')}"`,
+      `"${c.is_active !== false ? "Active" : "Inactive"}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Customers_Master_Directory_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (notify) notify("Exported customers list to Excel (.csv)");
+  }
+
+  function handleExportPdf() {
+    setOpen(false);
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const tableRowsHtml = customers
+      .map(
+        (c, idx) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 8px 12px; font-family: monospace; font-weight: bold; color: #1e293b;">${c.customer_code || `CUST-${String(idx + 1).padStart(3, "0")}`}</td>
+          <td style="padding: 8px 12px; font-weight: 600; color: #0f172a;">${c.name || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${c.contact || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${c.sex || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${c.dob || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${c.nation || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${c.address || "—"}</td>
+          <td style="padding: 8px 12px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; ${
+              c.is_active !== false
+                ? "background: #dcfce7; color: #15803d;"
+                : "background: #fef3c7; color: #b45309;"
+            }">${c.is_active !== false ? "Active" : "Inactive"}</span>
+          </td>
+        </tr>
+      `
+      )
+      .join("");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Customers Directory Report</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+          .title { font-size: 20px; font-weight: bold; color: #1e1b4b; }
+          .meta { font-size: 12px; color: #64748b; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #f8fafc; text-align: left; padding: 10px 12px; font-weight: 600; color: #64748b; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 11px; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">Customers Directory Report</div>
+            <div class="meta">Exported on ${dateStr} | Total Records: ${customers.length}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Customer Code</th>
+              <th>Customer Name</th>
+              <th>Contact</th>
+              <th>Sex</th>
+              <th>DOB</th>
+              <th>Nation</th>
+              <th>Address</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+        <div class="footer">Confidential — Master Customer Directory</div>
+      </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 300);
+
+    if (notify) notify("Prepared PDF export for print/download");
+  }
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+      >
+        <Download size={14} className="text-slate-500" />
+        <span>Export</span>
+        <ChevronDown size={13} className="text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileSpreadsheet size={14} className="text-emerald-600" />
+            <span>Export as Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileText size={14} className="text-rose-600" />
+            <span>Export as PDF</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -108,6 +300,7 @@ export default function CustomerTable({
   openEditModal,
   toggleStatus,
   deleteCustomer,
+  notify,
 }: CustomerTableProps) {
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-5">
@@ -122,12 +315,15 @@ export default function CustomerTable({
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
         </div>
-        <button
-          onClick={openCreateModal}
-          className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
-        >
-          <Plus size={15} /> New Customer
-        </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <ExportDropdown customers={customers} notify={notify} />
+          <button
+            onClick={openCreateModal}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
+          >
+            <Plus size={15} /> New Customer
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
@@ -170,15 +366,8 @@ export default function CustomerTable({
                   <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
                     {c.dob || "—"}
                   </td>
-                  <td className="py-2 px-3 whitespace-nowrap">
-                    {c.nation ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
-                        <Globe size={12} className="text-slate-400 shrink-0" />
-                        {c.nation}
-                      </span>
-                    ) : (
-                      "—"
-                    )}
+                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                    {c.nation || "—"}
                   </td>
                   <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
                     {c.address ? (

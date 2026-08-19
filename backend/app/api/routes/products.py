@@ -60,19 +60,8 @@ def list_products(db: Session = Depends(get_db)):
     """
     Retrieve all gold product master records, ordered by ID ascending.
     """
-    products = db.query(Product).order_by(Product.id.asc()).all()
-    # Seed default products if empty
-    if not products:
-        default_items = [
-            Product(product_code="PROD-001", name="Gold Bar 99.99% 1KG", conversion_factor=1.0, purity="99.99%", category="Kilobar", unit_weight_kg=1.0),
-            Product(product_code="PROD-002", name="Gold Bar 500g", conversion_factor=0.5, purity="99.99%", category="Cast Bar", unit_weight_kg=0.5),
-            Product(product_code="PROD-003", name="Baht Gold Bar", conversion_factor=0.01524, purity="96.5%", category="Baht Bar", unit_weight_kg=0.01524),
-        ]
-        db.add_all(default_items)
-        db.commit()
-        products = db.query(Product).order_by(Product.id.asc()).all()
+    return db.query(Product).order_by(Product.id.asc()).all()
 
-    return products
 
 
 @router.get("/{product_id}", response_model=ProductResponse)

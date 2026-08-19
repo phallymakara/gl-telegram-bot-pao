@@ -16,6 +16,7 @@ interface StatusBadgeProps {
 export default function StatusBadge({ status }: StatusBadgeProps) {
   const map: Record<string, string> = {
     Completed: "bg-emerald-50 text-emerald-700",
+    Collected: "bg-emerald-50 text-emerald-700",
     Active: "bg-emerald-50 text-emerald-700",
     Confirmed: "bg-blue-50 text-blue-700",
     Pending: "bg-amber-50 text-amber-700",

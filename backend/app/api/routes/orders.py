@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
-from app.api.schemas import OrderCreate, OrderResponse, OrderReturnRequest, StockReturnResponse
+from app.api.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderReturnRequest, StockReturnResponse
 from app.models.customer import Customer
 from app.models.order import Order
 from app.services.order_service import cancel_order_sync, return_order_sync
@@ -88,7 +88,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         premium=body.premium,
         premium_amount=premium_amount,
         transaction_type=body.transaction_type.upper(),
-        status="COMPLETED",
+        status=(body.status or "CONFIRMED").upper(),
         channel=body.channel or "TELEGRAM",
         customer_name=body.customer_name,
         spot_price=spot_price,
@@ -149,7 +149,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{order_id}", response_model=OrderResponse)
-def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)):
+def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)):
     """
     Update details of an existing order by ID and recalculate total amounts.
     """
@@ -157,7 +157,7 @@ def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)
     if not o:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    if body.customer_name:
+    if body.customer_name is not None:
         o.customer_name = body.customer_name
     if body.quantity is not None:
         o.quantity = body.quantity
@@ -166,13 +166,17 @@ def update_order(order_id: int, body: OrderCreate, db: Session = Depends(get_db)
         o.premium_amount = calculate_premium_amount(o.quantity, body.premium)
     if body.spot_price is not None:
         o.spot_price = body.spot_price
+
     if body.total_amount is not None:
         o.total_amount = body.total_amount
-    else:
+    elif body.quantity is not None or body.spot_price is not None or body.premium is not None:
         spot_price = body.spot_price or o.spot_price or DEFAULT_SPOT_PRICE
         o.total_amount = calculate_order_total(o.quantity, spot_price, o.premium)
-    if body.channel:
+
+    if body.channel is not None:
         o.channel = body.channel
+    if body.status is not None:
+        o.status = body.status.upper()
 
     db.commit()
     db.refresh(o)

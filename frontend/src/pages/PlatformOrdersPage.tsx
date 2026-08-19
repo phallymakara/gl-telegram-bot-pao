@@ -3,13 +3,219 @@
  * @description Platform Orders page component managing online and Telegram bot orders, filtering by order source/channel, status updating, and invoice modal views.
  */
 
-import { Eye, FileText, MoreHorizontal, Package, Pencil, PhoneCall, Plus, Printer, RotateCcw, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, Download, Eye, FileSpreadsheet, FileText, MoreHorizontal, Package, PackageCheck, Pencil, PhoneCall, Plus, Printer, RotateCcw, Search, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
-import { api, OrderData, DashboardStatsData, toNumber } from "../api";
+import { api, OrderData, DashboardStatsData, CustomerData, productsApi, purchaseOrdersApi, customersApi, toNumber } from "../api";
+
+interface ProductOption {
+  name: string;
+  conversion_factor?: number | null;
+}
+
+interface CustomerOption {
+  name: string;
+  code?: string;
+}
+
+function SearchableCustomerSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    customersApi
+      .getCustomers()
+      .then((data: CustomerData[]) => {
+        setCustomers(
+          data
+            .filter((c: CustomerData) => c.is_active !== false && Boolean(c.name))
+            .map((c: CustomerData) => ({
+              name: c.name || "",
+              code: c.customer_code || undefined,
+            }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return customers;
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.code && c.code.toLowerCase().includes(q))
+    );
+  }, [customers, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search by code or customer name..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching customer found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-slate-800">{opt.name}</span>
+                {opt.code && (
+                  <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                    {opt.code}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SearchableProductSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [products, setProducts] = useState<ProductOption[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProducts(
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
+        );
+      })
+      .catch(() => { });
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return products;
+    return products.filter((p) => p.name.toLowerCase().includes(q));
+  }, [products, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search and select product type..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-slate-400">No matching product found</div>
+          ) : (
+            filtered.map((opt, idx) => (
+              <button
+                key={`${opt.name}-${idx}`}
+                type="button"
+                onClick={() => {
+                  onChange(opt.name);
+                  setQuery(opt.name);
+                  setOpen(false);
+                }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-indigo-50/60 flex items-center justify-between transition-colors cursor-pointer"
+              >
+                <span className="font-semibold text-slate-800">{opt.name}</span>
+                {opt.conversion_factor !== undefined && opt.conversion_factor !== null && (
+                  <span className="font-mono text-xs text-slate-400 font-medium ml-2">
+                    {opt.conversion_factor}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PlatformOrdersPageProps {
   /** Toast notification callback */
@@ -19,6 +225,192 @@ interface PlatformOrdersPageProps {
 /**
  * Main Platform & Online Orders page component.
  */
+
+function ExportSellOrdersDropdown({
+  rows,
+  notify,
+}: {
+  rows: OrderData[];
+  notify?: (msg: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  function handleExportExcel() {
+    setOpen(false);
+    const headers = ["Order No", "Customer Name", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Status"];
+    const exportRows = rows.map((r) => [
+      `"${(r.order_no || "").replace(/"/g, '""')}"`,
+      `"${(r.customer_name || "").replace(/"/g, '""')}"`,
+      `"${(r.order_source || r.channel || "Standard Gold").replace(/"/g, '""')}"`,
+      `"${toNumber(r.quantity).toFixed(3)}"`,
+      `"${toNumber(r.total_amount).toFixed(2)}"`,
+      `"${toNumber(r.spot_price).toFixed(2)}"`,
+      `"${toNumber(r.premium).toFixed(2)}"`,
+      `"${(r.order_date || r.created_at || "").replace(/"/g, '""')}"`,
+      `"${(r.status || "").replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...exportRows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Sell_Orders_Report_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    if (notify) notify("Exported Sell Orders list to Excel (.csv)");
+  }
+
+  function handleExportPdf() {
+    setOpen(false);
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    const tableRowsHtml = rows
+      .map(
+        (r) => `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: bold; color: #1e293b;">${r.order_no || "—"}</td>
+          <td style="padding: 8px 10px; font-weight: 600; color: #0f172a;">${r.customer_name || "—"}</td>
+          <td style="padding: 8px 10px; color: #475569;">${r.order_source || r.channel || "—"}</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 600; text-align: right; color: #0f172a;">${toNumber(r.quantity).toFixed(3)} KG</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; text-align: right; color: #4338ca;">$${toNumber(r.total_amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px 10px; color: #64748b;">${r.order_date || r.created_at || "—"}</td>
+          <td style="padding: 8px 10px;">
+            <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #dcfce7; color: #15803d;">${r.status || "—"}</span>
+          </td>
+        </tr>
+      `
+      )
+      .join("");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Sell Orders Summary Report</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
+          .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
+          .title { font-size: 20px; font-weight: bold; color: #1e1b4b; }
+          .meta { font-size: 12px; color: #64748b; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #f8fafc; text-align: left; padding: 10px 10px; font-weight: 600; color: #64748b; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 11px; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="title">Sell Orders Summary Report</div>
+            <div class="meta">Exported on ${dateStr} | Total Orders: ${rows.length}</div>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Order No</th>
+              <th>Customer Name</th>
+              <th>Product Type</th>
+              <th style="text-align: right;">Quantity</th>
+              <th style="text-align: right;">Total Amount</th>
+              <th>Order Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+        <div class="footer">Confidential — Customer Sales Audit Log</div>
+      </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 1000);
+    }, 300);
+
+    if (notify) notify("Prepared PDF export for print/download");
+  }
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+      >
+        <Download size={14} className="text-slate-500" />
+        <span>Export</span>
+        <ChevronDown size={13} className="text-slate-400" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileSpreadsheet size={14} className="text-emerald-600" />
+            <span>Export as Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPdf}
+            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+          >
+            <FileText size={14} className="text-rose-600" />
+            <span>Export as PDF</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PlatformOrdersPage({
   notify,
@@ -33,14 +425,60 @@ export default function PlatformOrdersPage({
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<OrderData | null>(null);
   const [incomingDate, setIncomingDate] = useState(new Date().toISOString().split("T")[0]);
+  const [productList, setProductList] = useState<ProductOption[]>([]);
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
-    channel: "Walk-in",
+    channel: "Oversea",
+    product_type: "",
     spot_price: "",
     quantity: "",
     premium: "",
+    total_amount: "",
     notes: "",
   });
+
+  function updateSellOrderField(
+    field: "spot_price" | "premium" | "quantity" | "total_amount" | "product_type",
+    value: string
+  ) {
+    setNewOrderForm((prev) => {
+      const next = { ...prev, [field]: value };
+
+      let backendLastEdited = field as string;
+      if (field === "total_amount") backendLastEdited = "total_cost";
+
+      const payload = {
+        product_type: next.product_type || null,
+        spot_price: next.spot_price !== "" && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
+        premium: next.premium !== "" && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
+        quantity: next.quantity !== "" && !isNaN(Number(next.quantity)) ? Number(next.quantity) : null,
+        total_cost: next.total_amount !== "" && !isNaN(Number(next.total_amount)) ? Number(next.total_amount) : null,
+        last_edited_field: backendLastEdited,
+      };
+
+      purchaseOrdersApi
+        .calculatePricing(payload)
+        .then((res) => {
+          if (!res.solved_field) return;
+          setNewOrderForm((f) => {
+            const updated = { ...f };
+            if (res.solved_field === "total_cost" && res.total_cost != null && field !== "total_amount") {
+              updated.total_amount = String(res.total_cost);
+            } else if (res.solved_field === "quantity" && res.quantity != null && field !== "quantity") {
+              updated.quantity = String(res.quantity);
+            } else if (res.solved_field === "premium" && res.premium != null && field !== "premium") {
+              updated.premium = String(res.premium);
+            } else if (res.solved_field === "spot_price" && res.spot_price != null && field !== "spot_price") {
+              updated.spot_price = String(res.spot_price);
+            }
+            return updated;
+          });
+        })
+        .catch(() => { });
+
+      return next;
+    });
+  }
 
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
 
@@ -53,7 +491,32 @@ export default function PlatformOrdersPage({
       .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
       .then(setStats)
       .catch(() => { });
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProductList(
+          data
+            .filter((p) => p.is_active !== false)
+            .map((p) => ({
+              name: p.name,
+              conversion_factor: p.conversion_factor,
+            }))
+        );
+      })
+      .catch(() => { });
   };
+
+  const matchedProduct = useMemo(() => {
+    if (!newOrderForm.product_type?.trim()) return null;
+    return productList.find(
+      (p) => p.name.toLowerCase() === newOrderForm.product_type.trim().toLowerCase()
+    );
+  }, [productList, newOrderForm.product_type]);
+
+  const conversionFactorDisplay =
+    matchedProduct && matchedProduct.conversion_factor != null
+      ? matchedProduct.conversion_factor
+      : "None";
 
   useEffect(() => {
     load();
@@ -341,21 +804,39 @@ export default function PlatformOrdersPage({
     }
   }
 
+  function markOrderAsCollected(order: OrderData) {
+    api
+      .put<OrderData>(`/api/orders/${order.id}`, {
+        status: "COLLECTED",
+      })
+      .then(() => {
+        notify(`Order ${order.order_no} status changed to COLLECTED! Stock deducted.`);
+        load();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to update order status"));
+  }
+
   function submitNewSellOrder() {
     if (!newOrderForm.customer_name.trim()) {
       notify("Please enter Customer Name");
       return;
     }
-    if (!newOrderForm.quantity || Number(newOrderForm.quantity) <= 0) {
-      notify("Please enter a valid Quantity");
-      return;
+
+    const qty = Number(newOrderForm.quantity) || 0;
+    const prem = Number(newOrderForm.premium) || 0;
+    const spotPrice = Number(newOrderForm.spot_price) || 0;
+
+    let totalAmount = Number(newOrderForm.total_amount) || 0;
+    if (totalAmount <= 0 && qty > 0) {
+      const factor = matchedProduct && matchedProduct.conversion_factor != null ? matchedProduct.conversion_factor : 32.148;
+      const unitPrice = (spotPrice * factor) + prem;
+      totalAmount = qty * unitPrice;
     }
 
-    const qty = Number(newOrderForm.quantity);
-    const prem = Number(newOrderForm.premium) || 0;
-    const spotPrice = Number(newOrderForm.spot_price) || 4376.50;
-    const unitPrice = (spotPrice * 32.148) + prem;
-    const totalAmount = qty * unitPrice;
+    if (qty <= 0 && totalAmount <= 0) {
+      notify("Please fill in Quantity or Total Price");
+      return;
+    }
 
     if (editingOrder !== null) {
       api
@@ -385,10 +866,11 @@ export default function PlatformOrdersPage({
           quantity: qty,
           premium: prem,
           total_amount: totalAmount,
+          status: "CONFIRMED",
         })
         .then((created) => {
           setRows((rs) => [created, ...rs]);
-          notify("New sell order created!");
+          notify("New sell order created (Confirmed)!");
           load();
         })
         .catch((e: Error) => notify(e.message || "Failed to create order"));
@@ -396,10 +878,12 @@ export default function PlatformOrdersPage({
 
     setNewOrderForm({
       customer_name: "",
-      channel: "Walk-in",
+      channel: "Oversea",
+      product_type: "",
       spot_price: "",
       quantity: "",
       premium: "",
+      total_amount: "",
       notes: "",
     });
     setIsNewOrderModalOpen(false);
@@ -493,20 +977,22 @@ export default function PlatformOrdersPage({
           >
             {[
               "Order status",
-              "COMPLETED",
-              "PENDING",
               "CONFIRMED",
+              "COLLECTED",
               "CANCELLED",
             ].map((s) => (
               <option key={s}>{s}</option>
             ))}
           </select>
-          <button
-            onClick={() => setIsNewOrderModalOpen(true)}
-            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none sm:ml-auto cursor-pointer"
-          >
-            <Plus size={16} /> New Sell Orders
-          </button>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <ExportSellOrdersDropdown rows={filteredRows} notify={notify} />
+            <button
+              onClick={() => setIsNewOrderModalOpen(true)}
+              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
+            >
+              <Plus size={16} /> New Sell Orders
+            </button>
+          </div>
         </div>
 
         <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
@@ -553,44 +1039,40 @@ export default function PlatformOrdersPage({
                     key={r.id}
                     className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors"
                   >
-                    <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                    <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">
                       {r.order_no}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {r.customer_name || "—"}
                     </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      {displayChannel === "TELEGRAM" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200/60">
-                          <Send size={12} className="shrink-0 text-sky-600" /> Telegram Bot
-                        </span>
-                      ) : displayChannel === "PHONE" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200/60">
-                          <PhoneCall size={12} className="shrink-0 text-purple-600" /> Phone
+                    <td className="px-5 py-2 whitespace-nowrap">
+                      {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
+                          Oversea
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                          <Store size={12} className="shrink-0 text-amber-600" /> Walk-in
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                          Local
                         </span>
                       )}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {quantity.toFixed(2)} KG
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-600 whitespace-nowrap">
                       ${premium.toFixed(2)}
                     </td>
-                    <td className="px-5 py-3.5 font-medium text-slate-800 whitespace-nowrap">
+                    <td className="px-5 py-2 font-medium text-slate-800 whitespace-nowrap">
                       ${(premiumAmount || (quantity * (2700 + premium))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-2">
                       <StatusBadge
                         status={
                           r.status.charAt(0) + r.status.slice(1).toLowerCase()
                         }
                       />
                     </td>
-                    <td className="px-5 py-3.5 text-center relative">
+                    <td className="px-5 py-2 text-center relative">
                       <div className="relative inline-block text-left">
                         <button
                           type="button"
@@ -633,7 +1115,22 @@ export default function PlatformOrdersPage({
                                 <Printer size={14} /> Print / Export PDF
                               </button>
 
-                              {/* 3. Edit Order */}
+                              {/* 3. Mark as Collected */}
+                              {r.status !== "COLLECTED" && r.status !== "COMPLETED" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuId(null);
+                                    markOrderAsCollected(r);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-emerald-700 hover:bg-emerald-50 font-semibold transition-colors cursor-pointer"
+                                >
+                                  <PackageCheck size={14} className="text-emerald-600" /> Mark as Collected
+                                </button>
+                              )}
+
+                              {/* 4. Edit Order */}
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -642,10 +1139,12 @@ export default function PlatformOrdersPage({
                                   setEditingOrder(r);
                                   setNewOrderForm({
                                     customer_name: r.customer_name || "",
-                                    channel: r.channel || "Walk-in",
+                                    channel: r.channel || "Local",
+                                    product_type: (r as any).product_type || "",
                                     spot_price: String(r.spot_price || "4376.50"),
                                     quantity: String(r.quantity),
                                     premium: String(r.premium),
+                                    total_amount: String(r.total_amount || ""),
                                     notes: "",
                                   });
                                   setIsNewOrderModalOpen(true);
@@ -656,21 +1155,22 @@ export default function PlatformOrdersPage({
                               </button>
                             </div>
 
-                            {/* 4. Cancel Order (Disabled if COMPLETED) */}
+                            {/* 5. Cancel Order (Enabled if CONFIRMED, disabled if COLLECTED / COMPLETED / CANCELLED) */}
                             <div className="pt-1">
                               <button
                                 type="button"
-                                disabled={r.status === "COMPLETED"}
+                                disabled={r.status === "COLLECTED" || r.status === "COMPLETED" || r.status === "CANCELLED"}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (r.status === "COMPLETED") return;
+                                  if (r.status === "COLLECTED" || r.status === "COMPLETED" || r.status === "CANCELLED") return;
                                   setActiveMenuId(null);
                                   cancelOrder(r);
                                 }}
-                                className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors ${r.status === "COMPLETED"
+                                className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors ${
+                                  r.status === "COLLECTED" || r.status === "COMPLETED" || r.status === "CANCELLED"
                                     ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
                                     : "text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                  }`}
+                                }`}
                               >
                                 <XCircle size={14} /> Cancel Order
                               </button>
@@ -746,7 +1246,7 @@ export default function PlatformOrdersPage({
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">
-                {editingOrder !== null ? `Edit Order (${editingOrder.order_no})` : "Create New Sell Order"}
+                {editingOrder !== null ? `Edit Order (${editingOrder.order_no})` : "New Sell Order"}
               </h3>
               <button
                 type="button"
@@ -763,46 +1263,70 @@ export default function PlatformOrdersPage({
 
             <div className="p-6 space-y-4">
               <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
+                <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
+                  {(["Oversea", "Local"] as const).map((ch) => {
+                    const isSelected =
+                      newOrderForm.channel.toLowerCase() === ch.toLowerCase() ||
+                      (ch === "Oversea" && (newOrderForm.channel === "OVERSEA" || newOrderForm.channel === "Oversea")) ||
+                      (ch === "Local" && (newOrderForm.channel === "WALK_IN" || newOrderForm.channel === "Walk-in"));
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        onClick={() => setNewOrderForm({ ...newOrderForm, channel: ch })}
+                        className={`flex-1 py-2 px-3 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-white text-indigo-600 shadow-xs border border-slate-200/80 font-bold"
+                            : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                        }`}
+                      >
+                        {ch}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Customer Name *</label>
-                <input
-                  type="text"
+                <SearchableCustomerSelect
                   value={newOrderForm.customer_name}
-                  onChange={(e) => setNewOrderForm({ ...newOrderForm, customer_name: e.target.value })}
-                  placeholder="fill customer name"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  onChange={(val) => setNewOrderForm({ ...newOrderForm, customer_name: val })}
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
-                <select
-                  value={newOrderForm.channel}
-                  onChange={(e) => setNewOrderForm({ ...newOrderForm, channel: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                >
-                  <option value="Walk-in">Walk-in</option>
-                  <option value="Phone">Phone</option>
-                </select>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type</label>
+                <SearchableProductSelect
+                  value={newOrderForm.product_type || ""}
+                  onChange={(val) => updateSellOrderField("product_type", val)}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Spot Price *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Spot Price (oz) *</label>
                   <input
                     type="text"
                     value={newOrderForm.spot_price}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, spot_price: e.target.value.replace(/[^0-9.]/g, "") })}
+                    onChange={(e) => updateSellOrderField("spot_price", e.target.value.replace(/[^0-9.]/g, ""))}
                     placeholder="input spot price"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
-                  <p className="text-[11px] text-slate-400 mt-1 font-medium">Conversion factor: 32.148</p>
+                  <p className="text-[11px] text-slate-500 mt-1 font-medium flex items-center gap-1">
+                    <span>Conversion factor:</span>{" "}
+                    <span className={`font-semibold font-mono ${conversionFactorDisplay === "None" ? "text-slate-400" : "text-indigo-600"}`}>
+                      {conversionFactorDisplay}
+                    </span>
+                  </p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( Kg/USD) *</label>
                   <input
                     type="text"
                     value={newOrderForm.premium}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
+                    onChange={(e) => updateSellOrderField("premium", e.target.value.replace(/[^0-9.-]/g, ""))}
                     placeholder="input premium"
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
@@ -814,19 +1338,33 @@ export default function PlatformOrdersPage({
                 <input
                   type="text"
                   value={newOrderForm.quantity}
-                  onChange={(e) => setNewOrderForm({ ...newOrderForm, quantity: e.target.value.replace(/[^0-9.]/g, "") })}
+                  onChange={(e) => updateSellOrderField("quantity", e.target.value.replace(/[^0-9.]/g, ""))}
                   placeholder="1.00"
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Notes</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Total Price (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
+                  <input
+                    type="text"
+                    value={newOrderForm.total_amount}
+                    onChange={(e) => updateSellOrderField("total_amount", e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="total price"
+                    className="w-full text-sm border border-slate-200 rounded-lg pl-7 pr-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Remark</label>
                 <textarea
                   rows={2}
                   value={newOrderForm.notes}
                   onChange={(e) => setNewOrderForm({ ...newOrderForm, notes: e.target.value })}
-                  placeholder="Optional delivery or customer notes..."
+                  placeholder="Order remark..."
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
