@@ -946,13 +946,28 @@ export default function PlatformOrdersPage({
       return;
     }
 
+    const rawCh = newOrderForm.channel.toUpperCase();
+    let apiChannel = "WALK_IN";
+    let apiRegion = "LOCAL";
+
+    if (rawCh.includes("OVERSEA")) {
+      apiChannel = "OVERSEA";
+      apiRegion = "OVERSEAS";
+    } else if (rawCh.includes("TELEGRAM")) {
+      apiChannel = "TELEGRAM";
+      apiRegion = "LOCAL";
+    } else {
+      apiChannel = "WALK_IN";
+      apiRegion = "LOCAL";
+    }
+
     if (editingOrder !== null) {
       api
         .put<OrderData>(`/api/orders/${editingOrder.id}`, {
           customer_name: newOrderForm.customer_name,
           sales_person: newOrderForm.sales_person,
-          channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
-          region: newOrderForm.channel.toUpperCase() === "OVERSEA" ? "OVERSEAS" : "LOCAL",
+          channel: apiChannel,
+          region: apiRegion,
           spot_price: spotPrice,
           quantity: qty,
           premium: prem,
@@ -973,8 +988,8 @@ export default function PlatformOrdersPage({
           transaction_type: "SELL",
           customer_name: newOrderForm.customer_name,
           sales_person: newOrderForm.sales_person,
-          channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
-          region: newOrderForm.channel.toUpperCase() === "OVERSEA" ? "OVERSEAS" : "LOCAL",
+          channel: apiChannel,
+          region: apiRegion,
           spot_price: spotPrice,
           quantity: qty,
           premium: prem,
@@ -1171,13 +1186,17 @@ export default function PlatformOrdersPage({
                       {r.sales_person || "—"}
                     </td>
                     <td className="px-5 py-2 whitespace-nowrap">
-                      {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" ? (
+                      {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" || r.region?.toUpperCase() === "OVERSEAS" ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
                           Oversea
                         </span>
+                      ) : rawChannel === "TELEGRAM" || Boolean(r.telegram_user_id) ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                          Local (Telegram)
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                          Local
+                          Local (Physical)
                         </span>
                       )}
                     </td>
@@ -1262,10 +1281,18 @@ export default function PlatformOrdersPage({
                                   e.stopPropagation();
                                   setActiveMenuId(null);
                                   setEditingOrder(r);
+                                  let editChan = "Local (Physical)";
+                                  const rawC = (r.channel || "").toUpperCase();
+                                  if (rawC === "OVERSEA" || rawC === "OVERSEAS" || r.region?.toUpperCase() === "OVERSEAS") {
+                                    editChan = "Oversea";
+                                  } else if (rawC === "TELEGRAM" || Boolean(r.telegram_user_id)) {
+                                    editChan = "Local (Telegram)";
+                                  }
+
                                   setNewOrderForm({
                                     customer_name: r.customer_name || "",
                                     sales_person: r.sales_person || "",
-                                    channel: r.channel || "Local",
+                                    channel: editChan,
                                     product_type: (r as any).product_type || "",
                                     unit_type: (r as any).unit_type || "Kg",
                                     spot_price: String(r.spot_price || "4376.50"),
@@ -1393,17 +1420,18 @@ export default function PlatformOrdersPage({
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
                 <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
-                  {(["Oversea", "Local"] as const).map((ch) => {
+                  {(["Oversea", "Local (Telegram)", "Local (Physical)"] as const).map((ch) => {
                     const isSelected =
-                      newOrderForm.channel.toLowerCase() === ch.toLowerCase() ||
-                      (ch === "Oversea" && (newOrderForm.channel === "OVERSEA" || newOrderForm.channel === "Oversea")) ||
-                      (ch === "Local" && (newOrderForm.channel === "WALK_IN" || newOrderForm.channel === "Walk-in"));
+                      newOrderForm.channel === ch ||
+                      (ch === "Oversea" && newOrderForm.channel.toUpperCase().includes("OVERSEA")) ||
+                      (ch === "Local (Telegram)" && newOrderForm.channel.toUpperCase().includes("TELEGRAM")) ||
+                      (ch === "Local (Physical)" && (newOrderForm.channel.toUpperCase().includes("WALK") || newOrderForm.channel.toUpperCase().includes("PHYSICAL")));
                     return (
                       <button
                         key={ch}
                         type="button"
                         onClick={() => setNewOrderForm({ ...newOrderForm, channel: ch })}
-                        className={`flex-1 py-2 px-3 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                        className={`flex-1 py-2 px-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                           isSelected
                             ? "bg-white text-indigo-600 shadow-xs border border-slate-200/80 font-bold"
                             : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
