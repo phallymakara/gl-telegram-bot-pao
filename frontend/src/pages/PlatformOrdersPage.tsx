@@ -1390,42 +1390,40 @@ export default function PlatformOrdersPage({
             </div>
 
             <div className="p-6 space-y-4 flex-1 overflow-y-auto max-h-[75vh]">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
-                  <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
-                    {(["Oversea", "Local"] as const).map((ch) => {
-                      const isSelected =
-                        newOrderForm.channel.toLowerCase() === ch.toLowerCase() ||
-                        (ch === "Oversea" && (newOrderForm.channel === "OVERSEA" || newOrderForm.channel === "Oversea")) ||
-                        (ch === "Local" && (newOrderForm.channel === "WALK_IN" || newOrderForm.channel === "Walk-in"));
-                      return (
-                        <button
-                          key={ch}
-                          type="button"
-                          onClick={() => setNewOrderForm({ ...newOrderForm, channel: ch })}
-                          className={`flex-1 py-2 px-3 text-xs font-semibold rounded-md transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-white text-indigo-600 shadow-xs border border-slate-200/80 font-bold"
-                              : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
-                          }`}
-                        >
-                          {ch}
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
+                <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
+                  {(["Oversea", "Local"] as const).map((ch) => {
+                    const isSelected =
+                      newOrderForm.channel.toLowerCase() === ch.toLowerCase() ||
+                      (ch === "Oversea" && (newOrderForm.channel === "OVERSEA" || newOrderForm.channel === "Oversea")) ||
+                      (ch === "Local" && (newOrderForm.channel === "WALK_IN" || newOrderForm.channel === "Walk-in"));
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        onClick={() => setNewOrderForm({ ...newOrderForm, channel: ch })}
+                        className={`flex-1 py-2 px-3 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-white text-indigo-600 shadow-xs border border-slate-200/80 font-bold"
+                            : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
+                        }`}
+                      >
+                        {ch}
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
-                  <input
-                    type="date"
-                    value={newOrderForm.slot_date_str || new Date().toISOString().split("T")[0]}
-                    onChange={(e) => setNewOrderForm({ ...newOrderForm, slot_date_str: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
+                <input
+                  type="date"
+                  value={newOrderForm.slot_date_str || new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setNewOrderForm({ ...newOrderForm, slot_date_str: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
               </div>
 
               <div>
