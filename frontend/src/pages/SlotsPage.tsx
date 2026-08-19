@@ -464,27 +464,13 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               />
             </div>
 
-            <div className="grid grid-cols-2 divide-x divide-slate-200 items-center">
-              {/* Left Side: Incoming */}
-              <div className="pr-4">
+            <div className="flex items-center justify-between pt-1">
+              <div>
                 <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Incoming
+                  Total Incoming
                 </div>
                 <div className="flex items-baseline">
                   <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
-                  <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
-                </div>
-              </div>
-
-              {/* Right Side: Remaining */}
-              <div className="pl-4">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Remaining
-                </div>
-                <div className="flex items-baseline">
-                  <span className="text-2xl font-bold text-slate-800">
-                    {toNumber(stats?.remaining_incoming ?? 0).toFixed(1)}
-                  </span>
                   <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
                 </div>
               </div>
