@@ -12,12 +12,13 @@ class DashboardStats(BaseModel):
     incoming_po: float = 5.0
     remaining_incoming: float = 0.0
     gold_in_overseas: float = 25.0
-    gold_in_local: float = 35.0
-    gold_in_customer: float = 15.5
+    gold_in_local_platform: float = 30.0
+    gold_in_local_physical: float = 20.5
+    gold_in_local: float = 50.5
     gold_in_total: float = 75.5
-    gold_out_telegram: float = 18.2
-    gold_out_phone: float = 12.0
-    gold_out_walkin: float = 8.5
+    gold_out_overseas: float = 0.0
+    gold_out_platform: float = 18.2
+    gold_out_physical: float = 20.5
     gold_out_total: float = 38.7
     reserved: float = 40.0
     available: float = 60.0
@@ -28,3 +29,45 @@ class RevenuePoint(BaseModel):
     day: str
     buy: float
     sell: float
+
+
+class DailyGoldFlow(BaseModel):
+    po_overseas: float = 0.0
+    po_local: float = 0.0
+    po_local_platform: float = 0.0
+    po_local_physical: float = 0.0
+    total: float = 0.0
+
+
+class DailyGoldOut(BaseModel):
+    overseas: float = 0.0
+    platform: float = 0.0
+    physical: float = 0.0
+    total: float = 0.0
+
+
+class DailyOrderDetail(BaseModel):
+    id: int
+    order_no: str
+    transaction_type: str
+    quantity: float
+    channel: str | None = None
+    customer_name: str | None = None
+    status: str
+    slot_date_str: str | None = None
+    created_at: str
+
+
+class DailyBreakdownRow(BaseModel):
+    date: str
+    gold_in: DailyGoldFlow
+    gold_out: DailyGoldOut
+    balance: float = 0.0
+    transaction_count: int = 0
+    orders: list[DailyOrderDetail] = []
+
+
+class DailyBreakdownResponse(BaseModel):
+    year: int
+    month: int
+    days: list[DailyBreakdownRow] = []

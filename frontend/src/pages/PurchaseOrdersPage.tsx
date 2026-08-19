@@ -1274,11 +1274,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
             <RotateCcw size={16} className="text-slate-500 shrink-0" />
-            <span>Platform</span>
+            <span>Physical</span>
           </div>
           <div className="mt-2.5 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
-              {toNumber(stats?.gold_in_customer ?? 0).toFixed(0)}
+              {toNumber(stats?.gold_in_local_physical ?? 0).toFixed(0)}
             </span>
             <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
           </div>

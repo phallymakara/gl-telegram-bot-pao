@@ -1,17 +1,11 @@
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Boxes,
   Building2,
-  CheckCircle2,
-  Clock,
   Globe,
-  Lock,
   Package,
-  PhoneCall,
   RotateCcw,
   Send,
-  Settings as SettingsIcon,
   ShoppingBag,
   ShoppingCart,
   Store,
@@ -25,6 +19,7 @@ import {
 import { useEffect, useState } from "react";
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
+import DailyBreakdownTable from "../components/DailyBreakdownTable";
 import { api, DashboardStatsData, toNumber } from "../api";
 
 /**
@@ -49,23 +44,24 @@ export default function DashboardPage() {
   const incomingPo = toNumber(stats?.incoming_po ?? 0).toFixed(1);
 
   const goldInOverseas = toNumber(stats?.gold_in_overseas ?? 0).toFixed(1);
+  const goldInLocalPlatform = toNumber(stats?.gold_in_local_platform ?? 0).toFixed(1);
+  const goldInLocalPhysical = toNumber(stats?.gold_in_local_physical ?? 0).toFixed(1);
   const goldInLocal = toNumber(stats?.gold_in_local ?? 0).toFixed(1);
-  const goldInCustomer = toNumber(stats?.gold_in_customer ?? 0).toFixed(1);
   const goldInTotal = toNumber(
     stats?.gold_in_total ??
     (toNumber(stats?.gold_in_overseas ?? 0) +
-      toNumber(stats?.gold_in_local ?? 0) +
-      toNumber(stats?.gold_in_customer ?? 0))
+      toNumber(stats?.gold_in_local ?? 0))
   ).toFixed(1);
 
-  const goldOutTelegram = toNumber(stats?.gold_out_telegram ?? 0).toFixed(1);
-  const goldOutPhone = toNumber(stats?.gold_out_phone ?? 0).toFixed(1);
-  const goldOutWalkin = toNumber(stats?.gold_out_walkin ?? 0).toFixed(1);
+  const goldOutOverseas = toNumber(stats?.gold_out_overseas ?? 0).toFixed(1);
+  const goldOutPlatform = toNumber(stats?.gold_out_platform ?? 0).toFixed(1);
+  const goldOutPhysical = toNumber(stats?.gold_out_physical ?? 0).toFixed(1);
+  const goldOutLocal = (parseFloat(goldOutPlatform) + parseFloat(goldOutPhysical)).toFixed(1);
   const goldOutTotal = toNumber(
     stats?.gold_out_total ??
-    (toNumber(stats?.gold_out_telegram ?? 0) +
-      toNumber(stats?.gold_out_phone ?? 0) +
-      toNumber(stats?.gold_out_walkin ?? 0))
+    (toNumber(stats?.gold_out_overseas ?? 0) +
+      toNumber(stats?.gold_out_platform ?? 0) +
+      toNumber(stats?.gold_out_physical ?? 0))
   ).toFixed(1);
 
   const totalPurchase = toNumber(stats?.total_buy_kg ?? stats?.gold_in_total ?? 0).toFixed(1);
@@ -136,26 +132,33 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-3">
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <Globe size={15} className="text-blue-600 shrink-0" /> Overseas
+                  <Globe size={15} className="text-blue-600 shrink-0" /> Overseas PO
                 </span>
                 <span className="font-bold text-sm text-slate-900">{goldInOverseas} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
-              <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
+              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2">
                   <Building2 size={15} className="text-indigo-600 shrink-0" /> Local
+                  <span className="font-bold text-slate-900 ml-auto">{goldInLocal} <span className="text-xs font-medium text-slate-400">KG</span></span>
                 </span>
-                <span className="font-bold text-sm text-slate-900">{goldInLocal} <span className="text-xs font-medium text-slate-400">KG</span></span>
-              </div>
-
-              <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <RotateCcw size={15} className="text-emerald-600 shrink-0" /> Customer
-                </span>
-                <span className="font-bold text-sm text-slate-900">{goldInCustomer} <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <div className="grid grid-cols-2 gap-2 ml-5">
+                  <div className="flex flex-col p-2 rounded-lg bg-white border border-slate-100">
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-0.5">
+                      <Truck size={12} className="text-sky-600 shrink-0" /> Platform
+                    </span>
+                    <span className="text-sm font-bold text-slate-900">{goldInLocalPlatform} <span className="text-[10px] font-medium text-slate-400">KG</span></span>
+                  </div>
+                  <div className="flex flex-col p-2 rounded-lg bg-white border border-slate-100">
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-0.5">
+                      <RotateCcw size={12} className="text-emerald-600 shrink-0" /> Physical
+                    </span>
+                    <span className="text-sm font-bold text-slate-900">{goldInLocalPhysical} <span className="text-[10px] font-medium text-slate-400">KG</span></span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -178,26 +181,33 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-3">
               <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
                 <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <Send size={15} className="text-sky-600 shrink-0" /> Telegram
+                  <Globe size={15} className="text-blue-600 shrink-0" /> Overseas
                 </span>
-                <span className="font-bold text-sm text-slate-900">{goldOutTelegram} <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <span className="font-bold text-sm text-slate-900">{goldOutOverseas} <span className="text-xs font-medium text-slate-400">KG</span></span>
               </div>
 
-              <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <PhoneCall size={15} className="text-purple-600 shrink-0" /> Phone
+              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-2">
+                  <Building2 size={15} className="text-indigo-600 shrink-0" /> Local
+                  <span className="font-bold text-slate-900 ml-auto">{goldOutLocal} <span className="text-xs font-medium text-slate-400">KG</span></span>
                 </span>
-                <span className="font-bold text-sm text-slate-900">{goldOutPhone} <span className="text-xs font-medium text-slate-400">KG</span></span>
-              </div>
-
-              <div className="flex flex-col p-3 rounded-xl bg-slate-50/80 border border-slate-100">
-                <span className="flex items-center gap-2 text-xs font-semibold text-slate-700 mb-1">
-                  <Store size={15} className="text-amber-600 shrink-0" /> Walk-in
-                </span>
-                <span className="font-bold text-sm text-slate-900">{goldOutWalkin} <span className="text-xs font-medium text-slate-400">KG</span></span>
+                <div className="grid grid-cols-2 gap-2 ml-5">
+                  <div className="flex flex-col p-2 rounded-lg bg-white border border-slate-100">
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-0.5">
+                      <Send size={12} className="text-sky-600 shrink-0" /> Platform
+                    </span>
+                    <span className="text-sm font-bold text-slate-900">{goldOutPlatform} <span className="text-[10px] font-medium text-slate-400">KG</span></span>
+                  </div>
+                  <div className="flex flex-col p-2 rounded-lg bg-white border border-slate-100">
+                    <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-600 mb-0.5">
+                      <Store size={12} className="text-amber-600 shrink-0" /> Physical
+                    </span>
+                    <span className="text-sm font-bold text-slate-900">{goldOutPhysical} <span className="text-[10px] font-medium text-slate-400">KG</span></span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -208,6 +218,9 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* 3. DAILY BREAKDOWN TABLE */}
+      <DailyBreakdownTable />
 
     </div>
   );

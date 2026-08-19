@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
-from app.schemas.dashboard import DashboardStats, RevenuePoint
-from app.services.dashboard_service import calculate_dashboard_stats, calculate_revenue_points
+from app.schemas.dashboard import DashboardStats, RevenuePoint, DailyBreakdownResponse
+from app.services.dashboard_service import calculate_dashboard_stats, calculate_revenue_points, calculate_daily_breakdown
 
 router = APIRouter()
 
@@ -29,4 +29,13 @@ def get_revenue(range: str = "week", db: Session = Depends(get_db)):
     Supported ranges: 'week', 'month', 'year'.
     """
     return calculate_revenue_points(db, range)
+
+
+@router.get("/daily-breakdown", response_model=DailyBreakdownResponse)
+def get_daily_breakdown(target_date: str = "", db: Session = Depends(get_db)):
+    """
+    Retrieve per-day gold in/out breakdown for a 7-day window around the target date (default: today).
+    Each day includes inflow by source, outflow by channel, balance, and order details.
+    """
+    return calculate_daily_breakdown(db, target_date)
 

@@ -35,6 +35,7 @@ class Order(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="COMPLETED", index=True)
 
     channel: Mapped[str | None] = mapped_column(String(50), nullable=True, default="TELEGRAM")
+    region: Mapped[str | None] = mapped_column(String(20), nullable=True, default="LOCAL")
     customer_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     sales_person: Mapped[str | None] = mapped_column(String(150), nullable=True)
     spot_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

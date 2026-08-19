@@ -36,6 +36,7 @@ def _to_order_response(o: Order) -> OrderResponse:
         transaction_type=o.transaction_type,
         status=o.status,
         channel=o.channel or ("TELEGRAM" if o.telegram_user_id else "WALK_IN"),
+        region=o.region or "LOCAL",
         telegram_user_id=o.telegram_user_id,
         username=o.username,
         spot_price=o.spot_price,
@@ -91,6 +92,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         transaction_type=body.transaction_type.upper(),
         status=(body.status or "CONFIRMED").upper(),
         channel=body.channel or "TELEGRAM",
+        region=body.region or "LOCAL",
         customer_name=body.customer_name,
         sales_person=body.sales_person,
         spot_price=spot_price,
@@ -179,6 +181,8 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
 
     if body.channel is not None:
         o.channel = body.channel
+    if body.region is not None:
+        o.region = body.region
     if body.status is not None:
         o.status = body.status.upper()
 

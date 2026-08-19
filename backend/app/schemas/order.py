@@ -18,6 +18,7 @@ class OrderCreate(BaseModel):
     sales_person: str | None = None
     slot_date_str: str | None = None
     channel: str | None = "TELEGRAM"
+    region: str | None = "LOCAL"
     status: str | None = "CONFIRMED"
     spot_price: Decimal | None = None
     total_amount: Decimal | None = None
@@ -33,6 +34,7 @@ class OrderUpdate(BaseModel):
     sales_person: str | None = None
     status: str | None = None
     channel: str | None = None
+    region: str | None = None
     spot_price: Decimal | None = None
     total_amount: Decimal | None = None
 
@@ -51,6 +53,7 @@ class OrderResponse(BaseModel):
     transaction_type: str
     status: str
     channel: str | None = None
+    region: str | None = None
     telegram_user_id: str | None = None
     username: str | None = None
     spot_price: Decimal | None = None
