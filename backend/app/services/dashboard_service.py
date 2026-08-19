@@ -116,11 +116,11 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         func.upper(PurchaseOrder.po_type) == "BUYBACK"
     ).scalar() or 0)
 
-    gold_in_local_physical = po_buyback + order_buyback
+    gold_in_local_physical = po_buyback
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
-    incoming_po = gold_in_total
-    remaining_incoming = gold_in_total
+    incoming_po = gold_in_overseas + gold_in_local_platform
+    remaining_incoming = incoming_po
 
     # Reserved physical gold calculation (active pending/processing orders)
     reserved = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
