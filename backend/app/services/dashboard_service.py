@@ -101,14 +101,7 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])
     )
 
-    SIMULATED_DATES = {
-        "18": (20.0, 15.0),
-        "19": (30.0, 17.0),
-        "20": (22.0, 13.0),
-    }
-
     if target_dt:
-        day_key = str(target_dt.day)
         date_match = or_(
             func.date(PurchaseOrder.expected_date) == target_dt,
             func.date(PurchaseOrder.order_date) == target_dt,
@@ -117,19 +110,8 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         total_inc_q = total_inc_q.filter(date_match)
         rem_inc_q = rem_inc_q.filter(date_match)
 
-        db_inc = float(total_inc_q.scalar() or 0)
-        db_rem = float(rem_inc_q.scalar() or 0)
-
-        if day_key in SIMULATED_DATES:
-            sim_inc, sim_rem = SIMULATED_DATES[day_key]
-            incoming_po = sim_inc
-            remaining_incoming = sim_rem
-        else:
-            incoming_po = db_inc
-            remaining_incoming = db_rem
-    else:
-        incoming_po = float(total_inc_q.scalar() or 0)
-        remaining_incoming = float(rem_inc_q.scalar() or 0)
+    incoming_po = float(total_inc_q.scalar() or 0)
+    remaining_incoming = float(rem_inc_q.scalar() or 0)
 
     # Gold IN breakdown by source (Oversea POs, Local POs = Platform + Customer Buybacks = Physical)
     po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
