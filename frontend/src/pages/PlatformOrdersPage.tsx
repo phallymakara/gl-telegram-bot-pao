@@ -1430,12 +1430,11 @@ export default function PlatformOrdersPage({
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
                 <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
-                  {(["Oversea", "Local (Telegram)", "Local (Physical)"] as const).map((ch) => {
+                  {(["Oversea", "Local"] as const).map((ch) => {
                     const isSelected =
                       newOrderForm.channel === ch ||
                       (ch === "Oversea" && newOrderForm.channel.toUpperCase().includes("OVERSEA")) ||
-                      (ch === "Local (Telegram)" && newOrderForm.channel.toUpperCase().includes("TELEGRAM")) ||
-                      (ch === "Local (Physical)" && (newOrderForm.channel.toUpperCase().includes("WALK") || newOrderForm.channel.toUpperCase().includes("PHYSICAL")));
+                      (ch === "Local" && !newOrderForm.channel.toUpperCase().includes("OVERSEA"));
                     return (
                       <button
                         key={ch}
