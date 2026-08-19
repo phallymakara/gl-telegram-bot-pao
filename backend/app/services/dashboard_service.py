@@ -95,7 +95,7 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
 
     # Gold IN breakdown by source (Oversea POs, Local POs = Platform + Customer Buybacks = Physical)
     po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
+        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])  # Exclude RECEIVED and COMPLETED from incoming calculation
     )
     if target_dt:
         po_base = po_base.filter(or_(
@@ -211,7 +211,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
             PurchaseOrder.expected_date.isnot(None),
             func.date(PurchaseOrder.expected_date) >= window_start,
             func.date(PurchaseOrder.expected_date) <= window_end,
-            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"]),
+            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"]),
         )
         .group_by(func.date(PurchaseOrder.expected_date), PurchaseOrder.po_type)
         .all()
