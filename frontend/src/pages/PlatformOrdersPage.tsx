@@ -1075,6 +1075,30 @@ export default function PlatformOrdersPage({
               </div>
             </div>
           </div>
+
+          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Overseas">Overseas</div>
+              <div className="flex items-baseline">
+                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_overseas ?? 0).toFixed(1)}</span>
+                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Platform">Local (Platform)</div>
+              <div className="flex items-baseline">
+                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_platform ?? 0).toFixed(1)}</span>
+                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
+              </div>
+            </div>
+            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Physical">Local (Physical)</div>
+              <div className="flex items-baseline">
+                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_physical ?? 0).toFixed(1)}</span>
+                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
