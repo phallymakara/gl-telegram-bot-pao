@@ -21,6 +21,26 @@ from app.schemas.dashboard import (
 )
 
 
+def get_effective_order_date(o_or_row) -> date | None:
+    """Helper to extract the target order date, prioritizing slot_date_str if specified."""
+    slot_str = getattr(o_or_row, "slot_date_str", None)
+    if slot_str and isinstance(slot_str, str) and len(slot_str.strip()) >= 10:
+        try:
+            return datetime.strptime(slot_str.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    dt = getattr(o_or_row, "created_at", None) or getattr(o_or_row, "day", None)
+    if dt:
+        if isinstance(dt, (datetime, date)):
+            return dt.date() if isinstance(dt, datetime) else dt
+        if isinstance(dt, str):
+            try:
+                return datetime.strptime(dt.strip()[:10], "%Y-%m-%d").date()
+            except ValueError:
+                pass
+    return None
+
+
 def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardStats:
     """
     Calculate aggregated dashboard statistics.
@@ -36,22 +56,42 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         except ValueError:
             target_dt = None
 
+    target_dt_val = target_dt or today
+
     total_gold = float(db.query(func.coalesce(func.sum(SlotTable.stock), 0)).scalar() or 0)
     total_orders = int(db.query(func.count(Order.id)).scalar() or 0)
-
-    sold_today = int(db.query(func.count(Order.id)).filter(
-        func.upper(Order.transaction_type) == "SELL",
-        func.date(Order.created_at) == (target_dt or today),
-        Order.status != "CANCELLED",
-    ).scalar() or 0)
-
-    buy_today = int(db.query(func.count(Order.id)).filter(
-        func.upper(Order.transaction_type) == "BUY",
-        func.date(Order.created_at) == (target_dt or today),
-        Order.status != "CANCELLED",
-    ).scalar() or 0)
-
     physical_stock = total_gold
+
+    # Evaluate Order metrics using effective order date (slot_date_str or created_at)
+    all_orders = db.query(Order).filter(Order.status != "CANCELLED").all()
+
+    sold_today = 0
+    buy_today = 0
+    gold_out_overseas = 0.0
+    gold_out_platform = 0.0
+    gold_out_physical = 0.0
+    order_buyback = 0.0
+
+    for o in all_orders:
+        d = get_effective_order_date(o)
+        if d == target_dt_val:
+            txn = (o.transaction_type or "").upper()
+            qty = float(o.quantity or 0)
+            if txn == "SELL":
+                sold_today += 1
+                region = (getattr(o, "region", None) or "LOCAL").upper()
+                ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
+                if region == "OVERSEAS":
+                    gold_out_overseas += qty
+                elif ch in ("TELEGRAM", "WEB", "PLATFORM") or not ch:
+                    gold_out_platform += qty
+                else:
+                    gold_out_physical += qty
+            elif txn == "BUY":
+                buy_today += 1
+                order_buyback += qty
+
+    gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
 
     # Incoming PO queries (count status INCOMING and CONFIRMED)
     total_inc_q = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
@@ -114,57 +154,9 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         func.upper(PurchaseOrder.po_type) == "BUYBACK"
     ).scalar() or 0)
 
-    q_buy = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        func.upper(Order.transaction_type) == "BUY",
-        Order.status != "CANCELLED",
-    )
-    if target_dt:
-        q_buy = q_buy.filter(func.date(Order.created_at) == target_dt)
-
-    order_buyback = float(q_buy.scalar() or 0)
     gold_in_local_physical = po_buyback + order_buyback
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
-
-    # Gold OUT breakdown: Overseas vs Local (Local = Platform + Physical)
-    try:
-        q_sell = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            func.upper(Order.transaction_type) == "SELL",
-            Order.status != "CANCELLED",
-        )
-        if target_dt:
-            q_sell = q_sell.filter(func.date(Order.created_at) == target_dt)
-
-        gold_out_overseas = float(q_sell.filter(
-            func.upper(Order.region) == "OVERSEAS"
-        ).scalar() or 0)
-
-        gold_out_platform = float(q_sell.filter(
-            or_(Order.region.is_(None), func.upper(Order.region) == "LOCAL"),
-            or_(
-                Order.channel.is_(None),
-                Order.channel == "",
-                func.upper(Order.channel).in_(["TELEGRAM", "WEB", "PLATFORM"])
-            )
-        ).scalar() or 0)
-
-        gold_out_physical = float(q_sell.filter(
-            or_(Order.region.is_(None), func.upper(Order.region) == "LOCAL"),
-            func.upper(Order.channel).in_(["PHONE", "WALK_IN", "WALK-IN", "POS"])
-        ).scalar() or 0)
-    except Exception:
-        db.rollback()
-        q_sell_fallback = db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-            func.upper(Order.transaction_type) == "SELL",
-            Order.status != "CANCELLED",
-        )
-        if target_dt:
-            q_sell_fallback = q_sell_fallback.filter(func.date(Order.created_at) == target_dt)
-        gold_out_overseas = 0.0
-        gold_out_platform = float(q_sell_fallback.scalar() or 0)
-        gold_out_physical = 0.0
-
-    gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
 
     # Reserved physical gold calculation (active pending/processing orders)
     reserved = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
@@ -275,96 +267,47 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
         key = row.po_type.upper() if row.po_type and row.po_type.upper() in ("OVERSEA", "LOCAL") else "LOCAL"
         po_by_day[d][key] = float(row.qty or 0)
 
-    # --- Gold IN from Customer BUY orders (grouped by date) ---
-    buy_rows = (
-        db.query(
-            func.date(Order.created_at).label("day"),
-            func.coalesce(func.sum(Order.quantity), 0).label("qty"),
-        )
-        .filter(
-            Order.created_at.isnot(None),
-            func.date(Order.created_at) >= window_start,
-            func.date(Order.created_at) <= window_end,
-            func.upper(Order.transaction_type) == "BUY",
-            Order.status != "CANCELLED",
-        )
-        .group_by(func.date(Order.created_at))
-        .all()
-    )
+    # --- Gold IN from Customer BUY orders (grouped by effective date) ---
+    buy_orders = db.query(Order).filter(
+        func.upper(Order.transaction_type) == "BUY",
+        Order.status != "CANCELLED",
+    ).all()
     buy_by_day: dict[date, float] = {}
-    for row in buy_rows:
-        d = row.day
-        if d is None:
-            continue
-        if isinstance(d, str):
-            try:
-                d = datetime.strptime(d, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-        buy_by_day[d] = float(row.qty or 0)
+    for o in buy_orders:
+        d = get_effective_order_date(o)
+        if d and window_start <= d <= window_end:
+            buy_by_day[d] = buy_by_day.get(d, 0.0) + float(o.quantity or 0)
 
-    # --- Gold OUT from SELL orders (grouped by date + region + channel) ---
-    try:
-        sell_rows = (
-            db.query(
-                func.date(Order.created_at).label("day"),
-                Order.region.label("region"),
-                Order.channel.label("channel"),
-                func.coalesce(func.sum(Order.quantity), 0).label("qty"),
-            )
-            .filter(
-                Order.created_at.isnot(None),
-                func.date(Order.created_at) >= window_start,
-                func.date(Order.created_at) <= window_end,
-                func.upper(Order.transaction_type) == "SELL",
-                Order.status != "CANCELLED",
-            )
-            .group_by(func.date(Order.created_at), Order.region, Order.channel)
-            .all()
-        )
-    except Exception:
-        db.rollback()
-        sell_rows = []
+    # --- Gold OUT from SELL orders (grouped by effective date + region + channel) ---
+    sell_orders = db.query(Order).filter(
+        func.upper(Order.transaction_type) == "SELL",
+        Order.status != "CANCELLED",
+    ).all()
     out_by_day: dict[date, dict[str, float]] = {}
-    for row in sell_rows:
-        d = row.day
-        if d is None:
-            continue
-        if isinstance(d, str):
-            try:
-                d = datetime.strptime(d, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-        if d not in out_by_day:
-            out_by_day[d] = {"overseas": 0, "platform": 0, "physical": 0}
-        region = (row.region or "LOCAL").upper()
-        ch = (row.channel or "TELEGRAM").upper()
-        if region == "OVERSEAS":
-            out_by_day[d]["overseas"] += float(row.qty or 0)
-        elif ch in ("TELEGRAM", "WEB", "PLATFORM") or not ch:
-            out_by_day[d]["platform"] += float(row.qty or 0)
-        else:
-            out_by_day[d]["physical"] += float(row.qty or 0)
+    for o in sell_orders:
+        d = get_effective_order_date(o)
+        if d and window_start <= d <= window_end:
+            if d not in out_by_day:
+                out_by_day[d] = {"overseas": 0.0, "platform": 0.0, "physical": 0.0}
+            region = (getattr(o, "region", None) or "LOCAL").upper()
+            ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
+            qty = float(o.quantity or 0)
+            if region == "OVERSEAS":
+                out_by_day[d]["overseas"] += qty
+            elif ch in ("TELEGRAM", "WEB", "PLATFORM") or not ch:
+                out_by_day[d]["platform"] += qty
+            else:
+                out_by_day[d]["physical"] += qty
 
-    # --- Individual orders per day ---
-    orders_in_month = (
-        db.query(Order)
-        .filter(
-            Order.created_at.isnot(None),
-            func.date(Order.created_at) >= window_start,
-            func.date(Order.created_at) <= window_end,
-        )
-        .order_by(Order.created_at.desc())
-        .all()
-    )
+    # --- Individual orders per day (grouped by effective date) ---
+    orders_in_window = db.query(Order).order_by(Order.created_at.desc()).all()
     orders_by_day: dict[date, list] = {}
-    for o in orders_in_month:
-        if o.created_at is None:
-            continue
-        d = o.created_at.date() if isinstance(o.created_at, (datetime, date)) else datetime.strptime(str(o.created_at)[:10], "%Y-%m-%d").date()
-        if d not in orders_by_day:
-            orders_by_day[d] = []
-        orders_by_day[d].append(o)
+    for o in orders_in_window:
+        d = get_effective_order_date(o)
+        if d and window_start <= d <= window_end:
+            if d not in orders_by_day:
+                orders_by_day[d] = []
+            orders_by_day[d].append(o)
 
     # --- Build daily rows ---
     days: list[DailyBreakdownRow] = []
