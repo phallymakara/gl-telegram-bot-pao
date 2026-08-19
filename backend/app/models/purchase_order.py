@@ -32,6 +32,7 @@ class PurchaseOrder(Base):
     slot_table_id: Mapped[int | None] = mapped_column(ForeignKey("slot_tables.id"), nullable=True, index=True)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), nullable=False)
+    unit_type: Mapped[str | None] = mapped_column(String(20), nullable=True, default="Kg")
     spot_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     premium: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     unit_cost: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)

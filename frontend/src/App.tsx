@@ -20,6 +20,7 @@ import InventoryPage from "./pages/InventoryPage";
 import CustomersPage from "./pages/CustomersPage";
 import VendorsPage from "./pages/VendorsPage";
 import ProductsPage from "./pages/ProductsPage";
+import SalesPersonsPage from "./pages/SalesPersonsPage";
 import AlertsPage from "./pages/AlertsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
@@ -68,6 +69,7 @@ export default function App() {
     page === "customers" ||
     page === "vendors" ||
     page === "products" ||
+    page === "sales-persons" ||
     page === "reports" ||
     page === "low-stock-alerts" ||
     page === "discount-promotions" ||
@@ -106,6 +108,7 @@ export default function App() {
           {page === "customers" && <CustomersPage notify={notify} />}
           {page === "vendors" && <VendorsPage notify={notify} />}
           {page === "products" && <ProductsPage notify={notify} />}
+          {page === "sales-persons" && <SalesPersonsPage notify={notify} />}
           {page === "reports" && <ReportsPage notify={notify} />}
 
           {page === "platform-orders" && <PlatformOrdersPage notify={notify} />}

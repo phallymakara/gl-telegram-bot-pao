@@ -27,6 +27,7 @@ def _to_order_response(o: Order) -> OrderResponse:
         id=o.id,
         order_no=o.order_no,
         customer_name=cname,
+        sales_person=o.sales_person,
         group_name=o.group.group_name if o.group else None,
         slot_date=o.slot.slot_date if o.slot else None,
         quantity=o.quantity,
@@ -91,6 +92,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         status=(body.status or "CONFIRMED").upper(),
         channel=body.channel or "TELEGRAM",
         customer_name=body.customer_name,
+        sales_person=body.sales_person,
         spot_price=spot_price,
         total_amount=total_amount,
         username=body.customer_name,
@@ -159,6 +161,8 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
 
     if body.customer_name is not None:
         o.customer_name = body.customer_name
+    if body.sales_person is not None:
+        o.sales_person = body.sales_person
     if body.quantity is not None:
         o.quantity = body.quantity
     if body.premium is not None:

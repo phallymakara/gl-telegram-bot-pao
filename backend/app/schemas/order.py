@@ -15,6 +15,7 @@ class OrderCreate(BaseModel):
     quantity: Decimal | None = None
     premium: Decimal = Decimal(0)
     customer_name: str | None = None
+    sales_person: str | None = None
     slot_date_str: str | None = None
     channel: str | None = "TELEGRAM"
     status: str | None = "CONFIRMED"
@@ -29,6 +30,7 @@ class OrderUpdate(BaseModel):
     quantity: Decimal | None = None
     premium: Decimal | None = None
     customer_name: str | None = None
+    sales_person: str | None = None
     status: str | None = None
     channel: str | None = None
     spot_price: Decimal | None = None
@@ -40,6 +42,7 @@ class OrderResponse(BaseModel):
     id: int
     order_no: str
     customer_name: str | None = None
+    sales_person: str | None = None
     group_name: str | None = None
     slot_date: date | None = None
     quantity: Decimal

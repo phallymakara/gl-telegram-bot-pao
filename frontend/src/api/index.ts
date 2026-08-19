@@ -17,3 +17,4 @@ export * from "./dashboard";
 export * from "./customers";
 export * from "./vendors";
 export * from "./products";
+export * from "./salesPersons";

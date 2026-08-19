@@ -255,6 +255,7 @@ const emptyForm = {
   vendor_name: "",
   customer_name: "",
   product_type: "",
+  unit_type: "Kg" as "Kg" | "TL",
   spot_price: "",
   premium: "",
   amount_kg: "",
@@ -315,12 +316,13 @@ function ExportPoDropdown({
 
   function handleExportExcel() {
     setOpen(false);
-    const headers = ["PO No", "Type", "Party", "Amount (KG)", "Price (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
+    const headers = ["PO No", "Type", "Vendor", "Amount", "Unit Price", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
     const exportRows = rows.map((r) => [
       `"${(r.po_no || "").replace(/"/g, '""')}"`,
       `"${(r.po_type || "").replace(/"/g, '""')}"`,
       `"${(r.supplier_name || "").replace(/"/g, '""')}"`,
       `"${toNumber(r.quantity).toFixed(3)}"`,
+      `"${r.quantity > 0 ? (toNumber(r.total_cost) / toNumber(r.quantity)).toFixed(2) : "0.00"}"`,
       `"${toNumber(r.total_cost).toFixed(2)}"`,
       `"${toNumber(r.spot_price).toFixed(2)}"`,
       `"${toNumber(r.premium).toFixed(2)}"`,
@@ -373,7 +375,8 @@ function ExportPoDropdown({
           <td style="padding: 8px 10px; color: #475569;">${r.po_type || "—"}</td>
           <td style="padding: 8px 10px; font-weight: 600; color: #0f172a;">${r.supplier_name || "—"}</td>
           <td style="padding: 8px 10px; font-family: monospace; font-weight: 600; text-align: right; color: #0f172a;">${toNumber(r.quantity).toFixed(3)} KG</td>
-          <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; text-align: right; color: #4338ca;">$${toNumber(r.total_cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 600; text-align: right; color: #475569;">$${r.quantity > 0 ? (toNumber(r.total_cost) / toNumber(r.quantity)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}</td>
+          <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; text-align: right; color: #4338ca;">$${toNumber(r.total_cost).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
           <td style="padding: 8px 10px; color: #64748b;">${r.order_date || "—"}</td>
           <td style="padding: 8px 10px;">
             <span style="display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; background: #e0e7ff; color: #3730a3;">${r.status || "—"}</span>
@@ -410,9 +413,10 @@ function ExportPoDropdown({
             <tr>
               <th>PO No</th>
               <th>Type</th>
-              <th>Party</th>
+              <th>Vendor</th>
               <th style="text-align: right;">Amount</th>
-              <th style="text-align: right;">Price (USD)</th>
+              <th style="text-align: right;">Unit Price</th>
+              <th style="text-align: right;">Total Amount</th>
               <th>Order Date</th>
               <th>Status</th>
             </tr>
@@ -588,7 +592,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   }, [form.spot_price, form.premium, form.amount_kg, form.quantity, matchedProduct]);
 
   function updateFormField(
-    field: "spot_price" | "premium" | "amount_kg" | "price" | "product_type",
+    field: "spot_price" | "premium" | "amount_kg" | "price" | "product_type" | "unit_type",
     value: string
   ) {
     setForm((prev) => {
@@ -603,6 +607,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
       const payload = {
         product_type: next.product_type || null,
+        unit_type: next.unit_type || "Kg",
         spot_price: next.spot_price !== "" && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
         premium: next.premium !== "" && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
         quantity: next.amount_kg !== "" && !isNaN(Number(next.amount_kg)) ? Number(next.amount_kg) : null,
@@ -953,6 +958,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       vendor_name: po.supplier_name || "",
       customer_name: po.supplier_name || "",
       product_type: (po as any).product_type || "",
+      unit_type: (po as any).unit_type || "Kg",
       spot_price: po.spot_price ? String(po.spot_price) : "4376.2",
       premium: po.premium ? String(po.premium) : "200",
       amount_kg: String(po.quantity || 1),
@@ -1017,6 +1023,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         .put<PurchaseOrderData>(`/api/purchase-orders/${editingPoId}`, {
           po_type: form.purchase_source,
           supplier_name: supplierName,
+          product_type: form.product_type || null,
+          unit_type: form.unit_type || "Kg",
           quantity: qty,
           spot_price: spotPrice,
           premium: premium,
@@ -1040,6 +1048,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           po_no: generatedPoNo,
           po_type: form.purchase_source,
           supplier_name: supplierName,
+          product_type: form.product_type || null,
+          unit_type: form.unit_type || "Kg",
           quantity: qty,
           spot_price: spotPrice,
           premium: premium,
@@ -1369,11 +1379,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 {[
                   "PO No",
                   "Type",
-                  "Party",
-                  "Amount (KG)",
+                  "Vendor",
+                  "Amount",
                   "Spot Price (oz)",
                   "Premium ( Kg/USD)",
-                  "Total Price",
+                  "Unit Price",
+                  "Total Amount",
                   "Order Date",
                   "Expected Receive Date",
                   "Status",
@@ -1397,12 +1408,15 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
                   </td>
                   <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
-                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)}</td>
+                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)} {(r as any).unit_type || "Kg"}</td>
                   <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                     {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
                   </td>
                   <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                     {r.premium !== undefined && r.premium !== null ? r.premium.toLocaleString() : "200"}
+                  </td>
+                  <td className="px-5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                    {r.quantity > 0 ? (r.total_cost / r.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                   </td>
                   <td className="px-5 py-2.5 font-bold text-slate-900 whitespace-nowrap">
                     {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
@@ -1596,8 +1610,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
       {isOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform max-h-[90vh] overflow-y-auto">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-xl overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
               <div>
                 <h3 className="font-semibold text-slate-800 text-lg">
                   {editingPoId ? "Edit Purchase Order" : "New Purchase"}
@@ -1615,7 +1629,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <Plus size={20} className="rotate-45" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto max-h-[75vh]">
               <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl">
                 <button
                   type="button"
@@ -1648,12 +1662,25 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type *</label>
-                <SearchableProductSelect
-                  value={form.product_type || ""}
-                  onChange={(val) => updateFormField("product_type", val)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type *</label>
+                  <SearchableProductSelect
+                    value={form.product_type || ""}
+                    onChange={(val) => updateFormField("product_type", val)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
+                  <select
+                    value={form.unit_type || "Kg"}
+                    onChange={(e) => updateFormField("unit_type", e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                  >
+                    <option value="Kg">Kg</option>
+                    <option value="TL">TL</option>
+                  </select>
+                </div>
               </div>
 
               {/* Order Date & Expected Received Date in 2 columns */}
@@ -1697,7 +1724,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   </p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( Kg/USD) *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( {form.unit_type || "Kg"}/USD) *</label>
                   <input
                     type="text"
                     value={form.premium}
@@ -1708,9 +1735,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </div>
               </div>
 
-              {/* Amount (KG) */}
+              {/* Amount (KG / TL) */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Amount (KG) *</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Qty ({form.unit_type || "Kg"}) *</label>
                 <input
                   type="text"
                   value={form.amount_kg}
@@ -1720,9 +1747,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 />
               </div>
 
-              {/* Price */}
+              {/* Total Amount */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Price (USD)</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Total Amount (USD)</label>
                 <input
                   type="text"
                   value={form.price}
@@ -1743,7 +1770,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 />
               </div>
             </div>
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={() => {

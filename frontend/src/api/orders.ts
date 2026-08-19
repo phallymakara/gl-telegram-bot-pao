@@ -12,6 +12,7 @@ export interface OrderData {
   id: number;
   order_no: string;
   customer_name: string | null;
+  sales_person?: string | null;
   group_name: string | null;
   slot_date: string | null;
   quantity: number;

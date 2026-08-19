@@ -19,4 +19,5 @@ from app.models.product import Product
 from app.models.supplier import Supplier
 from app.models.telegram_group import TelegramGroup
 from app.models.user import User
+from app.models.sales_person import SalesPerson
 

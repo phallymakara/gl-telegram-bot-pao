@@ -32,6 +32,7 @@ export interface PurchaseOrderData {
   slot_table_id?: number;
   slot_table_name?: string | null;
   quantity: number;
+  unit_type?: string | null;
   unit_cost: number;
   total_cost: number;
   currency: string;
@@ -66,6 +67,7 @@ export interface StockReturnData {
 
 export interface CalculatePricingPayload {
   product_type?: string | null;
+  unit_type?: string | null;
   spot_price?: number | string | null;
   premium?: number | string | null;
   quantity?: number | string | null;

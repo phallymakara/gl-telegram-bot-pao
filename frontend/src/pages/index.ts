@@ -30,6 +30,9 @@ export { default as VendorsPage } from "./VendorsPage";
 // Products Master Data (Route: "products")
 export { default as ProductsPage } from "./ProductsPage";
 
+// Sales Persons Master Data (Route: "sales-persons")
+export { default as SalesPersonsPage } from "./SalesPersonsPage";
+
 // Delivery Notes (Route: "delivery-notes")
 export { default as DeliveryNotesPage } from "./DeliveryNotesPage";
 

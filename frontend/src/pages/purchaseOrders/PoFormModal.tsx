@@ -211,6 +211,7 @@ interface PoFormModalProps {
     vendor_name: string;
     customer_name: string;
     product_type?: string;
+    unit_type?: "Kg" | "TL";
     trade_date: string;
     expected_delivery: string;
     trade_type: "BUY" | "SELL";
@@ -321,7 +322,7 @@ export default function PoFormModal({
   }, [form.spot_price, form.premium, form.qty_kg, matchedProduct]);
 
   function updateFormField(
-    field: "spot_price" | "premium" | "qty_kg" | "price" | "product_type",
+    field: "spot_price" | "premium" | "qty_kg" | "price" | "product_type" | "unit_type",
     value: string
   ) {
     setForm((prev: any) => {
@@ -333,6 +334,7 @@ export default function PoFormModal({
 
       const payload = {
         product_type: next.product_type || null,
+        unit_type: next.unit_type || "Kg",
         spot_price: next.spot_price !== "" && next.spot_price !== undefined && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
         premium: next.premium !== "" && next.premium !== undefined && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
         quantity: next.qty_kg !== "" && next.qty_kg !== undefined && !isNaN(Number(next.qty_kg)) ? Number(next.qty_kg) : null,
@@ -368,7 +370,7 @@ export default function PoFormModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div>
             <h3 className="font-semibold text-slate-800 text-base">
@@ -420,11 +422,22 @@ export default function PoFormModal({
                 onChange={(val) => updateFormField("product_type", val)}
               />
             </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600">Unit *</label>
+              <select
+                value={form.unit_type || "Kg"}
+                onChange={(e) => updateFormField("unit_type", e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+              >
+                <option value="Kg">Kg</option>
+                <option value="TL">TL</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Quantity (KG) *</label>
+              <label className="text-xs font-semibold text-slate-600">Quantity ({form.unit_type || "Kg"}) *</label>
               <input
                 type="number"
                 step="0.01"
@@ -435,7 +448,7 @@ export default function PoFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Price (USD)</label>
+              <label className="text-xs font-semibold text-slate-600">Total Amount (USD)</label>
               <input
                 type="number"
                 step="0.01"
@@ -465,7 +478,7 @@ export default function PoFormModal({
               </p>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Premium ( Kg/USD) *</label>
+              <label className="text-xs font-semibold text-slate-600">Premium ( {form.unit_type || "Kg"}/USD) *</label>
               <input
                 type="number"
                 step="0.01"

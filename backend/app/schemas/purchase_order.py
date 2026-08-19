@@ -9,6 +9,7 @@ class PurchaseOrderCreate(BaseModel):
     supplier_id: int | None = None
     supplier_name: str | None = None
     product_type: str | None = None
+    unit_type: str | None = "Kg"
     slot_table_id: int | None = None
     quantity: Decimal
     spot_price: Decimal | None = None
@@ -30,6 +31,7 @@ class PurchaseOrderUpdate(BaseModel):
     po_type: str | None = None
     supplier_name: str | None = None
     product_type: str | None = None
+    unit_type: str | None = None
     quantity: Decimal | None = None
     spot_price: Decimal | None = None
     premium: Decimal | None = None
@@ -48,6 +50,7 @@ class PurchaseOrderResponse(BaseModel):
     supplier_id: int | None = None
     supplier_name: str | None = None
     product_type: str | None = None
+    unit_type: str | None = "Kg"
     slot_table_id: int | None = None
     slot_table_name: str | None = None
     quantity: Decimal
@@ -77,6 +80,7 @@ class POReturnRequest(BaseModel):
 
 class CalculatePricingRequest(BaseModel):
     product_type: str | None = None
+    unit_type: str | None = None
     spot_price: Decimal | None = None
     premium: Decimal | None = None
     quantity: Decimal | None = None

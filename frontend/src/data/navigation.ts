@@ -5,7 +5,7 @@
 
 import {
   Home, ShoppingCart, Calendar, TrendingUp, Archive, Users, FileText,
-  BarChart3, Send, User, Shield, Bell, Settings as SettingsIcon, Cloud, Store, Monitor, Package, Tag,
+  BarChart3, Send, User, UserCheck, Shield, Bell, Settings as SettingsIcon, Cloud, Store, Monitor, Package, Tag,
   ArrowDownLeft, ArrowUpRight, ShoppingBag, FileCheck, Truck, Layers
 } from "lucide-react";
 import React from "react";
@@ -45,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "customers", label: "Customers", icon: Users },
       { id: "vendors", label: "Vendors", icon: Store },
       { id: "products", label: "Products", icon: Package },
+      { id: "sales-persons", label: "Sales Person", icon: UserCheck },
       { id: "inventory-ledger", label: "Inventory Ledger", icon: Archive },
     ]
   },
@@ -71,6 +72,7 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "customers": ["Dashboard", "Master Data", "Customers"],
   "vendors": ["Dashboard", "Master Data", "Vendors"],
   "products": ["Dashboard", "Master Data", "Products"],
+  "sales-persons": ["Dashboard", "Master Data", "Sales Person"],
   "platform-orders": ["Dashboard", "Orders", "Platform Orders"],
   "physical-orders": ["Dashboard", "Orders", "Physical Orders"],
   "po-local": ["Dashboard", "Purchase Orders", "Local PO"],
@@ -110,6 +112,7 @@ export const TOPBAR_ICON: Record<string, any> = {
   "customers": "menu",
   "vendors": "menu",
   "products": "menu",
+  "sales-persons": "menu",
   "telegram-bot": "menu",
   "audit-logs": "menu",
   "backup": "menu",
@@ -135,6 +138,7 @@ export const PAGE_TITLE: Record<string, string> = {
   "customers": "Customers Master Data",
   "vendors": "Vendors Master Data",
   "products": "Products Master Data",
+  "sales-persons": "Sales Persons Master Data",
   "telegram-bot": "Telegram Bot",
   "user-management": "User Management",
   "audit-logs": "Audit Logs",

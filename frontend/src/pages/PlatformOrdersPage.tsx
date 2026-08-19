@@ -9,7 +9,110 @@ import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
-import { api, OrderData, DashboardStatsData, CustomerData, productsApi, purchaseOrdersApi, customersApi, toNumber } from "../api";
+import { api, OrderData, DashboardStatsData, CustomerData, SalesPersonData, salesPersonsApi, productsApi, purchaseOrdersApi, customersApi, toNumber } from "../api";
+
+function SearchableSalesPersonSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+}) {
+  const [salesPersons, setSalesPersons] = useState<{ name: string; code?: string }[]>([]);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    salesPersonsApi
+      .getSalesPersons()
+      .then((data: SalesPersonData[]) => {
+        setSalesPersons(
+          data
+            .filter((sp: SalesPersonData) => sp.is_active !== false && Boolean(sp.name))
+            .map((sp: SalesPersonData) => ({
+              name: sp.name,
+              code: sp.code || undefined,
+            }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return salesPersons;
+    return salesPersons.filter(
+      (sp) =>
+        sp.name.toLowerCase().includes(q) ||
+        (sp.code && sp.code.toLowerCase().includes(q))
+    );
+  }, [salesPersons, query]);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? query : value}
+          onFocus={() => {
+            setQuery(value);
+            setOpen(true);
+          }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            onChange(e.target.value);
+            setOpen(true);
+          }}
+          placeholder="Search and select sales person..."
+          className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+        />
+        <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+
+      {open && (
+        <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl z-50 divide-y divide-slate-100">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2.5 text-xs text-slate-400 italic text-center">
+              No sales person found
+            </div>
+          ) : (
+            filtered.map((sp, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => {
+                  onChange(sp.name);
+                  setOpen(false);
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-indigo-50/60 transition-colors flex items-center justify-between group cursor-pointer"
+              >
+                <span className="text-xs font-semibold text-slate-800 group-hover:text-indigo-600">
+                  {sp.name}
+                </span>
+                {sp.code && (
+                  <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">
+                    {sp.code}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ProductOption {
   name: string;
@@ -250,10 +353,11 @@ function ExportSellOrdersDropdown({
 
   function handleExportExcel() {
     setOpen(false);
-    const headers = ["Order No", "Customer Name", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Status"];
+    const headers = ["Order No", "Customer Name", "Sales Person", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Status"];
     const exportRows = rows.map((r) => [
       `"${(r.order_no || "").replace(/"/g, '""')}"`,
       `"${(r.customer_name || "").replace(/"/g, '""')}"`,
+      `"${(r.sales_person || "").replace(/"/g, '""')}"`,
       `"${(r.order_source || r.channel || "Standard Gold").replace(/"/g, '""')}"`,
       `"${toNumber(r.quantity).toFixed(3)}"`,
       `"${toNumber(r.total_amount).toFixed(2)}"`,
@@ -428,8 +532,10 @@ export default function PlatformOrdersPage({
   const [productList, setProductList] = useState<ProductOption[]>([]);
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
+    sales_person: "",
     channel: "Oversea",
     product_type: "",
+    unit_type: "Kg",
     spot_price: "",
     quantity: "",
     premium: "",
@@ -438,7 +544,7 @@ export default function PlatformOrdersPage({
   });
 
   function updateSellOrderField(
-    field: "spot_price" | "premium" | "quantity" | "total_amount" | "product_type",
+    field: "spot_price" | "premium" | "quantity" | "total_amount" | "product_type" | "unit_type",
     value: string
   ) {
     setNewOrderForm((prev) => {
@@ -449,6 +555,7 @@ export default function PlatformOrdersPage({
 
       const payload = {
         product_type: next.product_type || null,
+        unit_type: next.unit_type || "Kg",
         spot_price: next.spot_price !== "" && !isNaN(Number(next.spot_price)) ? Number(next.spot_price) : null,
         premium: next.premium !== "" && !isNaN(Number(next.premium)) ? Number(next.premium) : null,
         quantity: next.quantity !== "" && !isNaN(Number(next.quantity)) ? Number(next.quantity) : null,
@@ -842,6 +949,7 @@ export default function PlatformOrdersPage({
       api
         .put<OrderData>(`/api/orders/${editingOrder.id}`, {
           customer_name: newOrderForm.customer_name,
+          sales_person: newOrderForm.sales_person,
           channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
           spot_price: spotPrice,
           quantity: qty,
@@ -861,6 +969,7 @@ export default function PlatformOrdersPage({
         .post<OrderData>("/api/orders/", {
           transaction_type: "SELL",
           customer_name: newOrderForm.customer_name,
+          sales_person: newOrderForm.sales_person,
           channel: newOrderForm.channel.toUpperCase().replace("-", "_"),
           spot_price: spotPrice,
           quantity: qty,
@@ -878,8 +987,10 @@ export default function PlatformOrdersPage({
 
     setNewOrderForm({
       customer_name: "",
+      sales_person: "",
       channel: "Oversea",
       product_type: "",
+      unit_type: "Kg",
       spot_price: "",
       quantity: "",
       premium: "",
@@ -1002,6 +1113,7 @@ export default function PlatformOrdersPage({
                 {[
                   "Order No",
                   "Customer",
+                  "Sales Person",
                   "Channel",
                   "Qty",
                   "Premium",
@@ -1045,6 +1157,9 @@ export default function PlatformOrdersPage({
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {r.customer_name || "—"}
                     </td>
+                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
+                      {r.sales_person || "—"}
+                    </td>
                     <td className="px-5 py-2 whitespace-nowrap">
                       {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
@@ -1057,7 +1172,7 @@ export default function PlatformOrdersPage({
                       )}
                     </td>
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
-                      {quantity.toFixed(2)} KG
+                      {quantity.toFixed(2)} {(r as any).unit_type || "Kg"}
                     </td>
                     <td className="px-5 py-2 text-slate-600 whitespace-nowrap">
                       ${premium.toFixed(2)}
@@ -1139,8 +1254,10 @@ export default function PlatformOrdersPage({
                                   setEditingOrder(r);
                                   setNewOrderForm({
                                     customer_name: r.customer_name || "",
+                                    sales_person: r.sales_person || "",
                                     channel: r.channel || "Local",
                                     product_type: (r as any).product_type || "",
+                                    unit_type: (r as any).unit_type || "Kg",
                                     spot_price: String(r.spot_price || "4376.50"),
                                     quantity: String(r.quantity),
                                     premium: String(r.premium),
@@ -1243,8 +1360,8 @@ export default function PlatformOrdersPage({
 
       {isNewOrderModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-xl overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[90vh]">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
               <h3 className="font-semibold text-slate-800 text-lg">
                 {editingOrder !== null ? `Edit Order (${editingOrder.order_no})` : "New Sell Order"}
               </h3>
@@ -1261,7 +1378,7 @@ export default function PlatformOrdersPage({
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 flex-1 overflow-y-auto max-h-[75vh]">
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
                 <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
@@ -1297,11 +1414,32 @@ export default function PlatformOrdersPage({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type</label>
-                <SearchableProductSelect
-                  value={newOrderForm.product_type || ""}
-                  onChange={(val) => updateSellOrderField("product_type", val)}
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Sales Person</label>
+                <SearchableSalesPersonSelect
+                  value={newOrderForm.sales_person}
+                  onChange={(val) => setNewOrderForm({ ...newOrderForm, sales_person: val })}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type</label>
+                  <SearchableProductSelect
+                    value={newOrderForm.product_type || ""}
+                    onChange={(val) => updateSellOrderField("product_type", val)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
+                  <select
+                    value={newOrderForm.unit_type || "Kg"}
+                    onChange={(e) => updateSellOrderField("unit_type", e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                  >
+                    <option value="Kg">Kg</option>
+                    <option value="TL">TL</option>
+                  </select>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1322,7 +1460,7 @@ export default function PlatformOrdersPage({
                   </p>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( Kg/USD) *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium ( {newOrderForm.unit_type || "Kg"}/USD) *</label>
                   <input
                     type="text"
                     value={newOrderForm.premium}
@@ -1334,7 +1472,7 @@ export default function PlatformOrdersPage({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Amount (KG) *</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Qty ({newOrderForm.unit_type || "Kg"}) *</label>
                 <input
                   type="text"
                   value={newOrderForm.quantity}
@@ -1345,7 +1483,7 @@ export default function PlatformOrdersPage({
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Total Price (USD)</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Total Amount (USD)</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
                   <input
@@ -1370,7 +1508,7 @@ export default function PlatformOrdersPage({
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsNewOrderModalOpen(false)}
