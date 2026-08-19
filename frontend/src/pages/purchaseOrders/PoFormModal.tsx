@@ -392,14 +392,14 @@ export default function PoFormModal({
         <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">PO Category</label>
+              <label className="text-xs font-semibold text-slate-600">Channel</label>
               <select
                 value={form.purchase_source}
                 onChange={(e) => setForm((f: any) => ({ ...f, purchase_source: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               >
-                <option value="OVERSEA">Oversea Purchase Order</option>
-                <option value="LOCAL">Local Purchase Order</option>
+                <option value="OVERSEA">Oversea</option>
+                <option value="LOCAL">Local</option>
               </select>
             </div>
             <div className="space-y-1.5">
