@@ -83,6 +83,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     premium_amount = calculate_premium_amount(body.quantity, body.premium)
     total_amount = body.total_amount or calculate_order_total(body.quantity, spot_price, body.premium)
 
+    region_val = body.region or ("OVERSEAS" if (body.channel and body.channel.upper() in ("OVERSEA", "OVERSEAS")) else "LOCAL")
     order = Order(
         order_no=order_no,
         customer_id=customer.id if customer else None,
@@ -92,7 +93,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         transaction_type=body.transaction_type.upper(),
         status=(body.status or "CONFIRMED").upper(),
         channel=body.channel or "TELEGRAM",
-        region=body.region or "LOCAL",
+        region=region_val,
         customer_name=body.customer_name,
         sales_person=body.sales_person,
         spot_price=spot_price,
@@ -183,6 +184,10 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
         o.channel = body.channel
     if body.region is not None:
         o.region = body.region
+    elif body.channel is not None and body.channel.upper() in ("OVERSEA", "OVERSEAS"):
+        o.region = "OVERSEAS"
+    if body.slot_date_str is not None:
+        o.slot_date_str = body.slot_date_str
     if body.status is not None:
         o.status = body.status.upper()
 

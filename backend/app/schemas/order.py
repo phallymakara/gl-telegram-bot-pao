@@ -35,6 +35,7 @@ class OrderUpdate(BaseModel):
     status: str | None = None
     channel: str | None = None
     region: str | None = None
+    slot_date_str: str | None = None
     spot_price: Decimal | None = None
     total_amount: Decimal | None = None
 
