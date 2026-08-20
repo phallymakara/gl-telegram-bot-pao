@@ -8,6 +8,7 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -16,10 +17,35 @@ from app.api.schemas import DailyInventoryCreate, DailyInventoryResponse
 from app.models.daily_inventory import DailyInventory
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
+from app.services.slot_service import adjust_vault_stock_sync
 
 router = APIRouter()
 
 MAX_ROWS = 1000
+
+
+class VaultAdjustmentRequest(BaseModel):
+    """Correct the true vault total (not a table's sale allocation) -- e.g. a physical count found
+    a real discrepancy. Positive delta adds gold, negative removes it."""
+    delta: Decimal
+    reason: str
+
+
+class VaultAdjustmentResponse(BaseModel):
+    new_vault_stock: float
+
+
+@router.post("/vault-adjustment", response_model=VaultAdjustmentResponse)
+def create_vault_adjustment(body: VaultAdjustmentRequest):
+    """
+    Directly correct the physical vault total. This is deliberately separate from editing a slot
+    table's STOCK box: that box only reallocates existing gold between price tiers, while this
+    changes how much gold the system believes actually exists -- so it always requires a reason.
+    """
+    if not body.reason.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A reason is required")
+    new_total = adjust_vault_stock_sync(float(body.delta), body.reason.strip())
+    return VaultAdjustmentResponse(new_vault_stock=new_total)
 
 
 @router.get("/", response_model=list[DailyInventoryResponse])

@@ -45,8 +45,8 @@ def clean_db():
         db.commit()
 
         # Section 2: Re-create clean slot tables & active date rows for both Buy Slot and Sell Slot tabs
-        st_sell = SlotTable(table_name="Sell Slot Table 1", stock=Decimal("100.000"), is_active=True, display_order=1)
-        st_buy = SlotTable(table_name="Buy Slot Table 1", stock=Decimal("100.000"), is_active=True, display_order=2)
+        st_sell = SlotTable(table_name="Sell Slot Table 1", stock=Decimal("0.000"), is_active=True, display_order=1)
+        st_buy = SlotTable(table_name="Buy Slot Table 1", stock=Decimal("0.000"), is_active=True, display_order=2)
         db.add_all([st_sell, st_buy])
         db.flush()
 

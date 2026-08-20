@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
-from app.models.slot_table import SlotTable
+from app.services.slot_service import compute_sell_reservation_sync, compute_vault_stock_sync
 from app.schemas.dashboard import (
     DashboardStats,
     RevenuePoint,
@@ -58,7 +58,11 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
 
     target_dt_val = target_dt or today
 
-    total_gold = float(db.query(func.coalesce(func.sum(SlotTable.stock), 0)).scalar() or 0)
+    # Physical stock is a ledger balance (PO receives minus order collections), not a live sum of
+    # every table's STOCK box -- editing a table's allocation to move gold between price tiers
+    # shouldn't change how much gold you actually have. See compute_vault_stock_sync for the exact
+    # credit/debit event list.
+    total_gold = compute_vault_stock_sync()
     total_orders = int(db.query(func.count(Order.id)).scalar() or 0)
     physical_stock = total_gold
 
@@ -93,7 +97,9 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
 
     gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
 
-    # Gold IN breakdown by source (Oversea POs, Local POs = Platform + Customer Buybacks = Physical)
+    # Gold IN breakdown by source (Oversea POs, Local POs = Physical + Customer Buybacks = Platform).
+    # "Physical" = a real supplier delivering physical gold to the vault (Oversea/Local POs).
+    # "Platform" = gold that came in because a Telegram user sold to us through the bot (Buyback).
     po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
         PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])  # Exclude RECEIVED and COMPLETED from incoming calculation
     )
@@ -108,25 +114,37 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         func.upper(PurchaseOrder.po_type) == "OVERSEA"
     ).scalar() or 0)
 
-    gold_in_local_platform = float(po_base.filter(
+    gold_in_local_physical = float(po_base.filter(
         func.upper(PurchaseOrder.po_type) == "LOCAL"
     ).scalar() or 0)
 
-    po_buyback = float(po_base.filter(
+    # Buyback POs settle instantly (status=RECEIVED the moment they're created in order_service.py),
+    # so they never match the INCOMING/CONFIRMED filter above -- query them separately, over the
+    # same date window, instead of folding them into po_base.
+    buyback_query = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
         func.upper(PurchaseOrder.po_type) == "BUYBACK"
-    ).scalar() or 0)
+    )
+    if target_dt:
+        buyback_query = buyback_query.filter(or_(
+            func.date(PurchaseOrder.order_date) == target_dt,
+            func.date(PurchaseOrder.received_date) == target_dt,
+        ))
+    gold_in_local_platform = float(buyback_query.scalar() or 0)
 
-    gold_in_local_physical = po_buyback
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
-    incoming_po = gold_in_overseas + gold_in_local_platform
+    incoming_po = gold_in_overseas + gold_in_local_physical
     remaining_incoming = incoming_po
 
-    # Reserved physical gold calculation (active pending/processing orders)
-    reserved = float(db.query(func.coalesce(func.sum(Order.quantity), 0)).filter(
-        Order.status.in_(["CONFIRMED", "PENDING", "PROCESSING"])
-    ).scalar() or 0)
-    available = max(0.0, physical_stock - reserved)
+    # Reserved gold: quantity already promised to a customer via an open (not yet collected) SELL
+    # order -- scoped to SELL only, since a pending BUY (buyback) order doesn't remove anything from
+    # the sellable pool. FIFO-split by whether it's covered by incoming PO stock (any PO dated on or
+    # before that order's date, oldest first) or has to fall back to physical stock, so each half can
+    # show up against the right card (Physical Stock's "Reserved" vs Incoming's "Reserved").
+    reserved_stock, reserved_incoming, _, _, _ = compute_sell_reservation_sync()
+
+    reserved = reserved_stock + reserved_incoming
+    available = max(0.0, physical_stock - reserved_stock)
 
     open_orders = int(db.query(func.count(Order.id)).filter(
         Order.status.in_(["PENDING", "CONFIRMED", "PROCESSING", "OPEN"])
@@ -152,6 +170,8 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         gold_out_physical=gold_out_physical,
         gold_out_total=gold_out_total,
         reserved=reserved,
+        reserved_stock=reserved_stock,
+        reserved_incoming=reserved_incoming,
         available=available,
         open_orders=open_orders,
     )
@@ -273,6 +293,29 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                 orders_by_day[d] = []
             orders_by_day[d].append(o)
 
+    # --- Individual purchase orders per day (same expected_date + status filter as po_by_day above),
+    # so gold-IN totals sourced from POs (Local/Oversea/Buyback) have matching transaction line items,
+    # not just customer BUY/SELL orders.
+    po_details_in_window = (
+        db.query(PurchaseOrder)
+        .filter(
+            PurchaseOrder.expected_date.isnot(None),
+            func.date(PurchaseOrder.expected_date) >= window_start,
+            func.date(PurchaseOrder.expected_date) <= window_end,
+            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"]),
+        )
+        .order_by(PurchaseOrder.created_at.desc())
+        .all()
+    )
+    po_details_by_day: dict[date, list] = {}
+    for po_row in po_details_in_window:
+        d = po_row.expected_date
+        if isinstance(d, datetime):
+            d = d.date()
+        if d is None:
+            continue
+        po_details_by_day.setdefault(d, []).append(po_row)
+
     # --- Build daily rows ---
     days: list[DailyBreakdownRow] = []
     current = window_start
@@ -281,8 +324,10 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
         po = po_by_day.get(d, {})
         oversea = po.get("OVERSEA", 0.0)
         cust_buy = buy_by_day.get(d, 0.0)
-        local_platform = po.get("LOCAL", 0.0)
-        local_physical = cust_buy
+        # Local PO = Physical (a real supplier delivering physical gold to the vault).
+        # Customer BUY orders = Platform (a Telegram user sold gold to us through the bot).
+        local_physical = po.get("LOCAL", 0.0)
+        local_platform = cust_buy
         local = local_platform + local_physical
         gold_in_total = oversea + local
 
@@ -293,6 +338,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
         gold_out_total = overseas + platform + physical
 
         day_orders = orders_by_day.get(d, [])
+        day_pos = po_details_by_day.get(d, [])
         order_details = [
             DailyOrderDetail(
                 id=o.id,
@@ -304,9 +350,25 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                 status=o.status or "",
                 slot_date_str=o.slot_date_str,
                 created_at=str(o.created_at or ""),
+                source="ORDER",
             )
             for o in day_orders
+        ] + [
+            DailyOrderDetail(
+                id=po_row.id,
+                order_no=po_row.po_no or "",
+                transaction_type=f"PO_{(po_row.po_type or '').upper()}",
+                quantity=float(po_row.quantity or 0),
+                channel=po_row.po_type,
+                customer_name=po_row.supplier_name,
+                status=po_row.status or "",
+                slot_date_str=str(po_row.expected_date) if po_row.expected_date else None,
+                created_at=str(po_row.created_at or ""),
+                source="PO",
+            )
+            for po_row in day_pos
         ]
+        order_details.sort(key=lambda x: x.created_at, reverse=True)
 
         days.append(
             DailyBreakdownRow(
@@ -325,7 +387,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
                     total=gold_out_total,
                 ),
                 balance=gold_in_total - gold_out_total,
-                transaction_count=len(day_orders),
+                transaction_count=len(order_details),
                 orders=order_details,
             )
         )

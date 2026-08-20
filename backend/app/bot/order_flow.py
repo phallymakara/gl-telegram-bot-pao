@@ -55,17 +55,19 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
 
     # Check slot details and available inventory stock
     slot = await asyncio.to_thread(get_slot_by_date_sync, slot_date, order_type)
+    incoming = float(slot.get("incoming_kg", 0)) if slot else 0
     stock = float(slot.get("stock_kg", 0)) if slot else 0
-    logger.info("handle_slot_selection | slot_date=%s | order_type=%s | stock=%.2f", slot_date, order_type, stock)
+    total_available = incoming + stock
+    logger.info("handle_slot_selection | slot_date=%s | order_type=%s | incoming=%.2f | stock=%.2f | total=%.2f", slot_date, order_type, incoming, stock, total_available)
 
-    if order_type == BUY and stock <= 0:
+    if order_type == BUY and total_available <= 0:
         await query.answer(t("slot_out_of_stock", lang), show_alert=True)
         return
 
     try:
         await query.edit_message_text(
             text=msg,
-            reply_markup=build_quantity_keyboard(stock=stock, order_type=order_type, lang=lang),
+            reply_markup=build_quantity_keyboard(stock=stock, incoming_kg=incoming, order_type=order_type, lang=lang),
         )
     except BadRequest as e:
         if "Message is not modified" not in str(e):

@@ -21,6 +21,8 @@ class DashboardStats(BaseModel):
     gold_out_physical: float = 20.5
     gold_out_total: float = 38.7
     reserved: float = 40.0
+    reserved_stock: float = 40.0
+    reserved_incoming: float = 0.0
     available: float = 60.0
     open_orders: int = 12
 
@@ -56,6 +58,9 @@ class DailyOrderDetail(BaseModel):
     status: str
     slot_date_str: str | None = None
     created_at: str
+    # "ORDER" = customer BUY/SELL order; "PO" = supplier purchase order (LOCAL/OVERSEA/BUYBACK).
+    # Lets the frontend tell the two apart since they now share this one detail feed.
+    source: str = "ORDER"
 
 
 class DailyBreakdownRow(BaseModel):

@@ -3,7 +3,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect, text
 
 from app.api.router import api_router
 from app.core.database import Base, engine
@@ -46,42 +46,23 @@ def on_startup():
     import app.db.base
     Base.metadata.create_all(bind=engine)
 
-    # Safely migrate existing tables by auto-adding new columns if not present
+    # Dynamically add any missing columns to existing tables
     try:
-        with engine.connect() as conn:
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS customer_code VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS name VARCHAR(150);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS contact VARCHAR(150);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS sex VARCHAR(20);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS dob VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS nation VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS address VARCHAR(255);"))
-            conn.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;"))
-
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS region VARCHAR(20) DEFAULT 'LOCAL';"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS channel VARCHAR(50) DEFAULT 'TELEGRAM';"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_name VARCHAR(150);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS sales_person VARCHAR(150);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS spot_price NUMERIC(12, 2);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12, 2);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS telegram_user_id VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS username VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE orders ADD COLUMN IF NOT EXISTS slot_date_str VARCHAR(20);"))
-
-            conn.execute(text("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS vendor_code VARCHAR(100);"))
-
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS po_type VARCHAR(20) DEFAULT 'LOCAL';"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS unit_type VARCHAR(20) DEFAULT 'Kg';"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS spot_price NUMERIC(12, 2);"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS premium NUMERIC(12, 2);"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'USD';"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS notes TEXT;"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS shipping_method VARCHAR(50);"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS tracking_no VARCHAR(100);"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS customs_fee NUMERIC(12, 2);"))
-            conn.execute(text("ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS port_of_origin VARCHAR(100);"))
-
-            conn.commit()
+        inspector = sa_inspect(engine)
+        for table_name, table in Base.metadata.tables.items():
+            if table_name not in inspector.get_table_names():
+                continue
+            existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+            missing = [c for c in table.columns if c.name not in existing_cols]
+            if not missing:
+                continue
+            with engine.connect() as conn:
+                for column in missing:
+                    col_type = column.type.compile(dialect=engine.dialect)
+                    stmt = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column.name} {col_type}"
+                    logger.info("Auto-migrate: %s", stmt)
+                    conn.execute(text(stmt))
+                conn.commit()
     except Exception as err:
         logger.warning("Auto column migration notice: %s", err)
 

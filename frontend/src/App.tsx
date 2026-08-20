@@ -25,7 +25,7 @@ import AlertsPage from "./pages/AlertsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
 import ComingSoon from "./components/ComingSoon";
-import Toast from "./components/Toast";
+import Toast, { ToastType } from "./components/Toast";
 import { PAGE_TITLE } from "./data/navigation";
 
 /**
@@ -36,14 +36,17 @@ export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastType, setToastType] = useState<ToastType>("success");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  function notify(msg: string) {
+  function notify(msg: string, type: ToastType = "success") {
     setToast(msg);
+    setToastType(type);
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
-    timerRef.current = setTimeout(() => setToast(null), 2200);
+    // Errors stay up longer since they're usually longer/more important to read.
+    timerRef.current = setTimeout(() => setToast(null), type === "error" ? 4500 : 2200);
   }
 
   const simplePages: Record<string, React.ComponentType<any>> = {
@@ -139,7 +142,7 @@ export default function App() {
           )}
         </main>
       </div>
-      <Toast toast={toast} />
+      <Toast toast={toast} type={toastType} />
     </div>
   );
 }

@@ -18,7 +18,13 @@ from app.models.purchase_order import StockReturn
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
 from app.models.telegram_group import TelegramGroup
-from app.services.slot_service import add_stock_to_table_sync, check_stock_sync, deduct_stock_sync, get_slot_by_date_sync
+from app.services.slot_service import (
+    add_incoming_to_slot_sync,
+    add_stock_to_table_sync,
+    check_stock_sync,
+    deduct_stock_sync,
+    get_slot_by_date_sync,
+)
 from app.utils.generators import generate_order_no, generate_po_no
 from app.utils.pricing import calculate_order_total, calculate_premium_amount, calculate_unit_cost
 
@@ -162,6 +168,16 @@ def _place_order_sync(
                 notes=f"Telegram Customer Buyback #{order.order_no} (@{username})",
             )
             session.add(po)
+            session.flush()
+
+            # Credit buyback gold to vault stock
+            if slot_table:
+                add_stock_to_table_sync(
+                    slot_table_id=slot_table.id,
+                    quantity=Decimal(str(quantity)),
+                    txn_type="BUYBACK_RECEIVE",
+                    remark=f"Buyback from {cust_name} for order {order.order_no}",
+                )
 
         session.commit()
         session.refresh(order)

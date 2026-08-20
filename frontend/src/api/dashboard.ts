@@ -28,6 +28,8 @@ export interface DashboardStatsData {
   gold_out_physical?: number;
   gold_out_total?: number;
   reserved?: number;
+  reserved_stock?: number;
+  reserved_incoming?: number;
   available?: number;
   open_orders?: number;
 }
@@ -66,6 +68,8 @@ export interface DailyOrderDetailData {
   status: string;
   slot_date_str: string | null;
   created_at: string;
+  /** "ORDER" = customer BUY/SELL order; "PO" = supplier purchase order (LOCAL/OVERSEA/BUYBACK). */
+  source: "ORDER" | "PO";
 }
 
 export interface DailyBreakdownRowData {

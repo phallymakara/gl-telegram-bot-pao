@@ -22,6 +22,7 @@ from app.models.product import Product
 from app.models.purchase_order import PurchaseOrder
 from app.models.slot_table import SlotTable
 from app.services.purchase_order_service import receive_purchase_order_sync, return_purchase_order_sync
+from app.services.slot_service import add_incoming_to_slot_sync, remove_incoming_from_slot_sync
 from app.utils.generators import generate_po_no
 from app.utils.pricing import DEFAULT_PREMIUM, DEFAULT_SPOT_PRICE, TROY_OUNCES_PER_KG, calculate_total_cost, calculate_unit_cost
 
@@ -243,6 +244,18 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
     db.add(po)
     db.commit()
     db.refresh(po)
+
+    # Credit day-specific incoming stock to SlotRow for pre-sale availability
+    if po.order_date and slot_table_id:
+        slot_date_str = po.order_date.isoformat() if hasattr(po.order_date, "isoformat") else str(po.order_date)
+        add_incoming_to_slot_sync(
+            slot_table_id=slot_table_id,
+            slot_date_str=slot_date_str,
+            quantity=Decimal(str(body.quantity)),
+            txn_type="PO_INCOMING",
+            remark=f"Created {po_type} PO {po.po_no}",
+        )
+
     return _to_response(po)
 
 
@@ -387,12 +400,27 @@ def return_purchase_order(po_id: int, body: POReturnRequest, db: Session = Depen
 def cancel_purchase_order(po_id: int, db: Session = Depends(get_db)):
     """
     Cancel an incoming or pending purchase order.
+    Removes day-specific incoming stock from the associated SlotRow.
     """
     po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
     if not po:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
+
+    old_status = po.status
     po.status = "CANCELLED"
     db.commit()
     db.refresh(po)
+
+    # Remove incoming stock if PO was in an incoming state
+    if old_status in ("INCOMING", "CONFIRMED", "DRAFT", "ORDERED", "PENDING") and po.order_date and po.slot_table_id:
+        slot_date_str = po.order_date.isoformat() if hasattr(po.order_date, "isoformat") else str(po.order_date)
+        remove_incoming_from_slot_sync(
+            slot_table_id=po.slot_table_id,
+            slot_date_str=slot_date_str,
+            quantity=Decimal(str(po.quantity)),
+            txn_type="PO_CANCEL_REMOVE_INCOMING",
+            remark=f"Cancelled PO {po.po_no} - removed incoming",
+        )
+
     return _to_response(po)
 

@@ -3,6 +3,8 @@ Slot Tables & Slot Rows Management API routes.
 Provides endpoints for managing trading slot tables (SELL / BUY tables) and date-based premium rows.
 """
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -41,13 +43,16 @@ def list_tables(db: Session = Depends(get_db)):
 @router.post("/", response_model=SlotTableResponse, status_code=status.HTTP_201_CREATED)
 def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
     """
-    Create a new slot table (e.g. SELL Table, BUY Table) with initial stock.
+    Create a new slot table (e.g. SELL Table, BUY Table).
     Calculates next display order position automatically.
+    Always starts at 0kg stock, regardless of what the caller sends: a table is just a container
+    and date/premium schedule, not a stock source. Physical stock only enters through tracked,
+    audited paths (PO receipt, customer buyback, or a manual stock adjustment via PUT).
     """
     max_order = db.query(SlotTable.display_order).order_by(SlotTable.display_order.desc()).first()
     table = SlotTable(
         table_name=body.table_name,
-        stock=body.stock,
+        stock=Decimal(0),
         display_order=(max_order[0] + 1) if max_order else 0,
     )
     db.add(table)
@@ -58,13 +63,30 @@ def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
 @router.put("/{table_id}", response_model=SlotTableResponse)
 def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get_db)):
     """
-    Update slot table name or available physical stock.
+    Update a slot table's name and/or physical stock directly -- e.g. a large PO is released to the
+    sellable vault in batches (500kg PO, first 100kg sent out for sale now, more later), so stock
+    needs to stay freely editable rather than gated behind a formal per-PO receive flow. Still logs
+    an InventoryTransaction whenever stock changes, so it stays traceable even though editing it is
+    frictionless.
     """
     table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+
+    stock_before = table.stock
     table.table_name = body.table_name
     table.stock = body.stock
+
+    if body.stock != stock_before:
+        db.add(InventoryTransaction(
+            slot_table_id=table.id,
+            transaction_type="TABLE_STOCK_MANUAL_EDIT",
+            quantity=abs(body.stock - stock_before),
+            stock_before=stock_before,
+            stock_after=body.stock,
+            remark=f"Manual stock edit on table '{table.table_name}'",
+        ))
+
     db.commit()
     return db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
 
@@ -127,10 +149,22 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
 def delete_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
     """
     Remove a slot row from a slot table and nullify references on existing orders.
+    Refuses to delete a row that still has unclaimed incoming_kg (gold credited to this date from a
+    PO that hasn't been received/cancelled yet) -- deleting it would silently destroy that PO's
+    pre-sale credit with no way to recover it, since the PurchaseOrder record itself is untouched
+    and would still claim to be "incoming" on a date with nothing backing it.
     """
     row = db.query(SlotRow).filter(SlotRow.id == row_id, SlotRow.slot_table_id == table_id).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Row not found")
+    if row.incoming_kg and row.incoming_kg > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot delete: this date still has {row.incoming_kg}kg of unclaimed incoming PO stock. "
+                "Receive or cancel the related PO first, or the incoming credit will be silently lost."
+            ),
+        )
     db.query(Order).filter(Order.slot_id == row_id).update({"slot_id": None}, synchronize_session=False)
     db.delete(row)
     db.commit()

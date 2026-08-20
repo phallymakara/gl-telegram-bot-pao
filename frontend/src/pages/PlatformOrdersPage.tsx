@@ -322,7 +322,7 @@ function SearchableProductSelect({
 
 interface PlatformOrdersPageProps {
   /** Toast notification callback */
-  notify: (msg: string) => void;
+  notify: (msg: string, type?: "success" | "error") => void;
 }
 
 /**
@@ -961,6 +961,36 @@ export default function PlatformOrdersPage({
       apiRegion = "LOCAL";
     }
 
+    function resetFormAndClose() {
+      setNewOrderForm({
+        customer_name: "",
+        sales_person: "",
+        channel: "Oversea",
+        product_type: "",
+        unit_type: "Kg",
+        spot_price: "",
+        quantity: "",
+        premium: "",
+        total_amount: "",
+        slot_date_str: new Date().toISOString().split("T")[0],
+        notes: "",
+      });
+      setIsNewOrderModalOpen(false);
+    }
+
+    // Friendlier phrasing for the most common failure: not enough physical gold to cover the sale.
+    function describeError(e: Error): string {
+      if (/insufficient stock/i.test(e.message)) {
+        const match = e.message.match(/available\s+([\d.]+)kg.*requested\s+([\d.]+)kg/i);
+        if (match) {
+          const [, available, requested] = match;
+          return `Not enough gold in stock: only ${Number(available).toLocaleString()}kg available, but this order needs ${Number(requested).toLocaleString()}kg. Lower the quantity or receive more stock first.`;
+        }
+        return "Not enough gold in stock to cover this sell order.";
+      }
+      return e.message || "Failed to save order";
+    }
+
     if (editingOrder !== null) {
       api
         .put<OrderData>(`/api/orders/${editingOrder.id}`, {
@@ -979,9 +1009,12 @@ export default function PlatformOrdersPage({
           setRows((rs) => rs.map((row) => (row.id === editingOrder.id ? updated : row)));
           notify("Order updated successfully!");
           setEditingOrder(null);
+          resetFormAndClose();
           load();
         })
-        .catch((e: Error) => notify(e.message || "Failed to update order"));
+        // Keep the modal open with the entered values on failure, so the user can fix and retry
+        // instead of losing everything they typed.
+        .catch((e: Error) => notify(describeError(e), "error"));
     } else {
       api
         .post<OrderData>("/api/orders/", {
@@ -1000,25 +1033,11 @@ export default function PlatformOrdersPage({
         .then((created) => {
           setRows((rs) => [created, ...rs]);
           notify("New sell order created (Confirmed)!");
+          resetFormAndClose();
           load();
         })
-        .catch((e: Error) => notify(e.message || "Failed to create order"));
+        .catch((e: Error) => notify(describeError(e), "error"));
     }
-
-    setNewOrderForm({
-      customer_name: "",
-      sales_person: "",
-      channel: "Oversea",
-      product_type: "",
-      unit_type: "Kg",
-      spot_price: "",
-      quantity: "",
-      premium: "",
-      total_amount: "",
-      slot_date_str: new Date().toISOString().split("T")[0],
-      notes: "",
-    });
-    setIsNewOrderModalOpen(false);
   }
 
   const filteredRows = useMemo(() => {

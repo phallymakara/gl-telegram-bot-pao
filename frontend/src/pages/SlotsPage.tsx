@@ -12,7 +12,7 @@ interface SlotsPageProps {
   /** Mode ("buyback" for buyback slots, "sell" for sell premium slots) */
   mode?: "buyback" | "sell";
   /** Toast notification callback */
-  notify: (msg: string) => void;
+  notify: (msg: string, type?: "success" | "error") => void;
 }
 
 /**
@@ -76,7 +76,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   const [sellRowForm, setSellRowForm] = useState({
     start_date: new Date().toISOString().split("T")[0],
     premium: "300.00",
-    qty: "10.00",
   });
 
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
@@ -98,12 +97,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
             .map((t) => ({
               id: t.id,
               title: t.table_name,
-              rows: (t.rows || []).map((r) => ({
-                id: r.id,
-                start_date: r.slot_date,
-                end_date: r.slot_date,
-                premium: r.premium,
-              })),
+              rows: (t.rows || [])
+                .slice()
+                .sort((a, b) => a.slot_date.localeCompare(b.slot_date))
+                .map((r) => ({
+                  id: r.id,
+                  start_date: r.slot_date,
+                  end_date: r.slot_date,
+                  premium: r.premium,
+                })),
             }));
           const sellList: SellTableItem[] = tables
             .filter((t) => t.table_name.toUpperCase().includes("SELL"))
@@ -112,13 +114,16 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               title: t.table_name,
               tableStock: String(t.stock),
               newRowDate: new Date().toISOString().split("T")[0],
-              rows: (t.rows || []).map((r) => ({
-                id: r.id,
-                start_date: r.slot_date,
-                end_date: r.slot_date,
-                premium: r.premium,
-                qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
-              })),
+              rows: (t.rows || [])
+                .slice()
+                .sort((a, b) => a.slot_date.localeCompare(b.slot_date))
+                .map((r) => ({
+                  id: r.id,
+                  start_date: r.slot_date,
+                  end_date: r.slot_date,
+                  premium: r.premium,
+                  qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
+                })),
             }));
           setBuyTables(buyList);
           setSellTables(sellList);
@@ -264,7 +269,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     setSellRowForm({
       start_date: today,
       premium: "300.00",
-      qty: "10.00",
     });
     setIsSellModalOpen(true);
   }
@@ -275,7 +279,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     setSellRowForm({
       start_date: row.start_date,
       premium: String(row.premium),
-      qty: String(row.qty ?? ""),
     });
     setIsSellModalOpen(true);
   }
@@ -289,14 +292,12 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
     const startDate = sellRowForm.start_date;
     const prem = Number(sellRowForm.premium) || 300;
-    const qtyVal = Number(sellRowForm.qty) || 10.0;
 
     if (editingSellRowId !== null) {
       api
         .put(`/api/slots/${targetSellTableId}/rows/${editingSellRowId}`, {
           slot_date: startDate,
           premium: prem,
-          qty: qtyVal,
         })
         .then(() => {
           notify("Row updated successfully!");
@@ -308,7 +309,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         .post(`/api/slots/${targetSellTableId}/rows`, {
           slot_date: startDate,
           premium: prem,
-          qty: qtyVal,
         })
         .then(() => {
           notify("New row added to table!");
@@ -328,18 +328,19 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         t.id === tableId
           ? {
             ...t,
-            rows: t.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r)),
+            rows: t.rows
+              .map((r) => (r.id === rowId ? { ...r, ...patch } : r))
+              .sort((a, b) => a.start_date.localeCompare(b.start_date)),
           }
           : t
       )
     );
 
-    if (patch.start_date || patch.premium !== undefined || patch.qty !== undefined) {
+    if (patch.start_date || patch.premium !== undefined) {
       api
         .put(`/api/slots/${tableId}/rows/${rowId}`, {
           slot_date: patch.start_date || new Date().toISOString().split("T")[0],
           premium: patch.premium !== undefined && patch.premium !== "" ? Number(patch.premium) : 300,
-          qty: patch.qty !== undefined && patch.qty !== "" ? Number(patch.qty) : 10.0,
         })
         .then(() => { })
         .catch(() => { });
@@ -442,7 +443,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               <div className="pl-3">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reserved</div>
                 <div className="flex items-baseline">
-                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved ?? 0).toFixed(1)}</span>
+                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved_stock ?? 0).toFixed(1)}</span>
                   <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
                 </div>
               </div>
@@ -472,6 +473,13 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 <div className="flex items-baseline">
                   <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
                   <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reserved</div>
+                <div className="flex items-baseline justify-end">
+                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved_incoming ?? 0).toFixed(1)}</span>
+                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
                 </div>
               </div>
             </div>
@@ -524,7 +532,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                               api
                                 .put(`/api/slots/${tbl.id}`, {
                                   table_name: tempTitleValue.trim(),
-                                  stock: Number(tbl.tableStock) || 100,
+                                  stock: Number(tbl.tableStock) || 0,
                                 })
                                 .then(() => {
                                   notify("Table name updated!");
@@ -544,7 +552,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             api
                               .put(`/api/slots/${tbl.id}`, {
                                 table_name: tempTitleValue.trim(),
-                                stock: Number(tbl.tableStock) || 100,
+                                stock: Number(tbl.tableStock) || 0,
                               })
                               .then(() => {
                                 notify("Table name updated!");
@@ -594,7 +602,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                       <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap w-12 text-slate-400">#</th>
                       <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-slate-400">SLOT DATE</th>
                       <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">QTY</th>
                       <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">STOCK</th>
                       <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">ACTIONS</th>
                     </tr>
@@ -613,7 +620,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             <input
                               type="date"
                               value={r.start_date}
-                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium, qty: r.qty })}
+                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium })}
                               className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
                             />
                           </div>
@@ -624,20 +631,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             <input
                               type="text"
                               value={r.premium}
-                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: e.target.value, qty: r.qty })}
+                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: e.target.value })}
                               placeholder="300.00"
                               className="w-20 text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
                             />
                           </div>
-                        </td>
-                        <td className="px-5 py-3 text-center text-xs font-medium text-slate-700 whitespace-nowrap">
-                          <input
-                            type="text"
-                            value={r.qty !== undefined && r.qty !== null ? r.qty : "10.00"}
-                            onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: r.premium, qty: e.target.value })}
-                            placeholder="10.00"
-                            className="w-20 text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
-                          />
                         </td>
                         {/* Merged STOCK column spanning all table rows */}
                         {idx === 0 && (
@@ -683,14 +681,14 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     ))}
                     {tbl.rows.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">
                           No rows in this table. Click "+ Add Row" below to add a row.
                         </td>
                       </tr>
                     )}
                     {/* Table Footer with Add Row and Save side by side */}
                     <tr className="border-t border-slate-200 bg-slate-50/30">
-                      <td colSpan={6} className="px-5 py-3.5">
+                      <td colSpan={5} className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
@@ -735,7 +733,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                               api
                                 .put(`/api/slots/${tbl.id}`, {
                                   table_name: tempBuyTitleValue.trim(),
-                                  stock: 100,
                                 })
                                 .then(() => {
                                   notify("Table name updated!");
@@ -755,7 +752,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             api
                               .put(`/api/slots/${tbl.id}`, {
                                 table_name: tempBuyTitleValue.trim(),
-                                stock: 100,
                               })
                               .then(() => {
                                 notify("Table name updated!");
@@ -986,27 +982,15 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium (USD) *</label>
-                  <input
-                    type="text"
-                    value={sellRowForm.premium}
-                    onChange={(e) => setSellRowForm({ ...sellRowForm, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
-                    placeholder="300.00"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Qty *</label>
-                  <input
-                    type="text"
-                    value={sellRowForm.qty}
-                    onChange={(e) => setSellRowForm({ ...sellRowForm, qty: e.target.value.replace(/[^0-9.]/g, "") })}
-                    placeholder="10.00"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Premium (USD) *</label>
+                <input
+                  type="text"
+                  value={sellRowForm.premium}
+                  onChange={(e) => setSellRowForm({ ...sellRowForm, premium: e.target.value.replace(/[^0-9.-]/g, "") })}
+                  placeholder="300.00"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
               </div>
             </div>
 
@@ -1034,6 +1018,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
           </div>
         </div>
       )}
+
     </div>
   );
 }

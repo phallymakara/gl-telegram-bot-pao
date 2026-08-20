@@ -1,25 +1,25 @@
-from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect, text
 from app.core.database import Base, engine
-from app.db.base import Product, PurchaseOrder
 
 def migrate():
     Base.metadata.create_all(bind=engine)
-    with engine.connect() as conn:
-        conn.execute(text("""
-            ALTER TABLE purchase_orders ALTER COLUMN spot_price TYPE NUMERIC(20,2);
-            ALTER TABLE purchase_orders ALTER COLUMN premium TYPE NUMERIC(20,2);
-            ALTER TABLE purchase_orders ALTER COLUMN unit_cost TYPE NUMERIC(20,2);
-            ALTER TABLE purchase_orders ALTER COLUMN total_cost TYPE NUMERIC(20,2);
-            ALTER TABLE purchase_orders ALTER COLUMN quantity TYPE NUMERIC(20,3);
-            ALTER TABLE orders ALTER COLUMN quantity TYPE NUMERIC(20,3);
-            ALTER TABLE orders ALTER COLUMN premium TYPE NUMERIC(20,2);
-            ALTER TABLE orders ALTER COLUMN premium_amount TYPE NUMERIC(20,2);
-            ALTER TABLE products ALTER COLUMN conversion_factor TYPE DOUBLE PRECISION;
-            ALTER TABLE orders ADD COLUMN IF NOT EXISTS region VARCHAR(20) DEFAULT 'LOCAL';
-            ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS product_type VARCHAR(100);
-        """))
-        conn.commit()
-        print("Database migration completed successfully! Products, purchase_orders, and orders tables updated in PostgreSQL.")
+
+    inspector = sa_inspect(engine)
+    for table_name, table in Base.metadata.tables.items():
+        if table_name not in inspector.get_table_names():
+            continue
+        existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+        missing = [c for c in table.columns if c.name not in existing_cols]
+        if not missing:
+            continue
+        with engine.connect() as conn:
+            for column in missing:
+                col_type = column.type.compile(dialect=engine.dialect)
+                stmt = f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column.name} {col_type}"
+                print(f"  Adding {table_name}.{column.name}")
+                conn.execute(text(stmt))
+            conn.commit()
+    print("Auto-migration completed successfully.")
 
 if __name__ == "__main__":
     migrate()

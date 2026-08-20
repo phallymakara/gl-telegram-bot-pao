@@ -64,6 +64,7 @@ def build_main_menu(lang="EN") -> InlineKeyboardMarkup:
 def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
     """
     Construct keyboard listing available slot dates for selection.
+    Shows total available (incoming + general stock) and hides slots with zero availability.
     """
     keyboard = []
     prefix = BUY_SLOT_PREFIX if order_type == BUY else SELL_SLOT_PREFIX
@@ -71,10 +72,12 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarku
     for slot in slots:
         if order_type == BUY:
             try:
-                stock_val = float(str(slot.get("stock_kg", 0)).strip())
+                incoming = float(str(slot.get("incoming_kg", 0)).strip())
+                stock = float(str(slot.get("stock_kg", 0)).strip())
+                total_available = incoming + stock
             except (ValueError, TypeError):
-                stock_val = 0.0
-            if stock_val <= 0:
+                total_available = 0.0
+            if total_available <= 0:
                 continue
 
         label = t("slot_format", lang).format(
@@ -95,16 +98,25 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarku
     return InlineKeyboardMarkup(keyboard)
 
 
-def build_quantity_keyboard(stock=None, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+def build_quantity_keyboard(stock=None, incoming_kg=None, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct keyboard displaying quantity options (1kg - 5kg) based on available stock.
+    Construct keyboard displaying quantity options (1kg - 5kg) based on total available stock.
+    Total available = incoming_kg (day-specific) + stock (general vault).
     """
-    logger.info("build_quantity_keyboard | stock=%s | order_type=%s", stock, order_type)
-    if order_type == SELL or stock is None:
-        max_allowed_qty = 5
+    if incoming_kg is not None and stock is not None:
+        total = float(incoming_kg) + float(stock)
+    elif stock is not None:
+        total = float(stock)
+    else:
+        total = 0
+
+    logger.info("build_quantity_keyboard | incoming=%s stock=%s total=%s order_type=%s", incoming_kg, stock, total, order_type)
+
+    if order_type == SELL or total <= 0:
+        max_allowed_qty = 5 if order_type == SELL else 0
     else:
         try:
-            max_allowed_qty = int(float(stock))
+            max_allowed_qty = int(total)
         except (ValueError, TypeError):
             max_allowed_qty = 0
 
