@@ -348,18 +348,26 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   }
 
   function updateTableStock(tableId: number, stockVal: string) {
+    const tbl = sellTables.find((t) => t.id === tableId);
+    if (!tbl) return;
+    const previousStock = tbl.tableStock;
+
     setSellTables((prev) =>
       prev.map((t) => (t.id === tableId ? { ...t, tableStock: stockVal } : t))
     );
-    const tbl = sellTables.find((t) => t.id === tableId);
-    if (!tbl) return;
     api
       .put(`/api/slots/${tableId}`, {
         table_name: tbl.title,
         stock: Number(stockVal) || 0,
       })
       .then(() => { })
-      .catch(() => { });
+      .catch((e: Error) => {
+        // Roll the displayed number back -- the edit was rejected, so it was never actually saved.
+        setSellTables((prev) =>
+          prev.map((t) => (t.id === tableId ? { ...t, tableStock: previousStock } : t))
+        );
+        notify(e.message || "Failed to update stock", "error");
+      });
   }
 
   function deleteRowInSellTable(tableId: number, rowId: number) {

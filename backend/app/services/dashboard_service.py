@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
-from app.services.slot_service import compute_sell_reservation_sync, compute_vault_stock_sync
+from app.services.slot_service import compute_sell_reservation_totals_sync, compute_vault_stock_sync
 from app.schemas.dashboard import (
     DashboardStats,
     RevenuePoint,
@@ -118,30 +118,23 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         func.upper(PurchaseOrder.po_type) == "LOCAL"
     ).scalar() or 0)
 
-    # Buyback POs settle instantly (status=RECEIVED the moment they're created in order_service.py),
-    # so they never match the INCOMING/CONFIRMED filter above -- query them separately, over the
-    # same date window, instead of folding them into po_base.
-    buyback_query = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
+    # Buyback POs now follow the same two-step flow as any other PO (created INCOMING, credited to
+    # stock only once explicitly received), so they match the same INCOMING/CONFIRMED filter as
+    # Overseas/Local -- no separate query needed anymore.
+    gold_in_local_platform = float(po_base.filter(
         func.upper(PurchaseOrder.po_type) == "BUYBACK"
-    )
-    if target_dt:
-        buyback_query = buyback_query.filter(or_(
-            func.date(PurchaseOrder.order_date) == target_dt,
-            func.date(PurchaseOrder.received_date) == target_dt,
-        ))
-    gold_in_local_platform = float(buyback_query.scalar() or 0)
+    ).scalar() or 0)
 
     gold_in_local = gold_in_local_platform + gold_in_local_physical
     gold_in_total = gold_in_overseas + gold_in_local
-    incoming_po = gold_in_overseas + gold_in_local_physical
+    incoming_po = gold_in_overseas + gold_in_local_physical + gold_in_local_platform
     remaining_incoming = incoming_po
 
-    # Reserved gold: quantity already promised to a customer via an open (not yet collected) SELL
-    # order -- scoped to SELL only, since a pending BUY (buyback) order doesn't remove anything from
-    # the sellable pool. FIFO-split by whether it's covered by incoming PO stock (any PO dated on or
-    # before that order's date, oldest first) or has to fall back to physical stock, so each half can
-    # show up against the right card (Physical Stock's "Reserved" vs Incoming's "Reserved").
-    reserved_stock, reserved_incoming, _, _, _ = compute_sell_reservation_sync()
+    # Reserved gold: quantity already deducted from stock/incoming for open (not yet collected) SELL
+    # orders -- reserve_store_stock_sync deducts for real at order-creation time now, so this is just
+    # the live audit-trail total for orders that are still open, split by which pool each order drew
+    # from so each half can show up against the right card (Physical Stock's "Reserved" vs Incoming's).
+    reserved_stock, reserved_incoming = compute_sell_reservation_totals_sync()
 
     reserved = reserved_stock + reserved_incoming
     available = max(0.0, physical_stock - reserved_stock)

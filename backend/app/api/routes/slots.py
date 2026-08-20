@@ -3,9 +3,11 @@ Slot Tables & Slot Rows Management API routes.
 Provides endpoints for managing trading slot tables (SELL / BUY tables) and date-based premium rows.
 """
 
+from datetime import date as date_type
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -17,6 +19,7 @@ from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder, StockReturn
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
+from app.services.slot_service import compute_vault_stock_sync, get_incoming_up_to_date_sync
 
 router = APIRouter()
 
@@ -68,12 +71,50 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
     needs to stay freely editable rather than gated behind a formal per-PO receive flow. Still logs
     an InventoryTransaction whenever stock changes, so it stays traceable even though editing it is
     frictionless.
+
+    Raising a SELL table's stock is validated against what's actually allocatable, though. Since
+    table stock is now a live "remaining" number (orders deduct it immediately on reservation, not
+    at collection), the check is against how much is still genuinely unallocated: vault + today's
+    eligible incoming, minus what every SELL table currently holds. Both vault and incoming are
+    already net of every open reservation by the time we read them here -- deduct_store_stock_sync
+    mutates table.stock and incoming_kg directly and immediately, there's no deferred/virtual
+    reservation layer left to subtract on top. Otherwise the STOCK box becomes a number that looks
+    real but isn't backed by anything -- exactly the confusion this whole reservation system was
+    built to eliminate.
     """
     table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
 
     stock_before = table.stock
+    delta = body.stock - stock_before
+
+    if "SELL" in table.table_name.upper() and delta > 0:
+        other_sell_stock = float(db.query(func.coalesce(func.sum(SlotTable.stock), 0)).filter(
+            SlotTable.table_name.ilike("%SELL%"),
+            SlotTable.id != table_id,
+            SlotTable.is_active == True,
+        ).scalar() or 0)
+        current_total_stock = other_sell_stock + float(stock_before)
+
+        vault = compute_vault_stock_sync()
+        today_str = date_type.today().isoformat()
+        incoming_today = get_incoming_up_to_date_sync("SELL", today_str)
+
+        headroom = vault + incoming_today - current_total_stock
+
+        if float(delta) > headroom:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Cannot raise this table's stock by {delta}kg (from {stock_before}kg to {body.stock}kg): "
+                    f"only {headroom:.3f}kg is genuinely unallocated right now "
+                    f"({vault:.3f}kg vault + {incoming_today:.3f}kg incoming "
+                    f"dated on/before {today_str}, minus {current_total_stock:.3f}kg already held across "
+                    f"every SELL table)."
+                ),
+            )
+
     table.table_name = body.table_name
     table.stock = body.stock
 

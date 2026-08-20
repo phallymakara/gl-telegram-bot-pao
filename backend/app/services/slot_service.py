@@ -5,6 +5,7 @@ and recording inventory transaction logs.
 """
 
 import logging
+import threading
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
@@ -15,6 +16,13 @@ from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
+
+# Serializes every "check availability, then create/collect a SELL order" critical section across
+# the whole process -- both the admin API and the Telegram bot flow run their sync order logic in
+# real OS threads (FastAPI's threadpool, and asyncio.to_thread respectively), so a single process-wide
+# lock here closes the race window where two concurrent requests could both pass the availability
+# check before either commits, letting combined demand exceed what's actually available.
+sell_order_lock = threading.Lock()
 
 # Events that represent gold genuinely entering/leaving the vault -- used to compute the true
 # physical stock total as a ledger balance, independent of any table's current sale-allocation
@@ -170,80 +178,6 @@ def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | Non
     return first
 
 
-def check_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
-    """
-    Verify whether sufficient stock (incoming + general) is available on the slot date.
-    """
-    slot = get_slot_by_date_sync(slot_date, order_type)
-    if not slot:
-        return False
-    total_available = float(slot["incoming_kg"]) + float(slot["stock_kg"])
-    return total_available >= quantity
-
-
-def deduct_stock_sync(slot_date: str, quantity: float, order_type: str = "BUY") -> bool:
-    """
-    Deduct physical gold quantity for an order.
-    Priority: day-specific incoming_kg first, then general slot table stock.
-    Rolls back if total available is insufficient.
-    """
-    session = SessionLocal()
-    try:
-        target = slot_date.strip()
-        query = session.query(SlotTable).filter(SlotTable.is_active == True)
-        store_type = _resolve_target_store_type(order_type)
-        if store_type == "SELL":
-            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-        else:
-            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-
-        remaining = float(quantity)
-
-        # Pass 1: deduct from day-specific incoming_kg on matching SlotRows
-        for t in tables:
-            if remaining <= 0:
-                break
-            for row in t.rows:
-                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
-                if row_date != target:
-                    continue
-                avail_incoming = float(row.incoming_kg)
-                if avail_incoming <= 0:
-                    continue
-                take = min(avail_incoming, remaining)
-                row.incoming_kg = Decimal(str(avail_incoming - take))
-                remaining -= take
-                if remaining <= 0:
-                    break
-
-        # Pass 2: deduct remaining from general slot table stock
-        if remaining > 0:
-            for t in tables:
-                if remaining <= 0:
-                    break
-                avail = float(t.stock)
-                if avail <= 0:
-                    continue
-                take = min(avail, remaining)
-                t.stock = Decimal(str(avail - take))
-                remaining -= take
-                if remaining <= 0:
-                    break
-
-        if remaining > 0:
-            session.rollback()
-            return False
-        session.commit()
-        return True
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
-
-
 def _matching_store_tables(session, store_type: str) -> list[SlotTable]:
     """
     Resolve active SlotTable rows for an explicit store perspective (SELL = gold out, BUY = gold in),
@@ -286,21 +220,32 @@ def _to_date(value) -> date | None:
         return None
 
 
+def _all_active_tables(session) -> list[SlotTable]:
+    """
+    Every active SlotTable regardless of BUY/SELL name tagging. Incoming gold is store-perspective
+    agnostic: a supplier PO's incoming_kg typically lands on a SELL-tagged table, but a Telegram
+    buyback's lands on a BUY-tagged one (add_incoming_to_slot_sync credits whichever table the order
+    was matched against). Once it physically arrives it's the same fungible gold either way, so
+    anything checking "how much is genuinely incoming" needs to see both, not just one side.
+    """
+    return session.query(SlotTable).filter(SlotTable.is_active == True).order_by(SlotTable.display_order).all()
+
+
 def get_incoming_up_to_date_sync(store_type: str, slot_date: str | None) -> float:
     """
     Sum day-specific incoming_kg (gold from a PO that hasn't been formally received yet, but is
-    available for pre-sale) across tables matching a store perspective, for every PO dated on or
-    before slot_date. A PO expected on day 19 has, by day 20, already effectively "arrived" even if
-    nobody clicked Receive -- it just hasn't been formally logged into general stock yet.
+    available for pre-sale) across every active table, for every PO dated on or before slot_date.
+    A PO expected on day 19 has, by day 20, already effectively "arrived" even if nobody clicked
+    Receive -- it just hasn't been formally logged into general stock yet. Not scoped by store_type
+    (kept as a parameter for call-site compatibility) -- see _all_active_tables for why.
     """
     target = _to_date(slot_date)
     if target is None:
         return 0.0
     session = SessionLocal()
     try:
-        tables = _matching_store_tables(session, store_type)
         total = 0.0
-        for t in tables:
+        for t in _all_active_tables(session):
             for row in t.rows:
                 row_date = _to_date(row.slot_date)
                 if row_date is not None and row_date <= target:
@@ -319,10 +264,21 @@ def deduct_store_stock_sync(
     order_id: int | None = None,
 ) -> bool:
     """
-    Deduct physical gold matching a store perspective. If slot_date is given, draws first from
-    incoming_kg on any PO dated on or before slot_date -- oldest PO first (FIFO) -- since a PO
-    expected earlier than the order's date should already be treated as arrived by then, even if
-    nobody formally clicked Receive. Whatever's left waterfalls into general table stock.
+    Deduct physical gold matching a store perspective. Draws first from tables' general STOCK, in
+    display_order (price-tier cascade) -- a STOCK box is a deliberate "I'm offering exactly this much
+    at this price" commitment (e.g. admin sets aside 3kg of a 7kg incoming buyback at one premium,
+    saving the rest for a second table at another premium), so a matching sale should draw down that
+    specific commitment rather than some coincidentally-available incoming gold from an unrelated
+    source. Whatever's left falls back to incoming_kg (any PO dated on or before slot_date, oldest
+    first), for however much of the order isn't covered by an explicit allocation.
+
+    A table's STOCK box is just an allocation label, not itself a source of gold -- every kg it claims
+    has to be backed by either the vault (already received) or eligible incoming (not received yet,
+    but real). So each unit a table's stock gives up is backed first by vault headroom, and whatever
+    that doesn't cover is backed by physically drawing down the same eligible incoming_kg rows Pass 2
+    uses -- otherwise the same incoming gold could be claimed twice: once via a table's STOCK box and
+    again via a separate incoming-only sale that never sees it as spoken for.
+
     Returns False without committing if total availability is insufficient.
     """
     session = SessionLocal()
@@ -333,63 +289,60 @@ def deduct_store_stock_sync(
         target = _to_date(slot_date)
         eligible_rows: list[tuple] = []
         if target is not None:
-            for t in tables:
+            # Incoming is scanned across every active table, not just store_type-matched ones -- a
+            # buyback's incoming lands on a BUY-tagged table, but it's still real gold a SELL order
+            # can draw on once its date arrives.
+            for t in _all_active_tables(session):
                 for row in t.rows:
                     row_date = _to_date(row.slot_date)
                     if row_date is not None and row_date <= target and float(row.incoming_kg or 0) > 0:
                         eligible_rows.append((row_date, t, row))
             eligible_rows.sort(key=lambda r: r[0])  # oldest PO date first
 
-        incoming_total = sum(float(row.incoming_kg or 0) for _, _, row in eligible_rows)
+        def draw_incoming(amount: float, incoming_txn_type: str) -> float:
+            """Physically decrement eligible incoming rows, oldest-eligible first, up to `amount`."""
+            taken = 0.0
+            for _, row_table, row in eligible_rows:
+                if taken >= amount:
+                    break
+                avail = float(row.incoming_kg or 0)
+                if avail <= 0:
+                    continue
+                take = min(avail, amount - taken)
+                before = row.incoming_kg
+                row.incoming_kg = Decimal(str(avail - take))
+                taken += take
+                session.add(InventoryTransaction(
+                    slot_table_id=row_table.id,
+                    order_id=order_id,
+                    transaction_type=incoming_txn_type,
+                    quantity=Decimal(str(take)),
+                    stock_before=before,
+                    stock_after=row.incoming_kg,
+                    remark=remark,
+                ))
+            return taken
 
-        # A table's STOCK box is an admin-set allocation number, not proof anything's actually
-        # arrived -- an admin could add a row for any date and claim it's sellable. The real ceiling
-        # is what's genuinely in the vault (compute_vault_stock_sync, PO receives minus collections),
-        # so general stock is only usable up to whichever is smaller: what the tables claim, or what
-        # the vault ledger says has actually arrived. If nothing's been received yet, stock contributes
-        # nothing regardless of what any table's STOCK box shows -- only eligible incoming can serve.
-        stock_claimed = sum(float(t.stock) for t in tables)
-        stock_usable = min(stock_claimed, compute_vault_stock_sync())
+        vault_budget = compute_vault_stock_sync()
 
-        if stock_usable + incoming_total < remaining:
-            return False
-
-        # Pass 1: draw from the oldest eligible incoming_kg first (unreceived PO stock).
-        for _, t, row in eligible_rows:
+        # Pass 1: waterfall through tables' general stock first, in display_order. Each kg claimed is
+        # backed by vault headroom first, then by real incoming for whatever vault can't cover.
+        for t in tables:
             if remaining <= 0:
                 break
-            avail = float(row.incoming_kg or 0)
-            if avail <= 0:
+            claim = min(float(t.stock), remaining)
+            if claim <= 0:
                 continue
-            take = min(avail, remaining)
-            before = row.incoming_kg
-            row.incoming_kg = Decimal(str(avail - take))
-            remaining -= take
-            session.add(InventoryTransaction(
-                slot_table_id=t.id,
-                order_id=order_id,
-                transaction_type=f"{txn_type}_INCOMING",
-                quantity=Decimal(str(take)),
-                stock_before=before,
-                stock_after=row.incoming_kg,
-                remark=remark,
-            ))
-
-        # Pass 2: waterfall whatever's left into tables' general stock, in display_order, but never
-        # draw more in total than stock_usable (the vault-backed ceiling) even if tables collectively
-        # claim more than that.
-        stock_budget = stock_usable
-        for t in tables:
-            if remaining <= 0 or stock_budget <= 0:
-                break
-            avail = min(float(t.stock), stock_budget)
-            if avail <= 0:
+            vault_part = min(claim, vault_budget)
+            incoming_part = claim - vault_part
+            drawn_incoming = draw_incoming(incoming_part, f"{txn_type}_INCOMING") if incoming_part > 0 else 0.0
+            take = vault_part + drawn_incoming
+            if take <= 0:
                 continue
-            take = min(avail, remaining)
+            vault_budget -= vault_part
             stock_before = t.stock
             t.stock = Decimal(str(float(t.stock) - take))
             remaining -= take
-            stock_budget -= take
             session.add(InventoryTransaction(
                 slot_table_id=t.id,
                 order_id=order_id,
@@ -399,6 +352,15 @@ def deduct_store_stock_sync(
                 stock_after=t.stock,
                 remark=remark,
             ))
+
+        # Pass 2: whatever's still needed (order date not covered by any table's stock, or exceeding
+        # every table's claim) falls back to the oldest remaining eligible incoming_kg.
+        if remaining > 0:
+            remaining -= draw_incoming(remaining, f"{txn_type}_INCOMING")
+
+        if remaining > 1e-9:
+            session.rollback()
+            return False
 
         session.commit()
         return True
@@ -448,111 +410,33 @@ def credit_store_stock_sync(
         session.close()
 
 
-def compute_sell_reservation_sync(
-    hypothetical_quantity: float | None = None,
-    hypothetical_slot_date: str | None = None,
-) -> tuple[float, float, float, float, float]:
+def compute_sell_reservation_totals_sync() -> tuple[float, float]:
     """
-    FIFO-allocates every open SELL order (status CONFIRMED/PENDING/PROCESSING) against two shared,
-    decrementing pools -- incoming PO stock and each table's general STOCK -- so orders genuinely
-    compete for the same gold instead of each being checked against the full total independently:
-
-    - Incoming: oldest PO date first, but a PO can only cover an order dated on or after that PO's
-      own date (day 19's PO can serve a day 20 order, never a day 18 one).
-    - Stock: tables in display_order (price-tier cascade) determine which price tier a sale is
-      attributed to, but the total drawable from stock is capped at whatever's actually been
-      received into the vault (compute_vault_stock_sync) -- a table's STOCK box is an admin-set
-      allocation number, not proof anything's arrived, so it can never unlock more than the vault
-      ledger backs. If nothing's been received yet, stock contributes nothing at all.
-
-    Orders draw from both pools in (slot_date ascending, created_at ascending) order -- whoever's
-    date comes first, or who was promised first on the same date, gets first claim.
-
-    If hypothetical_quantity/hypothetical_slot_date are given, one extra hypothetical order is
-    appended to the queue to test whether a NEW order could still be fulfilled on top of everything
-    already reserved, without actually creating it.
-
-    Returns (reserved_stock, reserved_incoming, hypothetical_incoming_used, hypothetical_stock_used,
-    hypothetical_shortfall). The hypothetical figures are 0.0 when no hypothetical order was given;
-    a nonzero shortfall means even the hypothetical's own demand can't be fully covered.
+    (reserved_stock, reserved_incoming): live totals of gold currently set aside for open (not yet
+    collected/cancelled) SELL orders. Unlike the old FIFO simulation, this doesn't need to replay
+    anything -- reserve_store_stock_sync already physically deducts a table's STOCK/incoming_kg the
+    moment an order is created (see create_order), so "how much is reserved" is just the sum of that
+    audit trail for orders that are still open.
     """
     session = SessionLocal()
     try:
-        tables = _matching_store_tables(session, "SELL")  # already in display_order
-
-        rows: list[dict] = []
-        for t in tables:
-            for row in t.rows:
-                d = _to_date(row.slot_date)
-                amt = float(row.incoming_kg or 0)
-                if d is not None and amt > 0:
-                    rows.append({"date": d, "remaining": amt})
-        rows.sort(key=lambda r: r["date"])
-
-        stock_pools = [{"remaining": float(t.stock)} for t in tables]
-        stock_budget = min(sum(p["remaining"] for p in stock_pools), compute_vault_stock_sync())
-
-        open_orders = (
-            session.query(Order.quantity, Order.slot_date_str, Order.created_at)
-            .filter(
+        open_order_ids = [
+            oid for (oid,) in session.query(Order.id).filter(
                 Order.transaction_type == "SELL",
                 Order.status.in_(("CONFIRMED", "PENDING", "PROCESSING")),
-            )
-            .all()
-        )
-        queue = [
-            {"qty": float(q or 0), "date": _to_date(sd) or date.max, "created_at": ca, "is_hypothetical": False}
-            for q, sd, ca in open_orders
+            ).all()
         ]
-        if hypothetical_quantity is not None:
-            queue.append({
-                "qty": float(hypothetical_quantity),
-                "date": _to_date(hypothetical_slot_date) or date.max,
-                "created_at": datetime.max.replace(tzinfo=timezone.utc),
-                "is_hypothetical": True,
-            })
-        queue.sort(key=lambda o: (o["date"], o["created_at"]))
-
-        reserved_stock = 0.0
-        reserved_incoming = 0.0
-        hyp_incoming = 0.0
-        hyp_stock = 0.0
-        hyp_shortfall = 0.0
-
-        for order in queue:
-            need = order["qty"]
-
-            incoming_used = 0.0
-            for row in rows:
-                if need <= 0:
-                    break
-                if row["date"] > order["date"] or row["remaining"] <= 0:
-                    continue
-                take = min(row["remaining"], need)
-                row["remaining"] -= take
-                need -= take
-                incoming_used += take
-            reserved_incoming += incoming_used
-
-            stock_used = 0.0
-            for pool in stock_pools:
-                if need <= 0 or stock_budget <= 0:
-                    break
-                take = min(pool["remaining"], need, stock_budget)
-                if take <= 0:
-                    continue
-                pool["remaining"] -= take
-                stock_budget -= take
-                need -= take
-                stock_used += take
-            reserved_stock += stock_used
-
-            if order["is_hypothetical"]:
-                hyp_incoming = incoming_used
-                hyp_stock = stock_used
-                hyp_shortfall = need  # whatever's still unmet is genuinely unfulfillable right now
-
-        return reserved_stock, reserved_incoming, hyp_incoming, hyp_stock, hyp_shortfall
+        if not open_order_ids:
+            return 0.0, 0.0
+        reserved_stock = float(session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.order_id.in_(open_order_ids),
+            InventoryTransaction.transaction_type == "ORDER_RESERVE_DEDUCT",
+        ).scalar() or 0)
+        reserved_incoming = float(session.query(func.coalesce(func.sum(InventoryTransaction.quantity), 0)).filter(
+            InventoryTransaction.order_id.in_(open_order_ids),
+            InventoryTransaction.transaction_type == "ORDER_RESERVE_DEDUCT_INCOMING",
+        ).scalar() or 0)
+        return reserved_stock, reserved_incoming
     finally:
         session.close()
 

@@ -15,7 +15,7 @@ from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
 from app.services.order_service import cancel_order_sync, return_order_sync
-from app.services.slot_service import compute_sell_reservation_sync, credit_store_stock_sync, deduct_store_stock_sync
+from app.services.slot_service import credit_store_stock_sync, deduct_store_stock_sync, sell_order_lock
 from app.utils.generators import generate_order_no
 from app.utils.pricing import DEFAULT_SPOT_PRICE, calculate_order_total, calculate_premium_amount
 
@@ -91,30 +91,6 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
 
     txn_type = body.transaction_type.upper()
 
-    # SELL orders don't move any gold yet -- they just promise it to a customer. Nothing physical
-    # happens until the order is actually collected (see update_order below); creating one only needs
-    # to check it can be covered: FIFO-simulate this order joining the queue of everything already
-    # open, against incoming PO stock (any PO dated on/before this order's date) and each table's
-    # general stock (capped at what's actually been received into the vault -- a table's STOCK box
-    # alone proves nothing arrived), properly sharing both pools with every other currently-open
-    # order instead of checking against the raw total in isolation.
-    if txn_type == "SELL" and body.quantity:
-        _, _, hyp_incoming, hyp_stock, hyp_shortfall = compute_sell_reservation_sync(
-            hypothetical_quantity=float(body.quantity),
-            hypothetical_slot_date=body.slot_date_str,
-        )
-        if hyp_shortfall > 0:
-            covered = float(body.quantity) - hyp_shortfall
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Insufficient stock: only {covered:.3f}kg of this {float(body.quantity):.3f}kg order can be "
-                    f"covered ({hyp_incoming:.3f}kg from incoming PO stock dated on/before "
-                    f"{body.slot_date_str or 'unspecified'}, {hyp_stock:.3f}kg from vault-backed table stock), "
-                    f"net of what's already reserved by other open orders"
-                ),
-            )
-
     region_val = body.region or ("OVERSEAS" if (body.channel and body.channel.upper() in ("OVERSEA", "OVERSEAS")) else "LOCAL")
     order = Order(
         order_no=order_no,
@@ -136,6 +112,38 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     db.add(order)
     db.commit()
     db.refresh(order)
+
+    # SELL orders reserve gold for real, right now: a table's STOCK box (and/or that date's eligible
+    # incoming) drops immediately, the same moment the order is created -- not deferred to collection.
+    # The true vault total (Physical Stock) stays untouched until collected, same as a PO isn't
+    # "physical" until someone explicitly receives it.
+    #
+    # deduct_store_stock_sync runs in its own session/transaction, so the order row must already be
+    # committed (and visible) before it can be referenced by FK -- hence committing above first.
+    # sell_order_lock is held around this: without it, two near-simultaneous requests could both pass
+    # this check before either commits, letting combined demand exceed what's actually available.
+    if txn_type == "SELL" and body.quantity:
+        with sell_order_lock:
+            reserved = deduct_store_stock_sync(
+                quantity=float(body.quantity),
+                store_type="SELL",
+                slot_date=body.slot_date_str,
+                txn_type="ORDER_RESERVE_DEDUCT",
+                remark=f"Reserved for sell order {order.order_no}",
+                order_id=order.id,
+            )
+        if not reserved:
+            db.delete(order)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Insufficient stock: cannot cover {float(body.quantity):.3f}kg for "
+                    f"{body.slot_date_str or 'this date'} from incoming PO stock or vault-backed table "
+                    f"stock, net of what's already reserved by other open orders."
+                ),
+            )
+
     return _to_order_response(order)
 
 
@@ -190,9 +198,9 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
     """
     Update details of an existing order by ID and recalculate total amounts.
     If a SELL order's status is moving into a collected state for the first time, this is the moment
-    gold actually leaves the vault: it deducts physical stock (drawing from that date's incoming PO
-    stock first, same as the create-time availability check considered), same as receiving a PO is
-    the moment gold actually enters it.
+    the reservation (already deducted from stock/incoming at creation) genuinely leaves the vault --
+    it logs the vault-ledger debit that actually moves Physical Stock. Nothing needs re-checking:
+    the reservation already proved coverage existed when the order was created.
     """
     o = db.query(Order).filter(Order.id == order_id).first()
     if not o:
@@ -238,23 +246,19 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
     db.refresh(o)
 
     if newly_collected and o.transaction_type == "SELL" and o.quantity:
-        deducted = deduct_store_stock_sync(
-            quantity=float(o.quantity),
-            store_type="SELL",
-            slot_date=o.slot_date_str,
-            txn_type="ORDER_COLLECT_DEDUCT",
-            remark=f"Collected sell order {o.order_no}",
+        # Stock/incoming were already deducted for real at order-creation time (see create_order).
+        # Collecting doesn't touch the table again -- it just logs that the reservation has now
+        # genuinely left the vault, which is what actually moves the Physical Stock ledger total.
+        db.add(InventoryTransaction(
+            slot_table_id=None,
             order_id=o.id,
-        )
-        if not deducted:
-            # Roll the status change back -- can't mark it collected if the gold it was promised
-            # against (stock + that date's incoming) is no longer actually there.
-            o.status = "CONFIRMED"
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot collect: insufficient physical stock and incoming gold to cover this order.",
-            )
+            transaction_type="ORDER_COLLECT_DEDUCT",
+            quantity=o.quantity,
+            stock_before=Decimal(0),
+            stock_after=Decimal(0),
+            remark=f"Collected sell order {o.order_no}",
+        ))
+        db.commit()
         db.refresh(o)
 
     return _to_order_response(o)
@@ -264,26 +268,30 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
 def delete_order(order_id: int, db: Session = Depends(get_db)):
     """
     Delete an order by ID.
-    Reverses the physical stock deduction if the deleted order had already been collected
-    (gold only actually leaves the vault at collection time -- see update_order).
+    A SELL order reserves gold for real at creation time (see create_order), so deleting one always
+    releases that reservation back -- whether or not it was later collected too, in which case the
+    vault-ledger debit from collection also needs reversing on top of the reservation release.
     Returns HTTP 204 No Content upon deletion.
     """
     o = db.query(Order).filter(Order.id == order_id).first()
     if not o:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     txn_type, quantity, order_no = o.transaction_type, o.quantity, o.order_no
+    # If it was already cancelled, its reservation was already released then -- releasing again here
+    # would double-credit stock that was never actually held.
+    had_reservation = o.status != "CANCELLED"
     was_collected = o.status in COLLECTED_STATUSES
     # Detach audit log entries so the FK on inventory_transactions.order_id doesn't block the delete.
     db.query(InventoryTransaction).filter(InventoryTransaction.order_id == order_id).update({"order_id": None})
     db.delete(o)
     db.commit()
 
-    if was_collected and txn_type == "SELL" and quantity:
+    if had_reservation and txn_type == "SELL" and quantity:
         credit_store_stock_sync(
             quantity=float(quantity),
             store_type="SELL",
-            txn_type="ORDER_DELETE_RESTOCK",
-            remark=f"Deleted collected sell order {order_no}",
+            txn_type="ORDER_DELETE_RESTOCK" if was_collected else "ORDER_RESERVE_RELEASE",
+            remark=f"Deleted {'collected' if was_collected else 'reserved'} sell order {order_no}",
         )
     return None
 
@@ -291,12 +299,15 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
 @router.post("/{order_id}/cancel", response_model=OrderResponse)
 def cancel_order(order_id: int, db: Session = Depends(get_db)):
     """
-    Cancel an active order. Only reverses physical stock if the order had already been collected --
-    an order still CONFIRMED/PENDING never touched physical stock in the first place (see create_order).
+    Cancel an active order.
+    A SELL order reserves gold for real at creation time (see create_order), so cancelling always
+    releases that reservation back -- whether or not it was later collected too, in which case the
+    vault-ledger debit from collection also needs reversing on top of the reservation release.
     """
     existing = db.query(Order).filter(Order.id == order_id).first()
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    had_reservation = existing.status != "CANCELLED"
     was_collected = existing.status in COLLECTED_STATUSES
     txn_type, quantity, order_no = existing.transaction_type, existing.quantity, existing.order_no
 
@@ -310,12 +321,12 @@ def cancel_order(order_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(o)
 
-    if was_collected and txn_type == "SELL" and quantity:
+    if had_reservation and txn_type == "SELL" and quantity:
         credit_store_stock_sync(
             quantity=float(quantity),
             store_type="SELL",
-            txn_type="ORDER_CANCEL_RESTOCK",
-            remark=f"Cancelled collected sell order {order_no}",
+            txn_type="ORDER_CANCEL_RESTOCK" if was_collected else "ORDER_RESERVE_RELEASE",
+            remark=f"Cancelled {'collected' if was_collected else 'reserved'} sell order {order_no}",
             order_id=order_id,
         )
     # cancel_order_sync commits through its own session, so this session's identity map
