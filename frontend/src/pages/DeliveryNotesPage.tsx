@@ -1,127 +1,148 @@
 /**
  * @file DeliveryNotesPage.tsx
- * @description Delivery Notes page component managing dispatched gold orders, driver contacts, and courier status views.
+ * @description Delivery Notes and Payment Collections page component.
+ * Manages dispatch notes, payment collection tracking, outstanding balances, and receipt logs.
  */
 
-import { useState } from "react";
-import { CheckCircle2, Clock, Truck } from "lucide-react";
-import StatCard from "../components/StatCard";
-import DeliveryTable, { DeliveryNoteItem } from "./deliveryNotes/DeliveryTable";
+import { useState, useEffect } from "react";
+import DeliveryTable from "./deliveryNotes/DeliveryTable";
 import DeliveryModal from "./deliveryNotes/DeliveryModal";
+import PaymentModal from "./deliveryNotes/PaymentModal";
+import DeliveryDetailModal from "./deliveryNotes/DeliveryDetailModal";
+import { deliveryNotesApi, DeliveryNoteItem, DeliveryNoteDetailItem } from "../api";
 
 interface DeliveryNotesPageProps {
   /** Toast notification trigger callback */
   notify: (msg: string) => void;
 }
 
-const INITIAL_DELIVERIES: DeliveryNoteItem[] = [];
-
-/**
- * Delivery notes management page component.
- */
 export default function DeliveryNotesPage({ notify }: DeliveryNotesPageProps) {
-  const [deliveries, setDeliveries] = useState<DeliveryNoteItem[]>(INITIAL_DELIVERIES);
+  const [deliveries, setDeliveries] = useState<DeliveryNoteItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [form, setForm] = useState({
-    order_no: "",
-    recipient_name: "",
-    address: "",
-    gold_qty_kg: "",
-    driver_contact: "",
-  });
+  const [paymentFilter, setPaymentFilter] = useState("");
 
-  const filtered = deliveries.filter(
-    (d) =>
-      d.delivery_no.toLowerCase().includes(search.toLowerCase()) ||
-      d.order_no.toLowerCase().includes(search.toLowerCase()) ||
-      d.recipient_name.toLowerCase().includes(search.toLowerCase()) ||
-      d.address.toLowerCase().includes(search.toLowerCase())
-  );
+  // Modal States
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [activePaymentNote, setActivePaymentNote] = useState<DeliveryNoteItem | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeDetailId, setActiveDetailId] = useState<number | null>(null);
 
-  const totalKgDelivered = deliveries.reduce((sum, d) => sum + d.gold_qty_kg, 0);
-  const activeShipments = deliveries.filter((d) => d.courier_status !== "Delivered").length;
-  const completedShipments = deliveries.filter((d) => d.courier_status === "Delivered").length;
+  useEffect(() => {
+    fetchDeliveries();
+  }, []);
 
-  function createDeliveryNote() {
-    if (!form.recipient_name || !form.address || !form.gold_qty_kg) {
-      notify("Please fill in Recipient, Address, and Gold Quantity");
-      return;
+  async function fetchDeliveries() {
+    setLoading(true);
+    try {
+      const res = await deliveryNotesApi.getDeliveryNotes();
+      setDeliveries(res || []);
+    } catch (err: any) {
+      notify("Failed to fetch delivery notes from server");
+    } finally {
+      setLoading(false);
     }
-    const newDelivery: DeliveryNoteItem = {
-      id: Date.now(),
-      delivery_no: `DN-${new Date().getFullYear()}-${String(deliveries.length + 1).padStart(3, "0")}`,
-      order_no: form.order_no || `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-      recipient_name: form.recipient_name,
-      address: form.address,
-      gold_qty_kg: parseFloat(form.gold_qty_kg) || 0,
-      dispatch_date: new Date().toISOString().split("T")[0],
-      courier_status: "Dispatched",
-      driver_contact: form.driver_contact,
-    };
-    setDeliveries([newDelivery, ...deliveries]);
-    setIsOpen(false);
-    setForm({
-      order_no: "",
-      recipient_name: "",
-      address: "",
-      gold_qty_kg: "",
-      driver_contact: "",
-    });
-    notify(`Delivery Note ${newDelivery.delivery_no} created successfully!`);
   }
 
-  function deleteDelivery(id: number) {
-    setDeliveries(deliveries.filter((d) => d.id !== id));
-    notify("Delivery note removed");
+  const filtered = deliveries.filter((d) => {
+    const matchesSearch =
+      d.delivery_no.toLowerCase().includes(search.toLowerCase()) ||
+      d.order_no.toLowerCase().includes(search.toLowerCase()) ||
+      (d.recipient_name && d.recipient_name.toLowerCase().includes(search.toLowerCase())) ||
+      (d.customer_name && d.customer_name.toLowerCase().includes(search.toLowerCase())) ||
+      (d.delivery_address && d.delivery_address.toLowerCase().includes(search.toLowerCase()));
+
+    const matchesPayment = paymentFilter ? d.payment_status === paymentFilter : true;
+    return matchesSearch && matchesPayment;
+  });
+
+  // Calculate summary metrics
+  const totalKgDelivered = deliveries.reduce((sum, d) => sum + (Number(d.gold_quantity) || 0), 0);
+  const totalOwed = deliveries.reduce((sum, d) => sum + (Number(d.amount_owed) || 0), 0);
+  const totalPaid = deliveries.reduce((sum, d) => sum + (Number(d.amount_paid) || 0), 0);
+  const totalOutstanding = deliveries.reduce((sum, d) => sum + (Number(d.outstanding_balance) || 0), 0);
+  const fullyPaidCount = deliveries.filter((d) => d.payment_status === "PAID").length;
+  const pendingPaymentCount = deliveries.filter((d) => d.payment_status !== "PAID").length;
+
+  async function handleDeleteDelivery(id: number) {
+    if (!window.confirm("Are you sure you want to delete this delivery note? This will also remove its payment history.")) {
+      return;
+    }
+    try {
+      await deliveryNotesApi.deleteDeliveryNote(id);
+      setDeliveries((prev) => prev.filter((d) => d.id !== id));
+      notify("Delivery note removed successfully");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || "Failed to delete delivery note";
+      notify(detail);
+    }
+  }
+
+  function handleOpenPaymentModal(item: DeliveryNoteItem | DeliveryNoteDetailItem) {
+    setActivePaymentNote(item);
+    setIsPaymentOpen(true);
+  }
+
+  function handleOpenDetailModal(id: number) {
+    setActiveDetailId(id);
+    setIsDetailOpen(true);
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          icon={Truck}
-          label="Total Gold Dispatched"
-          value={
-            <>
-              {totalKgDelivered.toFixed(1)}{" "}
-              <span className="text-sm font-normal text-slate-400">KG</span>
-            </>
-          }
-          sub="Dispatched stock"
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={Clock}
-          label="Active Shipments"
-          value={activeShipments}
-          sub="In transit / dispatched"
-          tint="bg-amber-50 text-amber-600"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label="Delivered"
-          value={completedShipments}
-          sub="Completed deliveries"
-          tint="bg-emerald-50 text-emerald-600"
-        />
-      </div>
-
+    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col min-h-0 h-full">
+      {/* Delivery Notes Table */}
       <DeliveryTable
         deliveries={filtered}
         search={search}
         setSearch={setSearch}
-        openModal={() => setIsOpen(true)}
-        deleteDelivery={deleteDelivery}
+        paymentFilter={paymentFilter}
+        setPaymentFilter={setPaymentFilter}
+        openCreateModal={() => setIsCreateOpen(true)}
+        openDetailModal={handleOpenDetailModal}
+        openPaymentModal={handleOpenPaymentModal}
+        deleteDelivery={handleDeleteDelivery}
         notify={notify}
       />
 
+      {/* New Delivery Note Modal */}
       <DeliveryModal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        form={form}
-        setForm={setForm}
-        onSave={createDeliveryNote}
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSuccess={fetchDeliveries}
+        notify={notify}
+      />
+
+      {/* Record Payment Collection Modal */}
+      <PaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => {
+          setIsPaymentOpen(false);
+          setActivePaymentNote(null);
+        }}
+        deliveryNote={activePaymentNote}
+        onSuccess={() => {
+          fetchDeliveries();
+          if (isDetailOpen && activeDetailId) {
+            // refresh active detail modal if open
+            setActiveDetailId(activeDetailId);
+          }
+        }}
+        notify={notify}
+      />
+
+      {/* Delivery Note Details & Complete Payment History Modal */}
+      <DeliveryDetailModal
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setActiveDetailId(null);
+        }}
+        deliveryNoteId={activeDetailId}
+        onOpenPaymentModal={(detailItem) => {
+          handleOpenPaymentModal(detailItem);
+        }}
+        notify={notify}
       />
     </div>
   );

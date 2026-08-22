@@ -14,6 +14,7 @@ from app.api.routes import (
     suppliers,
     users,
     sales_persons,
+    delivery_notes,
 )
 
 api_router = APIRouter()
@@ -32,3 +33,4 @@ api_router.include_router(inventory.router, prefix="/inventory", tags=["inventor
 api_router.include_router(suppliers.router, prefix="/suppliers", tags=["suppliers"])
 api_router.include_router(purchase_orders.router, prefix="/purchase-orders", tags=["purchase-orders"])
 api_router.include_router(sales_persons.router, prefix="/sales-persons", tags=["sales-persons"])
+api_router.include_router(delivery_notes.router, prefix="/delivery-notes", tags=["delivery-notes"])

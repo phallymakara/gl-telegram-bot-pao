@@ -36,3 +36,13 @@ def generate_return_no() -> str:
     """
     return f"RET-{uuid4().hex[:8].upper()}"
 
+
+def generate_delivery_no() -> str:
+    """
+    Generate unique Delivery Note reference tracking number:
+    DN-YYYY-XXXXXXXX
+    """
+    from datetime import date
+    year = date.today().year
+    return f"DN-{year}-{uuid4().hex[:6].upper()}"
+
