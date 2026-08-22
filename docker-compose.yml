@@ -45,6 +45,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-gold_bot_db}}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     command: ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "${API_PORT:-8000}:8000"

@@ -20,4 +20,6 @@ from app.models.supplier import Supplier
 from app.models.telegram_group import TelegramGroup
 from app.models.user import User
 from app.models.sales_person import SalesPerson
+from app.models.delivery_note import DeliveryNote
+from app.models.delivery_payment import DeliveryPayment
 
