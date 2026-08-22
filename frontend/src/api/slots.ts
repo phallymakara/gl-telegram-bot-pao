@@ -35,14 +35,14 @@ export const slotsApi = {
    * Fetches all active slot price tables.
    * @returns Promise resolving to an array of SlotTableData objects.
    */
-  getSlotTables: () => api.get<SlotTableData[]>("/api/slots"),
+  getSlotTables: () => api.get<SlotTableData[]>("/api/slots/"),
 
   /**
    * Creates a new slot price table.
    * @param data Slot table configuration payload.
    */
   createSlotTable: (data: Partial<SlotTableData>) =>
-    api.post<SlotTableData>("/api/slots", data),
+    api.post<SlotTableData>("/api/slots/", data),
 
   /**
    * Updates an existing slot table.

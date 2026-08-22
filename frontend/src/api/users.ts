@@ -27,14 +27,14 @@ export const usersApi = {
    * Fetches the complete list of system users.
    * @returns Promise resolving to an array of UserData objects.
    */
-  getUsers: () => api.get<UserData[]>("/api/users"),
+  getUsers: () => api.get<UserData[]>("/api/users/"),
 
   /**
    * Creates a new system user account.
    * @param data User creation payload including username, name, role, email, and password.
    */
   createUser: (data: Partial<UserData> & { password?: string }) =>
-    api.post<UserData>("/api/users", data),
+    api.post<UserData>("/api/users/", data),
 
   /**
    * Updates an existing user account by ID.

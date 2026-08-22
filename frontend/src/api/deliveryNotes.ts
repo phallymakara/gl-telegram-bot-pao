@@ -107,7 +107,7 @@ export const deliveryNotesApi = {
     if (params?.payment_status) query.append("payment_status", params.payment_status);
     if (params?.courier_status) query.append("courier_status", params.courier_status);
     const qs = query.toString();
-    return api.get<DeliveryNoteItem[]>(`/api/delivery-notes${qs ? `?${qs}` : ""}`);
+    return api.get<DeliveryNoteItem[]>(`/api/delivery-notes/${qs ? `?${qs}` : ""}`);
   },
 
   /**
@@ -135,7 +135,7 @@ export const deliveryNotesApi = {
    * Generates a new delivery note from a completed sale.
    */
   createDeliveryNote: (data: CreateDeliveryNotePayload) =>
-    api.post<DeliveryNoteItem>("/api/delivery-notes", data),
+    api.post<DeliveryNoteItem>("/api/delivery-notes/", data),
 
   /**
    * Updates delivery note details.

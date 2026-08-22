@@ -40,13 +40,13 @@ export const ordersApi = {
    * Fetches the complete list of customer orders.
    * @returns Promise resolving to an array of OrderData objects.
    */
-  getOrders: () => api.get<OrderData[]>("/api/orders"),
+  getOrders: () => api.get<OrderData[]>("/api/orders/"),
 
   /**
    * Creates a new customer gold order.
    * @param data Order details payload.
    */
-  createOrder: (data: Partial<OrderData>) => api.post<OrderData>("/api/orders", data),
+  createOrder: (data: Partial<OrderData>) => api.post<OrderData>("/api/orders/", data),
 
   /**
    * Updates an existing order record.

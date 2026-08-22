@@ -95,7 +95,7 @@ export const purchaseOrdersApi = {
    */
   getPurchaseOrders: (poType?: string) =>
     api.get<PurchaseOrderData[]>(
-      poType ? `/api/purchase-orders?po_type=${poType}` : "/api/purchase-orders"
+      poType ? `/api/purchase-orders/?po_type=${poType}` : "/api/purchase-orders/"
     ),
 
   /**
@@ -103,7 +103,7 @@ export const purchaseOrdersApi = {
    * @param data Purchase order creation payload.
    */
   createPurchaseOrder: (data: Partial<PurchaseOrderData>) =>
-    api.post<PurchaseOrderData>("/api/purchase-orders", data),
+    api.post<PurchaseOrderData>("/api/purchase-orders/", data),
 
   /**
    * Updates an existing purchase order record.

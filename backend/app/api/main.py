@@ -17,6 +17,9 @@ app = FastAPI(title="Gold Bot Admin API")
 cors_origins_str = os.getenv("CORS_ORIGINS", "*")
 cors_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
 
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

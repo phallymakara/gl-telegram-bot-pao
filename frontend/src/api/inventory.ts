@@ -29,14 +29,14 @@ export const inventoryApi = {
    * Fetches all inventory records.
    * @returns Promise resolving to an array of InventoryData entries.
    */
-  getInventory: () => api.get<InventoryData[]>("/api/inventory"),
+  getInventory: () => api.get<InventoryData[]>("/api/inventory/"),
 
   /**
    * Creates a new inventory stock adjustment or ledger record.
    * @param data Inventory record payload.
    */
   createInventory: (data: Partial<InventoryData>) =>
-    api.post<InventoryData>("/api/inventory", data),
+    api.post<InventoryData>("/api/inventory/", data),
 
   /**
    * Updates an existing inventory record.
