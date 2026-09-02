@@ -31,7 +31,9 @@ from app.constants.callback import (
     WITHDRAW,
     WITHDRAW_BANK,
     WITHDRAW_CASH,
+    CALL_SALES_PHONE,
 )
+from app.core.config import SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.utils.helpers import format_date_dd_mm_yy, format_premium
 from app.utils.translation import t
 
@@ -342,4 +344,23 @@ def build_back_main_keyboard(lang="EN") -> InlineKeyboardMarkup:
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
             InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN),
         ]
+    ])
+
+
+def build_contact_sales_keyboard(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct action keyboard for Contact Sales:
+      Row 1: [ 💬 Telegram Chat ] [ 📞 Phone Call ]
+      Row 2: [ ថយក្រោយ / Back ]
+    """
+    telegram_url = f"https://t.me/{SALES_TELEGRAM_USERNAME.lstrip('@')}"
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(t("contact_telegram_btn", lang), url=telegram_url),
+            InlineKeyboardButton(t("contact_call_btn", lang), callback_data=CALL_SALES_PHONE),
+        ],
+        [
+            InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
+        ],
     ])

@@ -57,3 +57,8 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 # Default Business Parameters
 DEFAULT_GROUP_NAME = os.getenv("DEFAULT_GROUP_NAME", "Telegram Bot")
 DEFAULT_SPOT_PRICE = "4376.20"
+
+# Sales Contact Information (Application Constants)
+SALES_TELEGRAM_USERNAME = "phallymakara"
+SALES_PHONE_NUMBER = "+85589804659"
+SALES_PHONE_DISPLAY = "089 804 659"

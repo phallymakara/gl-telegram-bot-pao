@@ -11,8 +11,10 @@ from app.bot.buy_handler import handle_buy
 from app.bot.keyboards import (
     LANG_MENU,
     build_back_main_keyboard,
+    build_contact_sales_keyboard,
     build_main_menu,
 )
+from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.bot.order_flow import (
     handle_confirm_order,
     handle_custom_quantity_prompt,
@@ -61,6 +63,7 @@ from app.constants.callback import (
     WITHDRAW,
     WITHDRAW_BANK,
     WITHDRAW_CASH,
+    CALL_SALES_PHONE,
 )
 from app.services.whitelist_service import restricted
 from app.utils.translation import t
@@ -213,8 +216,22 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == CONTACT_SALES:
         lang = context.user_data.get("lang", "EN")
+        msg = t("contact_sales_title", lang).format(
+            phone=SALES_PHONE_DISPLAY,
+            username=SALES_TELEGRAM_USERNAME.lstrip("@"),
+        )
         await query.message.reply_text(
-            text=t("contact_sales_msg", lang),
+            text=msg,
+            parse_mode="Markdown",
+            reply_markup=build_contact_sales_keyboard(lang),
+        )
+
+    elif query.data == CALL_SALES_PHONE:
+        lang = context.user_data.get("lang", "EN")
+        await query.message.reply_contact(
+            phone_number=SALES_PHONE_NUMBER,
+            first_name="PHALLY MAKARA",
+            last_name="(Sales Support)",
             reply_markup=build_back_main_keyboard(lang),
         )
 
