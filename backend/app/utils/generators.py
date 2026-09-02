@@ -1,8 +1,9 @@
 """
 Document Number & Reference Code Generator Utilities.
-Generates unique, structured reference numbers for Customer Orders (ORD-S / ORD-B), Supplier Purchase Orders (PO-L / PO-O / PO-B), and Stock Returns (RET).
+Generates unique, structured reference numbers for Customer Orders (ORD-S / ORD-B), Supplier Purchase Orders (PO-L / PO-O / PO-B), Stock Returns (RET), Deposits (DEP), and Withdrawals (WTH).
 """
 
+from datetime import date
 from uuid import uuid4
 
 
@@ -42,7 +43,21 @@ def generate_delivery_no() -> str:
     Generate unique Delivery Note reference tracking number:
     DN-YYYY-XXXXXXXX
     """
-    from datetime import date
     year = date.today().year
-    return f"DN-{year}-{uuid4().hex[:6].upper()}"
+    return f"DN-{year}-{uuid4().hex[:8].upper()}"
 
+
+def generate_deposit_no() -> str:
+    """
+    Generate unique Deposit reference number:
+    DEP-XXXXXXXX
+    """
+    return f"DEP-{uuid4().hex[:8].upper()}"
+
+
+def generate_withdraw_no() -> str:
+    """
+    Generate unique Withdrawal reference number:
+    WTH-XXXXXXXX
+    """
+    return f"WTH-{uuid4().hex[:8].upper()}"

@@ -3,7 +3,7 @@ General Bot & Format Helper Utilities.
 Exports formatting functions for premium values, invoice text generation, and re-exports pricing and generator helpers.
 """
 
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
 
 from app.utils.generators import generate_order_no, generate_po_no, generate_return_no
 from app.utils.pricing import (
@@ -15,6 +15,58 @@ from app.utils.pricing import (
     calculate_total_cost,
     calculate_unit_cost,
 )
+
+# Cambodia timezone is UTC+7 (ICT - Indochina Time)
+CAMBODIA_TZ = timezone(timedelta(hours=7), name="ICT")
+
+
+def get_cambodia_now() -> datetime:
+    """
+    Get current datetime in Cambodia timezone (UTC+7).
+    """
+    return datetime.now(CAMBODIA_TZ)
+
+
+def to_cambodia_time(dt: datetime | None) -> datetime:
+    """
+    Convert any datetime to Cambodia timezone (UTC+7).
+    If naive datetime is provided, treats it as UTC then converts to Cambodia time.
+    """
+    if dt is None:
+        return get_cambodia_now()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(CAMBODIA_TZ)
+
+
+def format_date_dd_mm_yy(val) -> str:
+    """
+    Format a date string, date, or datetime object into DD-MM-YY (e.g. 21-08-26) in Cambodia time.
+    """
+    if not val:
+        return ""
+    if isinstance(val, datetime):
+        return to_cambodia_time(val).strftime("%d-%m-%y")
+    if isinstance(val, date):
+        return val.strftime("%d-%m-%y")
+
+    val_str = str(val).strip()
+    for fmt in (
+        "%d-%m-%Y",
+        "%Y-%m-%d",
+        "%d-%m-%y",
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+        "%d/%m/%y",
+        "%d-%b-%Y",
+        "%d-%b-%y",
+    ):
+        try:
+            dt = datetime.strptime(val_str, fmt)
+            return dt.strftime("%d-%m-%y")
+        except ValueError:
+            pass
+    return val_str
 
 
 def format_premium(premium) -> str:
@@ -35,68 +87,42 @@ def format_premium(premium) -> str:
         return str(premium)
 
 
-def generate_invoice_text(order, user) -> str:
+from app.utils.translation import t
+
+
+def generate_invoice_text(order, user, lang: str = "EN") -> str:
     """
     Generate structured text for a Telegram order purchase invoice receipt.
-    Includes formatted date, customer metadata, slot date, order quantity, and premium pricing details.
+    Matches the receipt layout and supports bilingual (KH/EN) formatting.
     """
-    now = datetime.now()
-    date_str = now.strftime("%d-%b-%Y")
+    now = to_cambodia_time(getattr(order, "created_at", None))
+    date_str = format_date_dd_mm_yy(now)
     time_str = now.strftime("%I:%M %p")
-
-    order_suffix = order.order_no.split("-")[-1]
-    invoice_no = f"INV-{now.strftime('%Y%m%d')}-{order_suffix}"
 
     full_name = user.first_name or ""
     if user.last_name:
         full_name += f" {user.last_name}"
-    full_name = full_name.strip().upper() or "N/A"
+    full_name = full_name.strip().upper() or (f"@{user.username}" if user.username else "N/A")
 
-    username = f"@{user.username}" if user.username else "N/A"
-    tg_id = str(user.id)
+    order_type = getattr(order, "order_type", "BUY")
+    is_buy = (order_type == "BUY")
+    type_action = "ទិញ" if (lang == "KH" and is_buy) else ("លក់" if (lang == "KH" and not is_buy) else ("BUY" if is_buy else "SELL"))
 
-    # Sanitize and parse premium value
-    try:
-        raw_premium = str(order.premium).strip().replace(",", "")
-        is_negative = raw_premium.startswith("-")
-        if is_negative:
-            raw_premium = raw_premium.lstrip("-")
-        elif raw_premium.startswith("+"):
-            raw_premium = raw_premium.lstrip("+")
-        unit_price = float(raw_premium)
-        if is_negative:
-            unit_price = -unit_price
-    except (ValueError, TypeError):
-        unit_price = 0.0
+    slot_str = format_date_dd_mm_yy(getattr(order, "slot_date_str", None)) or "N/A"
+    slot_line = t("receipt_slot_buy", lang).format(date=slot_str) if is_buy else t("receipt_slot_sell", lang).format(date=slot_str)
 
     qty = float(order.quantity)
-    slot = order.slot_date_str or "N/A"
+    qty_str = f"{qty:.1f}" if (qty == int(qty)) else f"{qty:g}"
 
-    if unit_price >= 0:
-        premium_price_str = f"+${unit_price:,.2f}"
-    else:
-        premium_price_str = f"-${abs(unit_price):,.2f}"
+    premium_str = format_premium(order.premium)
 
-    text = (
-        "INVOICE / វិក្កយបត្រ\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Invoice No : {invoice_no}\n"
-        f"Order ID   : {order.order_no}\n"
-        f"Date       : {date_str}\n"
-        f"Time       : {time_str}\n\n"
-        "Customer Information\n"
-        "──────────────────────\n"
-        f"Name           : {full_name}\n"
-        f"Username       : {username}\n"
-        f"Telegram ID    : {tg_id}\n\n"
-        "Order Details\n"
-        "──────────────────────\n"
-        f"Slot           : {slot}\n"
-        f"Quantity       : {qty:g} Kg\n"
-        f"Premium Price  : {premium_price_str}\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "Thank you for your purchase!\n"
-        "សូមអរគុណសម្រាប់ការជាវរបស់អ្នក។"
+    return (
+        t("receipt_title", lang) +
+        t("receipt_date", lang).format(type=type_action, date=date_str, time=time_str) + "\n" +
+        t("receipt_txn_id", lang).format(order_no=order.order_no) + "\n" +
+        t("receipt_account", lang).format(name=full_name) + "\n" +
+        slot_line + "\n" +
+        t("receipt_quantity", lang).format(qty=qty_str) + "\n" +
+        t("receipt_premium", lang).format(premium=premium_str)
     )
-    return text
 

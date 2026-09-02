@@ -1,14 +1,9 @@
-"""
-Telegram bot Sell Order flow handler.
-Handles the user clicking the SELL option (customer selling gold back to store buyback slots).
-"""
-
 import asyncio
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
-from app.bot.keyboards import build_slot_keyboard
+from app.bot.keyboards import build_slot_keyboard, get_slots_title
 from app.services.slot_service import get_active_slots_sync
-from app.utils.translation import t
 
 
 async def handle_sell(query, context: ContextTypes.DEFAULT_TYPE):
@@ -21,8 +16,9 @@ async def handle_sell(query, context: ContextTypes.DEFAULT_TYPE):
     # Fetch active buyback slots asynchronously off the main event loop thread
     slots = await asyncio.to_thread(get_active_slots_sync, "SELL")
 
+    title = get_slots_title(slots, lang=lang)
     await query.message.reply_text(
-        t("sell_slots_title", lang),
+        title,
         reply_markup=build_slot_keyboard(slots, order_type="SELL", lang=lang),
     )
 

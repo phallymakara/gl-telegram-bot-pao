@@ -1,14 +1,9 @@
-"""
-Telegram bot Buy Order flow handler.
-Handles the user clicking the BUY option to display available gold purchase slots.
-"""
-
 import asyncio
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
-from app.bot.keyboards import build_slot_keyboard
+from app.bot.keyboards import build_slot_keyboard, get_slots_title
 from app.services.slot_service import get_active_slots_sync
-from app.utils.translation import t
 
 
 async def handle_buy(query, context: ContextTypes.DEFAULT_TYPE):
@@ -21,8 +16,9 @@ async def handle_buy(query, context: ContextTypes.DEFAULT_TYPE):
     # Fetch active slots asynchronously off the main event loop thread
     slots = await asyncio.to_thread(get_active_slots_sync, "BUY")
 
+    title = get_slots_title(slots, lang=lang)
     await query.message.reply_text(
-        t("buy_slots_title", lang),
+        title,
         reply_markup=build_slot_keyboard(slots, order_type="BUY", lang=lang),
     )
 

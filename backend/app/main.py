@@ -42,7 +42,7 @@ def main():
 
     # Register bot handlers
     app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(MessageHandler(filters.TEXT, start_command))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL | filters.TEXT, start_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)
 

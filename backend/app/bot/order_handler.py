@@ -9,7 +9,7 @@ from telegram.ext import ContextTypes
 
 from app.bot.keyboards import build_back_main_keyboard
 from app.services.order_service import get_orders_by_telegram_id_sync
-from app.utils.helpers import format_premium
+from app.utils.helpers import format_date_dd_mm_yy, format_premium
 from app.utils.translation import t
 
 
@@ -40,7 +40,7 @@ async def handle_my_orders(update: Update, query, context: ContextTypes.DEFAULT_
         message += (
             f"{t('order_id', lang)}: {order['order_id']}\n"
             f"{t('type', lang)}: {type_str}\n"
-            f"{t('slot', lang)}: {order['slot_date']}\n"
+            f"{t('slot', lang)}: {format_date_dd_mm_yy(order['slot_date'])}\n"
             f"{t('premium', lang)}: {format_premium(order['premium'])}\n"
             f"{t('quantity', lang)}: {order['quantity_kg']} kg\n"
             f"{t('status', lang)}: {order['status']}\n"

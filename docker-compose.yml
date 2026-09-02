@@ -5,6 +5,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-gold_bot_db}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "5050:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
