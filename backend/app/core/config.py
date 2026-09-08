@@ -17,7 +17,7 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 # Step 2: Load specific environment file (.env.development / .env.production) if present
 env_file = BASE_DIR / f".env.{ENVIRONMENT}"
 if env_file.exists():
-    load_dotenv(dotenv_path=env_file, override=True)
+    load_dotenv(dotenv_path=env_file, override=False)
 else:
     # Fallback to standard .env
     default_env = BASE_DIR / ".env"
