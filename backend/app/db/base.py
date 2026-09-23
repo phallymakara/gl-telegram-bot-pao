@@ -22,4 +22,9 @@ from app.models.user import User
 from app.models.sales_person import SalesPerson
 from app.models.delivery_note import DeliveryNote
 from app.models.delivery_payment import DeliveryPayment
+from app.models.deposit import Deposit
+from app.models.withdrawal import Withdrawal
+from app.models.system_setting import SystemSetting
+
+
 

@@ -148,7 +148,7 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                     const rawCh = (o.channel || "").toUpperCase();
                     const isPO = o.source === "PO";
                     return (
-                      <tr key={`${o.source}-${o.id}`} className="border-b border-slate-100 last:border-0 hover:bg-white/60">
+                      <tr key={`${o.source}-${o.id}`} className="border-b border-slate-100 last:border-0 hover:bg-slate-100 transition-colors">
                         <td className="py-1.5 px-2 font-medium text-slate-700">{o.order_no}</td>
                         <td className="py-1.5 px-2">
                           {isPO ? (
@@ -177,11 +177,11 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                             </span>
                           ) : rawCh === "TELEGRAM" ? (
                             <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                              Local (Telegram)
+                              Local-Telegram
                             </span>
                           ) : (
                             <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                              Local (Physical)
+                              Local-Physical
                             </span>
                           )}
                         </td>
@@ -341,7 +341,7 @@ export default function DailyBreakdownTable() {
                 return (
                   <Fragment key={row.date}>
                     <tr
-                      className={`border-b border-slate-100 cursor-pointer transition-colors hover:bg-indigo-50/40 ${
+                      className={`border-b border-slate-100 cursor-pointer transition-colors hover:bg-slate-100 ${
                         isToday ? "bg-indigo-50/60" : ""
                       }`}
                       onClick={() => toggleExpand(row.date)}

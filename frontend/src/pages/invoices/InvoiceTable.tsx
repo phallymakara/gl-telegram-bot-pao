@@ -83,7 +83,7 @@ export default function InvoiceTable({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {invoices.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={item.id} className="hover:bg-slate-100 transition-colors">
                   <td className="py-3 px-3 font-semibold text-slate-800">{item.invoice_no}</td>
                   <td className="py-3 px-3 text-slate-500 font-mono text-xs">{item.order_no}</td>
                   <td className="py-3 px-3 font-medium text-slate-700">{item.customer}</td>

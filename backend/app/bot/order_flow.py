@@ -6,6 +6,8 @@ and interactive on-screen numpad entry for custom gold quantities and deposits.
 
 import asyncio
 import logging
+from decimal import Decimal
+from pathlib import Path
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
@@ -13,6 +15,7 @@ from telegram.ext import ContextTypes
 from app.bot.keyboards import (
     build_attach_doc_keyboard,
     build_back_main_keyboard,
+    build_closed_hours_keyboard,
     build_confirmation_keyboard,
     build_custom_qty_keyboard,
     build_deposit_confirmation_keyboard,
@@ -23,6 +26,7 @@ from app.bot.keyboards import (
     build_quantity_keyboard,
     build_withdraw_confirmation_keyboard,
 )
+from app.bot.notice_service import send_off_store_notice
 from app.constants.callback import (
     BUY,
     BUY_SLOT_PREFIX,
@@ -41,7 +45,11 @@ from app.exceptions.order_exceptions import (
     SlotNotFoundError,
 )
 from app.services.order_service import place_buy_order, place_sell_order
-from app.services.slot_service import get_slot_by_date_sync
+from app.services.settings_service import is_within_operating_hours_sync
+from app.services.slot_service import (
+    calculate_slot_tier_breakdown_sync,
+    get_slot_by_date_sync,
+)
 from app.utils.generators import generate_deposit_no, generate_withdraw_no
 from app.utils.helpers import (
     format_date_dd_mm_yy,
@@ -52,6 +60,26 @@ from app.utils.helpers import (
 from app.utils.translation import t
 
 logger = logging.getLogger(__name__)
+
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024  # 10 Megabytes
+
+
+def optimize_uploaded_image(file_path: Path, max_dimension: int = 1920, quality: int = 85) -> None:
+    """
+    Auto-orient, scale down if exceeding max_dimension, and compress JPEG to save disk space.
+    """
+    try:
+        from PIL import Image, ImageOps
+        with Image.open(file_path) as img:
+            img = ImageOps.exif_transpose(img)
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            if max(img.size) > max_dimension:
+                img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+            img.save(file_path, "JPEG", optimize=True, quality=quality)
+            logger.info("Optimized and compressed image at %s", file_path)
+    except Exception as e:
+        logger.warning("Image optimization skipped for %s: %s", file_path, e)
 
 
 async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
@@ -85,15 +113,39 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(t("slot_out_of_stock", lang), show_alert=True)
         return
 
+    hint_msg = ""
+    if order_type == BUY:
+        tier_check = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, slot_date, 1.0, "BUY")
+        if tier_check.get("is_first_table_exhausted"):
+            first_tier = tier_check["tiers"][0] if tier_check.get("tiers") else {}
+            rate_str = format_premium(first_tier.get("premium", slot.get("premium", 0)))
+            hint_msg = t("slot_tier_hint_new", lang).format(rate=rate_str)
+        elif tier_check.get("first_table_avail", 0) < total_available and tier_check.get("first_table_avail", 0) > 0:
+            first_avail = tier_check["first_table_avail"]
+            first_rate = format_premium(tier_check.get("first_table_premium", slot.get("premium", 0)))
+            hint_msg = t("slot_tier_hint_low", lang).format(
+                avail_qty=f"{first_avail:.2f}",
+                rate=first_rate,
+            )
+
     await query.message.reply_text(
-        text=msg,
+        text=hint_msg + msg,
+        parse_mode="Markdown" if hint_msg else None,
         reply_markup=build_quantity_keyboard(stock=stock, incoming_kg=incoming, order_type=order_type, lang=lang),
     )
 
 
-def format_confirmation_message(selected_slot: str, order_type: str, quantity: float, slot: dict, lang: str = "EN") -> str:
+def format_confirmation_message(
+    selected_slot: str,
+    order_type: str,
+    quantity: float,
+    slot: dict,
+    lang: str = "EN",
+    tier_info: dict | None = None,
+) -> str:
     """
     Format order confirmation summary matching requested bilingual design.
+    Includes tier alert and rate breakdown when order spans multiple price tiers or uses a new price tier.
     """
     type_str = t("buy", lang) if order_type == BUY else t("sell", lang)
     if quantity == int(quantity):
@@ -101,22 +153,64 @@ def format_confirmation_message(selected_slot: str, order_type: str, quantity: f
     else:
         qty_str = f"{quantity:g}"
 
+    notice_header = ""
+    breakdown_section = ""
+    new_price_suffix = ""
     premium_str = format_premium(slot.get("premium", 0))
 
-    return (
+    if tier_info and order_type == BUY:
+        tiers = tier_info.get("tiers", [])
+        if tier_info.get("has_spillover") and len(tiers) >= 2:
+            t1 = tiers[0]
+            t2 = tiers[1]
+            notice_header = t("tier_spillover_notice", lang).format(
+                avail_qty=f"{t1['quantity']:.2f}",
+                old_rate=format_premium(t1["premium"]),
+                spill_qty=f"{t2['quantity']:.2f}",
+                new_rate=format_premium(t2["premium"]),
+            )
+            # Build breakdown lines
+            lines = []
+            for item in tiers:
+                tag = t("new_price_tag", lang) if item.get("is_new_price") else ""
+                lines.append(
+                    t("tier_item_format", lang).format(
+                        qty=f"{item['quantity']:.2f}",
+                        rate=format_premium(item["premium"]),
+                        tag=tag,
+                    )
+                )
+            breakdown_section = t("tier_rate_breakdown", lang).format(breakdown="\n".join(lines)) + "\n"
+            premium_str = format_premium(tier_info.get("weighted_premium", slot.get("premium", 0)))
+        elif tier_info.get("is_first_table_exhausted") and len(tiers) >= 1:
+            t_first = tiers[0]
+            notice_header = t("tier_exhausted_notice", lang).format(
+                new_rate=format_premium(t_first["premium"]),
+            )
+            premium_str = format_premium(t_first["premium"])
+            new_price_suffix = t("new_price_tag", lang)
+
+    summary_text = (
+        notice_header +
         t("order_summary_title", lang) +
         t("type_label", lang).format(type=type_str) + "\n" +
         t("date_label", lang).format(date=format_date_dd_mm_yy(selected_slot)) + "\n" +
-        t("premium_label", lang).format(premium=premium_str) + "\n" +
+        t("premium_label", lang).format(premium=premium_str) + new_price_suffix + "\n" +
         t("quantity_label", lang).format(qty=qty_str) + "\n\n" +
-        t("confirm_prompt", lang).format(type=type_str)
+        breakdown_section
     )
+
+    if tier_info and tier_info.get("total_amount"):
+        summary_text += t("total_amount_label", lang).format(total=f"{tier_info['total_amount']:,.2f}") + "\n\n"
+
+    summary_text += t("confirm_prompt", lang).format(type=type_str)
+    return summary_text
 
 
 async def handle_quantity_selection(query, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user selecting order quantity in Kilograms (1kg - 5kg).
-    Validates active session state and renders order summary confirmation review keyboard.
+    Validates active session state, calculates multi-table tier breakdown, and renders confirmation keyboard.
     """
     lang = context.user_data.get("lang", "EN")
     quantity = float(query.data.replace(QTY_PREFIX, ""))
@@ -134,13 +228,24 @@ async def handle_quantity_selection(query, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(t("slot_not_found", lang))
         return
 
-    context.user_data["quantity"] = quantity
+    tier_info = None
+    is_new_price = False
+    if order_type == BUY:
+        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, "BUY")
+        if not tier_info.get("is_sufficient"):
+            await query.answer(t("slot_out_of_stock", lang), show_alert=True)
+            return
+        is_new_price = tier_info.get("is_new_price_involved", False)
 
-    summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang)
+    context.user_data["quantity"] = quantity
+    context.user_data["tier_info"] = tier_info
+
+    summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang, tier_info=tier_info)
 
     await query.message.reply_text(
         text=summary,
-        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang),
+        parse_mode="Markdown",
+        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
     )
 
 
@@ -346,11 +451,23 @@ async def handle_numpad_ok(query, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(t("slot_not_found", lang))
         return
 
-    summary = format_confirmation_message(selected_slot, order_type, num, slot, lang)
+    tier_info = None
+    is_new_price = False
+    if order_type == BUY:
+        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, num, "BUY")
+        if not tier_info.get("is_sufficient"):
+            await query.answer(t("slot_out_of_stock", lang), show_alert=True)
+            return
+        is_new_price = tier_info.get("is_new_price_involved", False)
+
+    context.user_data["tier_info"] = tier_info
+
+    summary = format_confirmation_message(selected_slot, order_type, num, slot, lang, tier_info=tier_info)
 
     await query.message.reply_text(
         text=summary,
-        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang),
+        parse_mode="Markdown",
+        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
     )
 
 
@@ -455,10 +572,11 @@ async def handle_withdraw_cash(update: Update, query, context: ContextTypes.DEFA
 async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user sending verification documents or photo slip for deposit/withdrawal.
-    Emits formatted details confirmation matching customer image layout.
+    Downloads uploaded slip and saves the deposit transaction to the database.
     """
     lang = context.user_data.get("lang", "EN")
     pad_mode = context.user_data.get("pad_mode", "DEPOSIT")
+    deposit_method = context.user_data.get("deposit_method", "BANK")
     amount = context.user_data.get("withdraw_amount", 0.0) if pad_mode == "WITHDRAW" else context.user_data.get("deposit_amount", 0.0)
     amount_str = f"{amount:,.2f}" if (amount != int(amount)) else f"{int(amount):,}"
     now = get_cambodia_now()
@@ -471,6 +589,109 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
     if user.last_name:
         full_name += f" {user.last_name}"
     full_name = full_name.strip().upper() or (f"@{user.username}" if user.username else "N/A")
+
+    # Download verification document or receipt photo if attached
+    receipt_url = None
+    telegram_file_id = None
+    if update.message:
+        if update.message.photo:
+            photo = update.message.photo[-1]
+            if photo.file_size and photo.file_size > MAX_UPLOAD_SIZE_BYTES:
+                logger.warning("Photo exceeded size limit: %s bytes", photo.file_size)
+                await update.message.reply_text("⚠️ Image size exceeds 10MB limit. Please upload a smaller image.")
+                return
+            telegram_file_id = photo.file_id
+            try:
+                tg_file = await context.bot.get_file(photo.file_id)
+                save_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / "deposits"
+                save_dir.mkdir(parents=True, exist_ok=True)
+                filename = f"{txn_id}.jpg"
+                dest_path = save_dir / filename
+                await tg_file.download_to_drive(custom_path=dest_path)
+                optimize_uploaded_image(dest_path)
+                receipt_url = f"/uploads/deposits/{filename}"
+                logger.info("Successfully saved and optimized deposit slip photo to %s", receipt_url)
+            except Exception as e:
+                logger.error("Failed to download deposit photo: %s", e)
+        elif update.message.document:
+            doc = update.message.document
+            if doc.file_size and doc.file_size > MAX_UPLOAD_SIZE_BYTES:
+                logger.warning("Document exceeded size limit: %s bytes", doc.file_size)
+                await update.message.reply_text("⚠️ Document size exceeds 10MB limit. Please upload a smaller file.")
+                return
+            telegram_file_id = doc.file_id
+            try:
+                tg_file = await context.bot.get_file(doc.file_id)
+                save_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / "deposits"
+                save_dir.mkdir(parents=True, exist_ok=True)
+                ext = Path(doc.file_name or "slip.jpg").suffix or ".jpg"
+                filename = f"{txn_id}{ext}"
+                dest_path = save_dir / filename
+                await tg_file.download_to_drive(custom_path=dest_path)
+                if ext.lower() in [".jpg", ".jpeg", ".png"]:
+                    optimize_uploaded_image(dest_path)
+                receipt_url = f"/uploads/deposits/{filename}"
+                logger.info("Successfully saved deposit document to %s", receipt_url)
+            except Exception as e:
+                logger.error("Failed to download deposit document: %s", e)
+
+    # Persist deposit or withdrawal transaction to database
+    if pad_mode == "DEPOSIT":
+        try:
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.deposit import Deposit
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
+                deposit = Deposit(
+                    deposit_no=txn_id,
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(user.id),
+                    username=user.username,
+                    account_name=full_name,
+                    amount=Decimal(str(amount)),
+                    currency="USD",
+                    payment_method=deposit_method,
+                    receipt_url=receipt_url,
+                    telegram_file_id=telegram_file_id,
+                    status="PENDING",
+                    notes="Payment slip uploaded via Telegram bot",
+                    transaction_date=now,
+                )
+                db.add(deposit)
+                db.commit()
+                logger.info("Created Deposit record %s for user %s, amount %s", txn_id, full_name, amount)
+        except Exception as err:
+            logger.error("Failed to save deposit record to database: %s", err)
+    elif pad_mode == "WITHDRAW":
+        try:
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.withdrawal import Withdrawal
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
+                withdrawal = Withdrawal(
+                    withdraw_no=txn_id,
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(user.id),
+                    username=user.username,
+                    account_name=full_name,
+                    amount=Decimal(str(amount)),
+                    currency="USD",
+                    payment_method=context.user_data.get("withdraw_method", "BANK"),
+                    receipt_url=receipt_url,
+                    telegram_file_id=telegram_file_id,
+                    status="PENDING",
+                    notes="Customer requested withdrawal via Telegram bot",
+                    transaction_date=now,
+                )
+                db.add(withdrawal)
+                db.commit()
+                logger.info("Created Withdrawal record %s for user %s, amount %s", txn_id, full_name, amount)
+        except Exception as err:
+            logger.error("Failed to save withdrawal record to database: %s", err)
 
     context.user_data.pop("awaiting_deposit_doc", None)
     context.user_data.clear()
@@ -492,10 +713,12 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
 async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user skipping document attachment step to submit deposit/withdrawal request directly.
-    Emits formatted details confirmation matching customer image layout.
+    Persists deposit or withdrawal transaction to database and confirms receipt.
     """
     lang = context.user_data.get("lang", "EN")
     pad_mode = context.user_data.get("pad_mode", "DEPOSIT")
+    deposit_method = context.user_data.get("deposit_method", "BANK")
+    withdraw_method = context.user_data.get("withdraw_method", "BANK")
     amount = context.user_data.get("withdraw_amount", 0.0) if pad_mode == "WITHDRAW" else context.user_data.get("deposit_amount", 0.0)
     amount_str = f"{amount:,.2f}" if (amount != int(amount)) else f"{int(amount):,}"
     now = get_cambodia_now()
@@ -508,6 +731,62 @@ async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.D
     if user.last_name:
         full_name += f" {user.last_name}"
     full_name = full_name.strip().upper() or (f"@{user.username}" if user.username else "N/A")
+
+    # Persist deposit or withdrawal transaction to database
+    if pad_mode == "DEPOSIT":
+        try:
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.deposit import Deposit
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
+                deposit = Deposit(
+                    deposit_no=txn_id,
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(user.id),
+                    username=user.username,
+                    account_name=full_name,
+                    amount=Decimal(str(amount)),
+                    currency="USD",
+                    payment_method=deposit_method,
+                    receipt_url=None,
+                    status="PENDING",
+                    notes="Deposit submitted directly (document attachment skipped)",
+                    transaction_date=now,
+                )
+                db.add(deposit)
+                db.commit()
+                logger.info("Created Deposit record (skipped slip) %s for user %s", txn_id, full_name)
+        except Exception as err:
+            logger.error("Failed to save deposit record to database: %s", err)
+    elif pad_mode == "WITHDRAW":
+        try:
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.withdrawal import Withdrawal
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
+                withdrawal = Withdrawal(
+                    withdraw_no=txn_id,
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(user.id),
+                    username=user.username,
+                    account_name=full_name,
+                    amount=Decimal(str(amount)),
+                    currency="USD",
+                    payment_method=withdraw_method,
+                    receipt_url=None,
+                    status="PENDING",
+                    notes="Withdrawal request submitted via Telegram bot",
+                    transaction_date=now,
+                )
+                db.add(withdrawal)
+                db.commit()
+                logger.info("Created Withdrawal record %s for user %s, amount %s", txn_id, full_name, amount)
+        except Exception as err:
+            logger.error("Failed to save withdrawal record to database: %s", err)
 
     context.user_data.pop("awaiting_deposit_doc", None)
     context.user_data.clear()
@@ -556,14 +835,25 @@ async def handle_custom_quantity_text_input(update: Update, context: ContextType
         await update.message.reply_text(t("slot_not_found", lang))
         return
 
+    tier_info = None
+    is_new_price = False
+    if order_type == BUY:
+        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, "BUY")
+        if not tier_info.get("is_sufficient"):
+            await update.message.reply_text(t("slot_out_of_stock", lang))
+            return
+        is_new_price = tier_info.get("is_new_price_involved", False)
+
     context.user_data["quantity"] = quantity
+    context.user_data["tier_info"] = tier_info
 
     # Format order review summary
-    summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang)
+    summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang, tier_info=tier_info)
 
     await update.message.reply_text(
         text=summary,
-        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang),
+        parse_mode="Markdown",
+        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
     )
 
 
@@ -653,6 +943,12 @@ async def handle_confirm_order(
 
     if not selected_slot or not quantity:
         await query.message.reply_text(t("session_expired", lang))
+        return
+
+    # Reject order confirmation if outside operating trading hours
+    is_open, _, _ = await asyncio.to_thread(is_within_operating_hours_sync)
+    if not is_open:
+        await send_off_store_notice(query.message, lang=lang, is_order_reject=True)
         return
 
     user = update.effective_user

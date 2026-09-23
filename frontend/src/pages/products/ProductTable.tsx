@@ -135,7 +135,7 @@ export default function ProductTable({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {products.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={p.id} className="hover:bg-slate-100 transition-colors">
                   <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
                     {p.name}
                   </td>

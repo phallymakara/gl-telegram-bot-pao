@@ -15,6 +15,7 @@ export interface UserData {
   email: string;
   role: string;
   is_active: boolean;
+  allowed_modules?: string[] | null;
   last_login: string | null;
   created_at: string;
 }

@@ -350,7 +350,7 @@ export default function CustomerTable({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {customers.map((c, i) => (
-                <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={c.id} className="hover:bg-slate-100 transition-colors">
                   <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
                     {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
                   </td>

@@ -34,4 +34,5 @@ class SlotTable(Base):
         "SlotRow",
         back_populates="slot_table",
         cascade="all, delete-orphan",
+        order_by="SlotRow.slot_date",
     )

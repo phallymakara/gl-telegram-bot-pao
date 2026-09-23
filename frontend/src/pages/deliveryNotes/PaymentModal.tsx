@@ -4,7 +4,8 @@
  */
 
 import { useState, useEffect } from "react";
-import { X, DollarSign, Calendar, User, CreditCard, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { X, DollarSign, Calendar, User, CreditCard, FileText, CheckCircle2 } from "lucide-react";
+import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { deliveryNotesApi, DeliveryNoteItem } from "../../api";
 
 interface PaymentModalProps {
@@ -28,7 +29,11 @@ export default function PaymentModal({
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [referenceNote, setReferenceNote] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{
+    amount?: string;
+    collectedBy?: string;
+  }>({});
 
   useEffect(() => {
     if (isOpen && deliveryNote) {
@@ -37,7 +42,8 @@ export default function PaymentModal({
       setCollectedBy("");
       setPaymentMethod("CASH");
       setReferenceNote("");
-      setErrorMsg("");
+      setFormError("");
+      setFieldErrors({});
     }
   }, [isOpen, deliveryNote]);
 
@@ -52,23 +58,26 @@ export default function PaymentModal({
     e.preventDefault();
     if (!deliveryNote) return;
 
-    if (!amount || numAmount <= 0) {
-      setErrorMsg("Please enter a valid payment amount greater than zero.");
-      return;
-    }
+    setFormError("");
+    const errors: typeof fieldErrors = {};
 
-    if (numAmount > outstanding) {
-      setErrorMsg(`Payment amount ($${numAmount.toFixed(2)}) cannot exceed outstanding balance ($${outstanding.toFixed(2)}).`);
-      return;
+    if (!amount || numAmount <= 0) {
+      errors.amount = "Please enter a valid payment amount greater than zero.";
+    } else if (numAmount > outstanding) {
+      errors.amount = `Payment amount cannot exceed outstanding balance of $${outstanding.toFixed(2)}.`;
     }
 
     if (!collectedBy.trim()) {
-      setErrorMsg("Please specify who collected the payment (Staff Name).");
-      return;
+      errors.collectedBy = "Please specify staff name who collected the payment.";
     }
 
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+
     setIsSubmitting(true);
-    setErrorMsg("");
 
     try {
       await deliveryNotesApi.recordPayment(deliveryNote.id, {
@@ -83,8 +92,7 @@ export default function PaymentModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || err?.message || "Failed to record payment";
-      setErrorMsg(detail);
+      setFormError(getFriendlyErrorMessage(err, "Failed to record payment. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -136,11 +144,8 @@ export default function PaymentModal({
               </div>
             </div>
 
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-700 text-xs">
-                <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-600" />
-                <span>{errorMsg}</span>
-              </div>
+            {formError && (
+              <p className="text-xs text-rose-600 font-medium">{formError}</p>
             )}
 
             {/* Payment Amount Input */}
@@ -152,8 +157,11 @@ export default function PaymentModal({
                 {outstanding > 0 && (
                   <button
                     type="button"
-                    onClick={() => setAmount(String(outstanding))}
-                    className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors"
+                    onClick={() => {
+                      setAmount(String(outstanding));
+                      if (fieldErrors.amount) setFieldErrors((prev) => ({ ...prev, amount: undefined }));
+                    }}
+                    className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded transition-colors cursor-pointer"
                   >
                     Pay Full (${outstanding.toFixed(2)})
                   </button>
@@ -170,17 +178,20 @@ export default function PaymentModal({
                   value={amount}
                   onChange={(e) => {
                     setAmount(e.target.value);
-                    if (errorMsg) setErrorMsg("");
+                    if (fieldErrors.amount) setFieldErrors((prev) => ({ ...prev, amount: undefined }));
                   }}
                   className={`w-full pl-8 pr-4 py-2.5 text-base font-bold rounded-lg border focus:outline-none focus:ring-2 transition-all ${
-                    isOverpaying
-                      ? "border-rose-400 focus:ring-rose-200 text-rose-700 bg-rose-50/30"
+                    isOverpaying || fieldErrors.amount
+                      ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500 text-rose-700"
                       : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800"
                   }`}
                   required
                 />
               </div>
-              {isOverpaying && (
+              {fieldErrors.amount && (
+                <p className="text-xs text-rose-600 mt-1">{fieldErrors.amount}</p>
+              )}
+              {isOverpaying && !fieldErrors.amount && (
                 <p className="text-[11px] text-rose-600 font-medium">
                   Warning: Cannot collect more than the outstanding balance of ${outstanding.toFixed(2)}.
                 </p>
@@ -236,10 +247,20 @@ export default function PaymentModal({
                 type="text"
                 placeholder="e.g. John Doe / Cashier"
                 value={collectedBy}
-                onChange={(e) => setCollectedBy(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                onChange={(e) => {
+                  setCollectedBy(e.target.value);
+                  if (fieldErrors.collectedBy) setFieldErrors((prev) => ({ ...prev, collectedBy: undefined }));
+                }}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 ${
+                  fieldErrors.collectedBy
+                    ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                    : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                }`}
                 required
               />
+              {fieldErrors.collectedBy && (
+                <p className="text-xs text-rose-600 mt-1">{fieldErrors.collectedBy}</p>
+              )}
             </div>
 
             {/* Reference Note */}

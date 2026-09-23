@@ -6,6 +6,7 @@
 import React from "react";
 import { Menu, ChevronRight, Bell, Diamond } from "lucide-react";
 import { TOPBAR_ICON, BREADCRUMBS, PAGE_SUBTITLE } from "../data/navigation";
+import { useAuth } from "../context/AuthContext";
 
 interface TopbarProps {
   /** Active page route key */
@@ -43,6 +44,7 @@ export default function Topbar({
   desktopOpen,
   setDesktopOpen
 }: TopbarProps) {
+  const { currentUser } = useAuth();
   const iconEntry = TOPBAR_ICON[page];
   const TopIcon = iconEntry === "menu" ? Menu : iconEntry;
   const subtitle = PAGE_SUBTITLE[page];
@@ -65,7 +67,7 @@ export default function Topbar({
           )}
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold text-slate-800 truncate">
-              Welcome User
+              Welcome, {currentUser?.name || "Administrator"}
             </h1>
             <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
               {BREADCRUMBS[page]?.map((b, i) => {

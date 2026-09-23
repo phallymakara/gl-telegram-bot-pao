@@ -36,6 +36,10 @@ export { default as SalesPersonsPage } from "./SalesPersonsPage";
 // Delivery Notes (Route: "delivery-notes")
 export { default as DeliveryNotesPage } from "./DeliveryNotesPage";
 
+// Customer Deposits & Slips (Route: "deposits")
+export { default as DepositsPage } from "./DepositsPage";
+
+
 // Goods Receipt Vouchers (Route: "goods-receipt")
 export { default as GoodsReceiptPage } from "./GoodsReceiptPage";
 

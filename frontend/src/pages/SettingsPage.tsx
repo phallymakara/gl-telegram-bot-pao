@@ -25,6 +25,9 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [twoFA, setTwoFA] = useState(false);
   const [openTime, setOpenTime] = useState("08:00");
   const [closeTime, setCloseTime] = useState("21:00");
+  const [offStoreMessage, setOffStoreMessage] = useState("");
+  const [offStoreImageUrl, setOffStoreImageUrl] = useState("");
+  const [offStoreImageUrls, setOffStoreImageUrls] = useState<string[]>([]);
   const [botUsername, setBotUsername] = useState("GoldSystemBot");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
@@ -44,6 +47,11 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
         setTwoFA(s.security.two_factor);
         setOpenTime(s.system.open_time);
         setCloseTime(s.system.close_time);
+        setOffStoreMessage(s.system.off_store_message || "");
+        const rawUrls: string[] = s.system.off_store_image_urls || [];
+        const initialUrls = rawUrls.length > 0 ? rawUrls : (s.system.off_store_image_url ? [s.system.off_store_image_url] : []);
+        setOffStoreImageUrls(initialUrls);
+        setOffStoreImageUrl(initialUrls[0] || "");
       })
       .catch(() => {});
 
@@ -78,7 +86,13 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           password_expiry: passwordExpiry,
           two_factor: twoFA,
         },
-        system: { open_time: openTime, close_time: closeTime },
+        system: {
+          open_time: openTime,
+          close_time: closeTime,
+          off_store_message: offStoreMessage,
+          off_store_image_url: offStoreImageUrls[0] || "",
+          off_store_image_urls: offStoreImageUrls,
+        },
       })
       .then(() => notify("Settings saved"))
       .catch(() => notify("Failed to save settings"));
@@ -186,11 +200,18 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           setOpenTime={setOpenTime}
           closeTime={closeTime}
           setCloseTime={setCloseTime}
+          offStoreMessage={offStoreMessage}
+          setOffStoreMessage={setOffStoreMessage}
+          offStoreImageUrl={offStoreImageUrl}
+          setOffStoreImageUrl={setOffStoreImageUrl}
+          offStoreImageUrls={offStoreImageUrls}
+          setOffStoreImageUrls={setOffStoreImageUrls}
           sessionTimeout={sessionTimeout}
           setSessionTimeout={setSessionTimeout}
           passwordExpiry={passwordExpiry}
           setPasswordExpiry={setPasswordExpiry}
           saveSettings={saveSettings}
+          notify={notify}
         />
       </div>
     </div>

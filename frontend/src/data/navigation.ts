@@ -6,7 +6,7 @@
 import {
   Home, ShoppingCart, Calendar, TrendingUp, Archive, Users, FileText,
   BarChart3, Send, User, UserCheck, Shield, Bell, Settings as SettingsIcon, Cloud, Store, Monitor, Package, Tag,
-  ArrowDownLeft, ArrowUpRight, ShoppingBag, FileCheck, Truck, Layers
+  ArrowDownLeft, ArrowUpRight, ShoppingBag, FileCheck, Truck, Layers, Wallet
 } from "lucide-react";
 import React from "react";
 
@@ -40,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "delivery-notes", label: "Delivery Notes", icon: Truck },
     ]
   },
+  { id: "deposits", label: "Deposits & Withdrawals", icon: Wallet },
   {
     id: "master-data", label: "Master Data", icon: Layers, children: [
       { id: "customers", label: "Customers", icon: Users },
@@ -67,6 +68,7 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "gold-out": ["Dashboard", "Gold Out (Selling)"],
   "sell-orders": ["Dashboard", "Gold Out (Selling)", "Sell Orders"],
   "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
+  "deposits": ["Dashboard", "Deposits & Withdrawals"],
   "master-data": ["Dashboard", "Master Data"],
   "inventory-ledger": ["Dashboard", "Master Data", "Inventory Ledger"],
   "customers": ["Dashboard", "Master Data", "Customers"],
@@ -118,6 +120,7 @@ export const TOPBAR_ICON: Record<string, any> = {
   "backup": "menu",
   "low-stock-alerts": "menu",
   "discount-promotions": "menu",
+  "deposits": "menu",
   "settings": "menu",
 };
 
@@ -127,6 +130,7 @@ export const PAGE_TITLE: Record<string, string> = {
   "buy-back-slots": "Slots Management",
   "sell-orders": "Sell Orders",
   "delivery-notes": "Delivery Notes",
+  "deposits": "Deposits & Withdrawals",
   "inventory-ledger": "Inventory Ledger",
   "platform-orders": "Platform Orders",
   "physical-orders": "Physical Orders",
@@ -150,3 +154,29 @@ export const PAGE_TITLE: Record<string, string> = {
 
 export const PAGE_SUBTITLE: Record<string, string> = {
 };
+
+export interface ModuleDefinition {
+  id: string;
+  label: string;
+  category: string;
+  description?: string;
+}
+
+export const ALL_MODULES: ModuleDefinition[] = [
+  { id: "dashboard", label: "Dashboard", category: "General", description: "Main system metrics and analytics overview" },
+  { id: "buy-back-slots", label: "Slots Management", category: "General", description: "Trading slot quotas and price schedules" },
+  { id: "purchase", label: "Purchase (Gold In)", category: "Gold In (Buying)", description: "Manage local and overseas gold purchase orders" },
+  { id: "sell-orders", label: "Sell Orders", category: "Gold Out (Selling)", description: "Manage customer gold sales orders" },
+  { id: "delivery-notes", label: "Delivery Notes", category: "Gold Out (Selling)", description: "Delivery tracking, notes, and collection status" },
+  { id: "deposits", label: "Deposits & Withdrawals", category: "Finance", description: "Review, verify slips, and approve customer deposits & withdrawals" },
+  { id: "customers", label: "Customers", category: "Master Data", description: "Customer whitelist and trading profiles" },
+  { id: "vendors", label: "Vendors", category: "Master Data", description: "Gold suppliers and refinery master records" },
+  { id: "products", label: "Products", category: "Master Data", description: "Gold bars, coins, and physical inventory catalog" },
+  { id: "sales-persons", label: "Sales Person", category: "Master Data", description: "Account executives and staff assignments" },
+  { id: "inventory-ledger", label: "Inventory Ledger", category: "Master Data", description: "Stock balance and audit movement transactions" },
+  { id: "user-management", label: "User Management", category: "Administration", description: "Manage user accounts, roles, and access permissions" },
+  { id: "low-stock-alerts", label: "Low Stock Alert", category: "Alert Center", description: "Inventory threshold alerts and notifications" },
+  { id: "discount-promotions", label: "Discount Promotion", category: "Alert Center", description: "Customer promotional broadcast messages" },
+  { id: "settings", label: "Settings", category: "Administration", description: "System configuration, bot parameters, and security" },
+];
+

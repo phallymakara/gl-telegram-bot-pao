@@ -3,6 +3,7 @@ Telegram Bot Callback Dispatcher & Main Handlers.
 Includes whitelist security decorator checking, language toggling, callback routing, and command handling.
 """
 
+import asyncio
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
@@ -11,10 +12,13 @@ from app.bot.buy_handler import handle_buy
 from app.bot.keyboards import (
     LANG_MENU,
     build_back_main_keyboard,
+    build_closed_hours_keyboard,
     build_contact_sales_keyboard,
     build_main_menu,
 )
 from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
+from app.services.settings_service import is_within_operating_hours_sync
+from app.bot.notice_service import send_off_store_notice
 from app.bot.order_flow import (
     handle_confirm_order,
     handle_custom_quantity_prompt,
@@ -122,6 +126,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+async def check_trading_hours(query, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Check whether automatic trading is currently allowed according to configured operating hours.
+    Returns True if open, or replies with configured text/poster notice and returns False if closed.
+    """
+    is_open, _, _ = await asyncio.to_thread(is_within_operating_hours_sync)
+    if not is_open:
+        lang = context.user_data.get("lang", "EN")
+        await send_off_store_notice(query.message, lang=lang, is_order_reject=False)
+        return False
+    return True
+
+
 @restricted
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
@@ -152,9 +169,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == BUY:
+        if not await check_trading_hours(query, context):
+            return
         await handle_buy(query, context)
 
     elif query.data.startswith(BUY_SLOT_PREFIX) or query.data.startswith(SELL_SLOT_PREFIX):
+        if not await check_trading_hours(query, context):
+            return
         await handle_slot_selection(query, context)
 
     elif query.data.startswith(QTY_PREFIX):
@@ -203,6 +224,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_back_main(query, context)
 
     elif query.data == SELL:
+        if not await check_trading_hours(query, context):
+            return
         await handle_sell(query, context)
 
     elif query.data == MY_ORDERS:

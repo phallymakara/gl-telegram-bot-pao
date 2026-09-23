@@ -32,6 +32,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-gold_bot_db}}
+    volumes:
+      - uploads_data:/app/uploads
     restart: unless-stopped
 
   api:
@@ -51,6 +53,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-gold_bot_db}}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - uploads_data:/app/uploads
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 5s
@@ -74,4 +78,5 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
 

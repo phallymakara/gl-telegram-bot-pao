@@ -19,7 +19,8 @@ from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder, StockReturn
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
-from app.services.slot_service import compute_vault_stock_sync, get_incoming_up_to_date_sync
+from app.services.slot_service import compute_vault_stock_sync, get_incoming_up_to_date_sync, rollover_past_slots_sync
+from app.utils.helpers import get_cambodia_now
 
 router = APIRouter()
 
@@ -38,7 +39,9 @@ def _raise_if_slot_referenced(db: Session, row_id: int) -> None:
 def list_tables(db: Session = Depends(get_db)):
     """
     Retrieve all slot tables with eager-loaded slot rows, ordered by display order.
+    Automatically rolls over past slot rows forward to current and upcoming dates.
     """
+    rollover_past_slots_sync(db)
     tables = db.query(SlotTable).options(joinedload(SlotTable.rows)).order_by(SlotTable.display_order).all()
     return tables
 
@@ -98,7 +101,7 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
         current_total_stock = other_sell_stock + float(stock_before)
 
         vault = compute_vault_stock_sync()
-        today_str = date_type.today().isoformat()
+        today_str = get_cambodia_now().date().isoformat()
         incoming_today = get_incoming_up_to_date_sync("SELL", today_str)
 
         headroom = vault + incoming_today - current_total_stock
@@ -158,10 +161,28 @@ def delete_table(table_id: int, db: Session = Depends(get_db)):
 def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
     """
     Add a new date-based premium row to a slot table.
+    Validates that slot date is today or an upcoming date, and prevents duplicates.
     """
+    if body.slot_date < get_cambodia_now().date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Slot date cannot be in the past. Must be today or an upcoming date."
+        )
+
     table = db.query(SlotTable).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+
+    existing = db.query(SlotRow).filter(
+        SlotRow.slot_table_id == table_id,
+        SlotRow.slot_date == body.slot_date,
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A slot for {body.slot_date} already exists in this table."
+        )
+
     row = SlotRow(slot_table_id=table_id, slot_date=body.slot_date, premium=body.premium, qty=body.qty)
     db.add(row)
     db.commit()
@@ -173,10 +194,29 @@ def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
 def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
     """
     Update slot date, premium value, or available quantity for a slot row.
+    Validates that slot date is today or an upcoming date, and prevents duplicates.
     """
+    if body.slot_date < get_cambodia_now().date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Slot date cannot be in the past. Must be today or an upcoming date."
+        )
+
     row = db.query(SlotRow).filter(SlotRow.id == row_id, SlotRow.slot_table_id == table_id).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Row not found")
+
+    existing = db.query(SlotRow).filter(
+        SlotRow.slot_table_id == table_id,
+        SlotRow.slot_date == body.slot_date,
+        SlotRow.id != row_id,
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"A slot for {body.slot_date} already exists in this table."
+        )
+
     row.slot_date = body.slot_date
     row.premium = body.premium
     if body.qty is not None:

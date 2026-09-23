@@ -3,11 +3,8 @@ import {
   ArrowUpRight,
   Building2,
   Globe,
-  Package,
   RotateCcw,
   Send,
-  ShoppingBag,
-  ShoppingCart,
   Store,
   Truck,
 } from "lucide-react";
@@ -73,7 +70,6 @@ export default function DashboardPage() {
       {/* 1. OVERVIEW STAT CARDS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={Package}
           label="Physical Stock"
           value={
             <>
@@ -84,7 +80,6 @@ export default function DashboardPage() {
           tint="bg-blue-50 text-blue-600"
         />
         <StatCard
-          icon={Truck}
           label="Incoming PO"
           value={
             <>
@@ -95,7 +90,6 @@ export default function DashboardPage() {
           tint="bg-amber-50 text-amber-600"
         />
         <StatCard
-          icon={ShoppingBag}
           label="Total Purchase"
           value={
             <>
@@ -106,7 +100,6 @@ export default function DashboardPage() {
           tint="bg-emerald-50 text-emerald-600"
         />
         <StatCard
-          icon={ShoppingCart}
           label="Total Sale"
           value={
             <>

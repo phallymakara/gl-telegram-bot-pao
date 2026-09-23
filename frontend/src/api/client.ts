@@ -3,6 +3,8 @@
  * @description Core HTTP client module providing request wrapper, generic REST API methods, token authentication, error parsing, and numeric utilities.
  */
 
+import { getFriendlyErrorMessage } from "../utils/errorMessage";
+
 // Base URL prefix for API calls (empty string defaults to current host origin)
 const BASE = import.meta.env.VITE_API_URL || "";
 
@@ -20,9 +22,10 @@ const BASE = import.meta.env.VITE_API_URL || "";
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   // Retrieve bearer token from local storage
   const token = localStorage.getItem("token");
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+  const headers: Record<string, string> = {};
+  if (!(options?.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   // Perform fetch request
@@ -34,12 +37,16 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   // Process non-2xx response errors
   if (!res.ok) {
     const text = await res.text();
-    let message = text || `HTTP ${res.status}`;
+    let message = text || `Request failed`;
     try {
       const parsed = JSON.parse(text);
-      if (parsed && parsed.detail) message = String(parsed.detail);
+      if (parsed && parsed.detail) {
+        message = getFriendlyErrorMessage(parsed, `Request failed`);
+      } else {
+        message = getFriendlyErrorMessage(message, `Request failed`);
+      }
     } catch {
-      // Retain raw error text if not valid JSON
+      message = getFriendlyErrorMessage(text || `Status ${res.status}`, `Request failed`);
     }
     throw new Error(message);
   }
@@ -84,6 +91,18 @@ export const api = {
     request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  /**
+   * Executes a multipart POST request with FormData (e.g. file uploads).
+   * @template T Response type.
+   * @param path API endpoint URL.
+   * @param formData Form data payload.
+   */
+  postForm: <T>(path: string, formData: FormData) =>
+    request<T>(path, {
+      method: "POST",
+      body: formData,
     }),
 
   /**

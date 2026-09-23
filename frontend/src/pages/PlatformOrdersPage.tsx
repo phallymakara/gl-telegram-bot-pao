@@ -329,6 +329,25 @@ interface PlatformOrdersPageProps {
  * Main Platform & Online Orders page component.
  */
 
+function getLocalDateString(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatInvoiceDate(d?: string | null): string {
+  if (!d) return "15 . 08 . 2026";
+  const clean = d.includes("T") ? d.split("T")[0] : d;
+  const parts = clean.split("-");
+  if (parts.length === 3) {
+    const [y, m, day] = parts;
+    return `${day} . ${m} . ${y}`;
+  }
+  return clean;
+}
+
 function ExportSellOrdersDropdown({
   rows,
   notify,
@@ -371,7 +390,7 @@ function ExportSellOrdersDropdown({
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const dateStr = new Date().toISOString().split("T")[0];
+    const dateStr = getLocalDateString();
     link.setAttribute("href", url);
     link.setAttribute("download", `Sell_Orders_Report_${dateStr}.csv`);
     document.body.appendChild(link);
@@ -663,7 +682,7 @@ export default function PlatformOrdersPage({
   }
 
   function printPlatformInvoiceDirectly(order: any) {
-    const orderDate = order.order_date ? order.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const orderDate = formatInvoiceDate(order.order_date || order.slot_date_str || order.created_at);
     const refNo = "B " + (order.order_no ? order.order_no.replace("SO-2026-", "0088") : "0088");
     const spotPrice = (order.spot_price || 4376.50).toLocaleString(undefined, { minimumFractionDigits: 2 });
     const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "+200";
@@ -786,7 +805,7 @@ export default function PlatformOrdersPage({
   }
 
   function openPlatformInvoiceInNewTab(order: any) {
-    const orderDate = order.order_date ? order.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const orderDate = formatInvoiceDate(order.order_date || order.slot_date_str || order.created_at);
     const refNo = "B " + (order.order_no ? order.order_no.replace("SO-2026-", "0088") : "0088");
     const spotPrice = (order.spot_price || 4376.50).toLocaleString(undefined, { minimumFractionDigits: 2 });
     const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "+200";
@@ -1104,14 +1123,14 @@ export default function PlatformOrdersPage({
               </div>
             </div>
             <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Platform">Local (Platform)</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Platform">Local-Platform</div>
               <div className="flex items-baseline">
                 <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_platform ?? 0).toFixed(1)}</span>
                 <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
               </div>
             </div>
             <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Physical">Local (Physical)</div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Physical">Local-Physical</div>
               <div className="flex items-baseline">
                 <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_physical ?? 0).toFixed(1)}</span>
                 <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
@@ -1200,7 +1219,7 @@ export default function PlatformOrdersPage({
                 return (
                   <tr
                     key={r.id}
-                    className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors"
+                    className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                   >
                     <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">
                       {r.order_no}
@@ -1221,11 +1240,11 @@ export default function PlatformOrdersPage({
                         </span>
                       ) : rawChannel === "TELEGRAM" || Boolean(r.telegram_user_id) ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                          Local (Telegram)
+                          Local-Telegram
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                          Local (Physical)
+                          Local-Physical
                         </span>
                       )}
                     </td>
@@ -1310,12 +1329,12 @@ export default function PlatformOrdersPage({
                                   e.stopPropagation();
                                   setActiveMenuId(null);
                                   setEditingOrder(r);
-                                  let editChan = "Local (Physical)";
+                                  let editChan = "Local-Physical";
                                   const rawC = (r.channel || "").toUpperCase();
                                   if (rawC === "OVERSEA" || rawC === "OVERSEAS" || r.region?.toUpperCase() === "OVERSEAS") {
                                     editChan = "Oversea";
                                   } else if (rawC === "TELEGRAM" || Boolean(r.telegram_user_id)) {
-                                    editChan = "Local (Telegram)";
+                                    editChan = "Local-Telegram";
                                   }
 
                                   setNewOrderForm({
@@ -1718,7 +1737,7 @@ export default function PlatformOrdersPage({
                   <tbody className="divide-y divide-blue-200 text-slate-900 text-center font-medium">
                     <tr className="bg-white">
                       <td className="p-2.5 border-r border-blue-200 font-semibold">
-                        {invoiceModalOrder.order_date ? invoiceModalOrder.order_date.replace(/-/g, " . ") : "15 . 08 . 2026"}
+                        {formatInvoiceDate(invoiceModalOrder.order_date || invoiceModalOrder.slot_date_str || invoiceModalOrder.created_at)}
                       </td>
                       <td className="p-2.5 border-r border-blue-200">
                         <div><span className="font-bold text-sm">4,376.50</span></div>

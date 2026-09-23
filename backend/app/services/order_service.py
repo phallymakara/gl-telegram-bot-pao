@@ -21,6 +21,7 @@ from app.models.telegram_group import TelegramGroup
 from app.services.slot_service import (
     add_incoming_to_slot_sync,
     add_stock_to_table_sync,
+    calculate_slot_tier_breakdown_sync,
     deduct_store_stock_sync,
     get_slot_by_date_sync,
     sell_order_lock,
@@ -104,13 +105,24 @@ def _place_order_sync(
         slot_pair = _find_slot_row(session, slot_date, order_type)
         slot_row, slot_table = slot_pair if slot_pair else (None, None)
 
-        # Section 3: Calculate order totals
-        premium_val = Decimal(str(slot_info["premium"]))
-        spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
-        total_amt = calculate_order_total(quantity, spot_price_dec, premium_val)
-
         # Store perspective: Telegram user BUY = Store SELL (Gold OUT); Telegram user SELL = Store BUY (Gold IN/Buyback)
         store_txn_type = "SELL" if order_type == "BUY" else "BUY"
+        spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
+
+        # Section 3: Calculate order totals (with multi-table tiered price support for store SELL)
+        if store_txn_type == "SELL":
+            tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
+            if not tier_info.get("is_sufficient"):
+                logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
+                raise InsufficientStockError("Insufficient stock")
+
+            premium_val = Decimal(f"{tier_info['weighted_premium']:.2f}")
+            premium_amt = Decimal(f"{tier_info['total_premium_amount']:.2f}")
+            total_amt = Decimal(f"{tier_info['total_amount']:.2f}")
+        else:
+            premium_val = Decimal(str(slot_info["premium"]))
+            premium_amt = calculate_premium_amount(quantity, premium_val)
+            total_amt = calculate_order_total(quantity, spot_price_dec, premium_val)
 
         # Section 4: Create and commit the Order record -- must be committed (and thus visible to the
         # separate session deduct_store_stock_sync uses) before Section 5 can reference it by FK.
@@ -121,7 +133,7 @@ def _place_order_sync(
             slot_id=slot_row.id if slot_row else None,
             quantity=Decimal(str(quantity)),
             premium=premium_val,
-            premium_amount=calculate_premium_amount(quantity, premium_val),
+            premium_amount=premium_amt,
             transaction_type=store_txn_type,
             status="CONFIRMED",
             channel="TELEGRAM",

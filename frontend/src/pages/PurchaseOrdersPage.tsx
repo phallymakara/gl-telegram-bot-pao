@@ -280,6 +280,17 @@ function formatDate(d: string | null | undefined): string {
   return d.includes("T") ? d.split("T")[0] : d;
 }
 
+function formatInvoiceDate(d?: string | null): string {
+  if (!d) return "15 . 08 . 2026";
+  const clean = d.includes("T") ? d.split("T")[0] : d;
+  const parts = clean.split("-");
+  if (parts.length === 3) {
+    const [y, m, day] = parts;
+    return `${day} . ${m} . ${y}`;
+  }
+  return clean;
+}
+
 function formatParty(r: PurchaseOrderData): string {
   if (!r.supplier_name) return "—";
   let name = r.supplier_name;
@@ -316,7 +327,7 @@ function ExportPoDropdown({
 
   function handleExportExcel() {
     setOpen(false);
-    const headers = ["PO No", "Type", "Vendor", "Amount", "Unit Price", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
+    const headers = ["PO No", "Type", "Vendor", "QTY", "Unit Price", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
     const exportRows = rows.map((r) => [
       `"${(r.po_no || "").replace(/"/g, '""')}"`,
       `"${(r.po_type || "").replace(/"/g, '""')}"`,
@@ -414,7 +425,7 @@ function ExportPoDropdown({
               <th>PO No</th>
               <th>Type</th>
               <th>Vendor</th>
-              <th style="text-align: right;">Amount</th>
+              <th style="text-align: right;">QTY</th>
               <th style="text-align: right;">Unit Price</th>
               <th style="text-align: right;">Total Amount</th>
               <th>Order Date</th>
@@ -654,7 +665,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   });
 
   function printInvoiceDirectly(po: PurchaseOrderData) {
-    const orderDate = po.order_date ? po.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const orderDate = formatInvoiceDate(po.order_date || po.expected_date || po.created_at);
     const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
     const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
     const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
@@ -780,7 +791,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   }
 
   function openInvoiceInNewTab(po: PurchaseOrderData) {
-    const orderDate = po.order_date ? po.order_date.replace(/-/g, " . ") : "15 . 08 . 2026";
+    const orderDate = formatInvoiceDate(po.order_date || po.expected_date || po.created_at);
     const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
     const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
     const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
@@ -1380,7 +1391,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   "PO No",
                   "Type",
                   "Vendor",
-                  "Amount",
+                  "QTY",
                   "Spot Price (oz)",
                   "Premium ( Kg/USD)",
                   "Unit Price",
@@ -1400,10 +1411,9 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               {filteredNumericRows.map((r, idx) => (
                 <tr
                   key={r.id}
-                  className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
-                    }`}
+                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                 >
-                  <td className="px-5 py-2.5 font-semibold text-slate-800 whitespace-nowrap">{r.po_no}</td>
+                  <td className="px-5 py-2.5 font-normal text-slate-800 whitespace-nowrap">{r.po_no}</td>
                   <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
                     {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
                   </td>
@@ -1418,7 +1428,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <td className="px-5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
                     {r.quantity > 0 ? (r.total_cost / r.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                   </td>
-                  <td className="px-5 py-2.5 font-bold text-slate-900 whitespace-nowrap">
+                  <td className="px-5 py-2.5 font-normal text-slate-700 whitespace-nowrap">
                     {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                   </td>
                   <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
@@ -2079,7 +2089,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         <div className="text-[10px] font-normal text-red-800">加价</div>
                       </th>
                       <th className="p-2 border-r border-red-700">
-                        <div>Amount</div>
+                        <div>QTY</div>
                         <div className="text-[10px] font-normal text-red-800">数量</div>
                       </th>
                       <th className="p-2">
@@ -2091,7 +2101,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <tbody className="divide-y divide-red-200 text-slate-900 text-center font-medium">
                     <tr className="bg-white">
                       <td className="p-2.5 border-r border-red-200 font-semibold">
-                        {invoiceModalPo.order_date ? invoiceModalPo.order_date.replace(/-/g, " . ") : "15 . 08 . 2026"}
+                        {formatInvoiceDate(invoiceModalPo.order_date || invoiceModalPo.expected_date || invoiceModalPo.created_at)}
                       </td>
                       <td className="p-2.5 border-r border-red-200">
                         <div><span className="font-bold text-sm">{(invoiceModalPo.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>

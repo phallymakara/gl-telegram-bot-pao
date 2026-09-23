@@ -11,18 +11,18 @@ from dotenv import load_dotenv
 # Base project directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Step 1: Detect ENVIRONMENT if set in system or default to 'development'
+# Step 1: Load base .env if present (allows local overrides)
+default_env = BASE_DIR / ".env"
+if default_env.exists():
+    load_dotenv(dotenv_path=default_env, override=False)
+
+# Step 2: Detect ENVIRONMENT if set in system or default to 'development'
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
-# Step 2: Load specific environment file (.env.development / .env.production) if present
+# Step 3: Load specific environment file (.env.development / .env.production) if present
 env_file = BASE_DIR / f".env.{ENVIRONMENT}"
 if env_file.exists():
     load_dotenv(dotenv_path=env_file, override=False)
-else:
-    # Fallback to standard .env
-    default_env = BASE_DIR / ".env"
-    if default_env.exists():
-        load_dotenv(dotenv_path=default_env, override=False)
 
 # Re-read ENVIRONMENT and LOG_LEVEL after loading dotenv
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()

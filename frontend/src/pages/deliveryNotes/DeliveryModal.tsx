@@ -6,7 +6,8 @@
  */
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { X, Search, ChevronDown, Check, AlertCircle } from "lucide-react";
+import { X, Search, ChevronDown, Check } from "lucide-react";
+import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { deliveryNotesApi, EligibleOrder, PartialDeliveryCalculationResponse } from "../../api";
 import { openDeliveryInvoiceInNewTab } from "../../utils/deliveryInvoice";
 
@@ -50,7 +51,15 @@ export default function DeliveryModal({
   const [calcData, setCalcData] = useState<PartialDeliveryCalculationResponse | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [formError, setFormError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{
+    order?: string;
+    quantity?: string;
+    amountOwed?: string;
+    recipientName?: string;
+    recipientContact?: string;
+    deliveryAddress?: string;
+  }>({});
 
   useEffect(() => {
     if (isOpen) {
@@ -98,7 +107,8 @@ export default function DeliveryModal({
     setCourierStatus("Dispatched");
     setNotes("");
     setCalcData(null);
-    setErrorMsg("");
+    setFormError("");
+    setFieldErrors({});
   }
 
   const selectedOrder = useMemo(() => {
@@ -144,9 +154,9 @@ export default function DeliveryModal({
         setAmountOwed(String(res.proportional_amount_owed));
       }
       if (!res.is_valid && res.message) {
-        setErrorMsg(res.message);
+        setFieldErrors((prev) => ({ ...prev, quantity: getFriendlyErrorMessage(res.message) }));
       } else {
-        setErrorMsg("");
+        setFieldErrors((prev) => ({ ...prev, quantity: undefined }));
       }
     } catch (err: any) {
       // Fallback
@@ -164,7 +174,8 @@ export default function DeliveryModal({
 
     // Request backend formula calculation
     calculateWithBackend(ord.id, remainingKg);
-    if (errorMsg) setErrorMsg("");
+    setFormError("");
+    setFieldErrors({});
   }
 
   function handleTypeChange(newType: DoTrackingType) {
@@ -205,47 +216,46 @@ export default function DeliveryModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError("");
+    const errors: typeof fieldErrors = {};
+
     if (!selectedOrderId) {
-      setErrorMsg("Please select a sales order.");
-      return;
+      errors.order = "Please select a sales order.";
     }
 
     const isAmountMode = doType === "AMOUNT_USD";
     const numQty = parseFloat(goldQuantity) || 0;
 
     if (!isAmountMode && numQty <= 0) {
-      setErrorMsg("Please enter a valid quantity to deliver greater than zero.");
-      return;
-    }
-
-    if (!isAmountMode && selectedOrder && numQty > maxRemainingKg + 0.0001) {
-      setErrorMsg(`Cannot dispatch ${numQty.toFixed(3)} KG. Only ${maxRemainingKg.toFixed(3)} KG remaining to deliver on order ${selectedOrder.order_no}.`);
-      return;
+      errors.quantity = "Please enter a valid quantity to deliver greater than zero.";
+    } else if (!isAmountMode && selectedOrder && numQty > maxRemainingKg + 0.0001) {
+      errors.quantity = `Cannot dispatch ${numQty.toFixed(3)} KG. Only ${maxRemainingKg.toFixed(3)} KG remaining.`;
     }
 
     const collectionAmount = isAmountMode && amountOwed ? parseFloat(amountOwed) : undefined;
     if (isAmountMode && (collectionAmount === undefined || collectionAmount <= 0)) {
-      setErrorMsg("Please enter a valid collection amount greater than zero.");
-      return;
+      errors.amountOwed = "Please enter a valid collection amount greater than zero.";
     }
 
     if (!recipientName.trim()) {
-      setErrorMsg("Please provide a Recipient Name.");
-      return;
+      errors.recipientName = "Please provide a recipient name.";
     }
 
     if (!recipientContact.trim()) {
-      setErrorMsg("Please provide Recipient Contact (Phone or Email).");
-      return;
+      errors.recipientContact = "Please provide recipient contact details.";
     }
 
     if (!deliveryAddress.trim()) {
-      setErrorMsg("Please enter the Delivery Address.");
-      return;
+      errors.deliveryAddress = "Please enter the delivery address.";
     }
 
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+
     setIsSubmitting(true);
-    setErrorMsg("");
 
     const deliveredGoldQty = isAmountMode ? maxRemainingKg : numQty;
     const orderPortionOwed = isAmountMode ? maxRemainingAmount : (calcData?.proportional_amount_owed ?? undefined);
@@ -269,8 +279,7 @@ export default function DeliveryModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      const detail = err?.response?.data?.detail || err?.message || "Failed to create delivery note";
-      setErrorMsg(detail);
+      setFormError(getFriendlyErrorMessage(err, "Failed to create delivery note. Please try again."));
     } finally {
       setIsSubmitting(false);
     }
@@ -298,11 +307,8 @@ export default function DeliveryModal({
 
         <form onSubmit={handleSubmit}>
           <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-            {errorMsg && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2 text-rose-700 text-xs">
-                <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-600" />
-                <span>{errorMsg}</span>
-              </div>
+            {formError && (
+              <p className="text-xs text-rose-600 font-medium">{formError}</p>
             )}
 
             {/* Searchable Sales Order Picker */}
@@ -413,6 +419,9 @@ export default function DeliveryModal({
                   )}
                 </div>
               )}
+              {fieldErrors.order && (
+                <p className="text-xs text-rose-600 mt-1">{fieldErrors.order}</p>
+              )}
             </div>
 
             {/* Recipient Name & Recipient Contact Row */}
@@ -425,10 +434,20 @@ export default function DeliveryModal({
                   type="text"
                   placeholder="input Recipient Name"
                   value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  onChange={(e) => {
+                    setRecipientName(e.target.value);
+                    if (fieldErrors.recipientName) setFieldErrors((prev) => ({ ...prev, recipientName: undefined }));
+                  }}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 ${
+                    fieldErrors.recipientName
+                      ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                      : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  }`}
                   required
                 />
+                {fieldErrors.recipientName && (
+                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.recipientName}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -439,10 +458,20 @@ export default function DeliveryModal({
                   type="text"
                   placeholder="Phone or Email"
                   value={recipientContact}
-                  onChange={(e) => setRecipientContact(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  onChange={(e) => {
+                    setRecipientContact(e.target.value);
+                    if (fieldErrors.recipientContact) setFieldErrors((prev) => ({ ...prev, recipientContact: undefined }));
+                  }}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 ${
+                    fieldErrors.recipientContact
+                      ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                      : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  }`}
                   required
                 />
+                {fieldErrors.recipientContact && (
+                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.recipientContact}</p>
+                )}
               </div>
             </div>
 
@@ -503,8 +532,15 @@ export default function DeliveryModal({
                     max={maxRemainingKg > 0 ? maxRemainingKg : undefined}
                     placeholder="1.000"
                     value={goldQuantity}
-                    onChange={(e) => handleGoldQuantityChange(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold text-slate-800"
+                    onChange={(e) => {
+                      handleGoldQuantityChange(e.target.value);
+                      if (fieldErrors.quantity) setFieldErrors((prev) => ({ ...prev, quantity: undefined }));
+                    }}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 font-bold text-slate-800 ${
+                      fieldErrors.quantity
+                        ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                        : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    }`}
                     required
                   />
                 ) : (
@@ -515,10 +551,23 @@ export default function DeliveryModal({
                     max={maxRemainingAmount > 0 ? maxRemainingAmount : undefined}
                     placeholder="0.00"
                     value={amountOwed}
-                    onChange={(e) => handleAmountOwedChange(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-bold text-slate-800"
+                    onChange={(e) => {
+                      handleAmountOwedChange(e.target.value);
+                      if (fieldErrors.amountOwed) setFieldErrors((prev) => ({ ...prev, amountOwed: undefined }));
+                    }}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 font-bold text-slate-800 ${
+                      fieldErrors.amountOwed
+                        ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                        : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    }`}
                     required
                   />
+                )}
+                {fieldErrors.quantity && (
+                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.quantity}</p>
+                )}
+                {fieldErrors.amountOwed && (
+                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.amountOwed}</p>
                 )}
               </div>
 
@@ -544,10 +593,20 @@ export default function DeliveryModal({
                 rows={2}
                 placeholder="Full street address, district, city..."
                 value={deliveryAddress}
-                onChange={(e) => setDeliveryAddress(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                onChange={(e) => {
+                  setDeliveryAddress(e.target.value);
+                  if (fieldErrors.deliveryAddress) setFieldErrors((prev) => ({ ...prev, deliveryAddress: undefined }));
+                }}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 resize-none ${
+                  fieldErrors.deliveryAddress
+                    ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                    : "border-slate-300 focus:ring-indigo-500/20 focus:border-indigo-500"
+                }`}
                 required
               />
+              {fieldErrors.deliveryAddress && (
+                <p className="text-xs text-rose-600 mt-1">{fieldErrors.deliveryAddress}</p>
+              )}
             </div>
 
             {/* Remarks */}

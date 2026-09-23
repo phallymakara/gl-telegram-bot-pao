@@ -228,15 +228,17 @@ def build_numpad_keyboard(lang="EN") -> InlineKeyboardMarkup:
     ])
 
 
-def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN", is_new_price=False) -> InlineKeyboardMarkup:
     """
     Construct confirmation keyboard for order review step.
+    If order involves a new price or split tier, uses explicit accept new price confirmation button.
     """
     prefix = BUY_SLOT_PREFIX if order_type == BUY else SELL_SLOT_PREFIX
+    confirm_text = t("confirm_new_price", lang) if (is_new_price and order_type == BUY) else t("confirm", lang)
 
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(t("confirm", lang), callback_data=CONFIRM_ORDER),
+            InlineKeyboardButton(confirm_text, callback_data=CONFIRM_ORDER),
             InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
         ],
         [
@@ -364,3 +366,19 @@ def build_contact_sales_keyboard(lang="EN") -> InlineKeyboardMarkup:
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
         ],
     ])
+
+
+def build_closed_hours_keyboard(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct keyboard for closed trading hours screen:
+      Row 1: [ 📞 Contact Sales ]
+      Row 2: [ ថយក្រោយ / Back ]
+    """
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(t("contact_sales", lang), callback_data=CONTACT_SALES),
+        ],
+        [
+            InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
+        ],
+    ])

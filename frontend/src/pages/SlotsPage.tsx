@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { Plus, Calendar, Trash2, Pencil, MoreHorizontal, X, Save, Check, Package, Truck } from "lucide-react";
+import { Plus, Trash2, Pencil, MoreHorizontal, X, Save, Check } from "lucide-react";
 import Card from "../components/Card";
-import { api, SlotTableData, DashboardStatsData, toNumber } from "../api";
+import { api, SlotTableData } from "../api";
 
 interface SlotsPageProps {
   /** Mode ("buyback" for buyback slots, "sell" for sell premium slots) */
@@ -48,7 +48,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   const [selectedSlotType, setSelectedSlotType] = useState<"BUY" | "SELL">(
     mode === "sell" ? "SELL" : "BUY"
   );
-  const [incomingDate, setIncomingDate] = useState(new Date().toISOString().split("T")[0]);
 
   const [buyTables, setBuyTables] = useState<BuyTableItem[]>(INITIAL_BUY_TABLES);
   const [sellTables, setSellTables] = useState<SellTableItem[]>(INITIAL_SELL_TABLES);
@@ -78,13 +77,41 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     premium: "300.00",
   });
 
-  const [stats, setStats] = useState<DashboardStatsData | null>(null);
+  const [buyDateError, setBuyDateError] = useState("");
+  const [sellDateError, setSellDateError] = useState("");
 
-  function loadStats() {
-    api
-      .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
-      .then(setStats)
-      .catch(() => { });
+  function getLocalDateString(): string {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  const todayStr = getLocalDateString();
+
+  /**
+   * Sorts slot rows chronologically from now (today) to upcoming dates next.
+   * Dates >= today appear first in ascending order (today, tomorrow, next week...).
+   * Historical/past dates (< today) are placed at the end.
+   */
+  function sortSlotRows<T extends { start_date: string }>(rows: T[]): T[] {
+    const today = getLocalDateString();
+    return rows.slice().sort((a, b) => {
+      const isPastA = a.start_date < today;
+      const isPastB = b.start_date < today;
+
+      // Both are today or upcoming: sort ascending (from now on to upcoming next)
+      if (!isPastA && !isPastB) {
+        return a.start_date.localeCompare(b.start_date);
+      }
+      // Now/upcoming comes before past
+      if (!isPastA && isPastB) return -1;
+      if (isPastA && !isPastB) return 1;
+
+      // Both are past: sort ascending
+      return a.start_date.localeCompare(b.start_date);
+    });
   }
 
   function loadSlots() {
@@ -94,37 +121,37 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         if (tables) {
           const buyList: BuyTableItem[] = tables
             .filter((t) => t.table_name.toUpperCase().includes("BUY") || !t.table_name.toUpperCase().includes("SELL"))
-            .map((t) => ({
-              id: t.id,
-              title: t.table_name,
-              rows: (t.rows || [])
-                .slice()
-                .sort((a, b) => a.slot_date.localeCompare(b.slot_date))
-                .map((r) => ({
-                  id: r.id,
-                  start_date: r.slot_date,
-                  end_date: r.slot_date,
-                  premium: r.premium,
-                })),
-            }));
+            .map((t) => {
+              const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
+                id: r.id,
+                start_date: r.slot_date,
+                end_date: r.slot_date,
+                premium: r.premium,
+              }));
+              return {
+                id: t.id,
+                title: t.table_name,
+                rows: sortSlotRows(rows),
+              };
+            });
           const sellList: SellTableItem[] = tables
             .filter((t) => t.table_name.toUpperCase().includes("SELL"))
-            .map((t) => ({
-              id: t.id,
-              title: t.table_name,
-              tableStock: String(t.stock),
-              newRowDate: new Date().toISOString().split("T")[0],
-              rows: (t.rows || [])
-                .slice()
-                .sort((a, b) => a.slot_date.localeCompare(b.slot_date))
-                .map((r) => ({
-                  id: r.id,
-                  start_date: r.slot_date,
-                  end_date: r.slot_date,
-                  premium: r.premium,
-                  qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
-                })),
-            }));
+            .map((t) => {
+              const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
+                id: r.id,
+                start_date: r.slot_date,
+                end_date: r.slot_date,
+                premium: r.premium,
+                qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
+              }));
+              return {
+                id: t.id,
+                title: t.table_name,
+                tableStock: String(t.stock),
+                newRowDate: new Date().toISOString().split("T")[0],
+                rows: sortSlotRows(rows),
+              };
+            });
           setBuyTables(buyList);
           setSellTables(sellList);
         }
@@ -134,13 +161,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
   useEffect(() => {
     loadSlots();
-    loadStats();
     const interval = setInterval(() => {
       loadSlots();
-      loadStats();
     }, 5000);
     return () => clearInterval(interval);
-  }, [incomingDate]);
+  }, []);
 
   // Buy Table Handlers
   function addBuyTable() {
@@ -169,10 +194,10 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function openAddBuyRowModal(tableId: number) {
     setTargetBuyTableId(tableId);
     setEditingBuyRowId(null);
-    const today = new Date().toISOString().split("T")[0];
+    setBuyDateError("");
     setBuyRowForm({
-      start_date: today,
-      end_date: today,
+      start_date: todayStr,
+      end_date: todayStr,
       premium: "300.00",
     });
     setIsBuyModalOpen(true);
@@ -181,6 +206,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function openEditBuyRowModal(tableId: number, row: SlotRowItem) {
     setTargetBuyTableId(tableId);
     setEditingBuyRowId(row.id);
+    setBuyDateError("");
     setBuyRowForm({
       start_date: row.start_date,
       end_date: row.end_date || row.start_date,
@@ -192,7 +218,18 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function submitBuyRowModal() {
     if (targetBuyTableId === null) return;
     if (!buyRowForm.start_date || !buyRowForm.premium) {
-      notify("Please fill in required fields");
+      setBuyDateError("Please fill in required fields");
+      return;
+    }
+
+    if (buyRowForm.start_date < todayStr) {
+      setBuyDateError("Slot date cannot be in the past");
+      return;
+    }
+
+    const targetTable = buyTables.find((t) => t.id === targetBuyTableId);
+    if (targetTable?.rows.some((r) => r.id !== editingBuyRowId && r.start_date === buyRowForm.start_date)) {
+      setBuyDateError("A slot for this date already exists in this table");
       return;
     }
 
@@ -265,9 +302,9 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function openAddSellRowModal(tableId: number) {
     setTargetSellTableId(tableId);
     setEditingSellRowId(null);
-    const today = new Date().toISOString().split("T")[0];
+    setSellDateError("");
     setSellRowForm({
-      start_date: today,
+      start_date: todayStr,
       premium: "300.00",
     });
     setIsSellModalOpen(true);
@@ -276,6 +313,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function openEditSellRowModal(tableId: number, row: SlotRowItem) {
     setTargetSellTableId(tableId);
     setEditingSellRowId(row.id);
+    setSellDateError("");
     setSellRowForm({
       start_date: row.start_date,
       premium: String(row.premium),
@@ -286,7 +324,18 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   function submitSellRowModal() {
     if (targetSellTableId === null) return;
     if (!sellRowForm.start_date || !sellRowForm.premium) {
-      notify("Please fill in required fields");
+      setSellDateError("Please fill in required fields");
+      return;
+    }
+
+    if (sellRowForm.start_date < todayStr) {
+      setSellDateError("Slot date cannot be in the past");
+      return;
+    }
+
+    const targetTable = sellTables.find((t) => t.id === targetSellTableId);
+    if (targetTable?.rows.some((r) => r.id !== editingSellRowId && r.start_date === sellRowForm.start_date)) {
+      setSellDateError("A slot for this date already exists in this table");
       return;
     }
 
@@ -323,14 +372,24 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
   }
 
   function updateRowInSellTable(tableId: number, rowId: number, patch: Partial<SlotRowItem>) {
+    if (patch.start_date) {
+      if (patch.start_date < todayStr) {
+        notify("Slot date cannot be in the past", "error");
+        return;
+      }
+      const targetTable = sellTables.find((t) => t.id === tableId);
+      if (targetTable?.rows.some((r) => r.id !== rowId && r.start_date === patch.start_date)) {
+        notify("A slot for this date already exists in this table", "error");
+        return;
+      }
+    }
+
     setSellTables((prev) =>
       prev.map((t) =>
         t.id === tableId
           ? {
             ...t,
-            rows: t.rows
-              .map((r) => (r.id === rowId ? { ...r, ...patch } : r))
-              .sort((a, b) => a.start_date.localeCompare(b.start_date)),
+            rows: sortSlotRows(t.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r))),
           }
           : t
       )
@@ -339,7 +398,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     if (patch.start_date || patch.premium !== undefined) {
       api
         .put(`/api/slots/${tableId}/rows/${rowId}`, {
-          slot_date: patch.start_date || new Date().toISOString().split("T")[0],
+          slot_date: patch.start_date || todayStr,
           premium: patch.premium !== undefined && patch.premium !== "" ? Number(patch.premium) : 300,
         })
         .then(() => { })
@@ -428,96 +487,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         </button>
       </div>
 
-      {/* 2-Card Container for Current Physical Stock and Incoming (Sell Slot only) */}
-      {selectedSlotType === "SELL" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
-          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium border-b border-slate-100 pb-2 mb-2.5">
-              <Package size={16} className="text-slate-500 shrink-0" />
-              <span>Current Physical Stock</span>
-            </div>
-            <div className="mt-1 flex items-baseline">
-              <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.physical_stock ?? 0).toFixed(1)}</span>
-              <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-slate-200 mt-3 pt-3 border-t border-slate-100">
-              <div className="pr-3">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Available</div>
-                <div className="flex items-baseline">
-                  <span className="text-lg font-bold text-emerald-700">{toNumber(stats?.available ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-              <div className="pl-3">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reserved</div>
-                <div className="flex items-baseline">
-                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved_stock ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2.5">
-              <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-                <Truck size={16} className="text-slate-500 shrink-0" />
-                <span>Incoming Gold</span>
-              </div>
-              <input
-                type="date"
-                aria-label="Incoming date filter"
-                value={incomingDate}
-                onChange={(e) => setIncomingDate(e.target.value)}
-                className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Total Incoming
-                </div>
-                <div className="flex items-baseline">
-                  <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
-                  <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Reserved</div>
-                <div className="flex items-baseline justify-end">
-                  <span className="text-lg font-bold text-amber-600">{toNumber(stats?.reserved_incoming ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-xs font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Overseas">Overseas</div>
-                <div className="flex items-baseline">
-                  <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_overseas ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Platform">Local (Platform)</div>
-                <div className="flex items-baseline">
-                  <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_platform ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-              <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Physical">Local (Physical)</div>
-                <div className="flex items-baseline">
-                  <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_physical ?? 0).toFixed(1)}</span>
-                  <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Content View */}
       {selectedSlotType === "SELL" ? (
@@ -618,20 +588,17 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
-                          }`}
+                        className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                       >
                         <td className="px-4 py-2 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Calendar size={14} className="text-slate-400 shrink-0" />
-                            <input
-                              type="date"
-                              value={r.start_date}
-                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium })}
-                              className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
-                            />
-                          </div>
+                          <input
+                            type="date"
+                            min={todayStr}
+                            value={r.start_date}
+                            onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium })}
+                            className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
+                          />
                         </td>
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">
@@ -816,15 +783,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className={`border-b border-slate-100 transition-colors ${idx % 2 === 1 ? "bg-slate-100/70 hover:bg-slate-200/60" : "bg-white hover:bg-slate-50/60"
-                          }`}
+                        className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                       >
                         <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <Calendar size={14} className="text-slate-400 shrink-0" />
-                            <span>{r.start_date}</span>
-                          </div>
+                          <span>{r.start_date}</span>
                         </td>
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
                           ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
@@ -914,10 +877,17 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Slot Date *</label>
                 <input
                   type="date"
+                  min={todayStr}
                   value={buyRowForm.start_date}
-                  onChange={(e) => setBuyRowForm({ ...buyRowForm, start_date: e.target.value, end_date: e.target.value })}
+                  onChange={(e) => {
+                    setBuyRowForm({ ...buyRowForm, start_date: e.target.value, end_date: e.target.value });
+                    if (buyDateError) setBuyDateError("");
+                  }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
+                {buyDateError && (
+                  <p className="text-xs text-rose-600 mt-1">{buyDateError}</p>
+                )}
               </div>
 
               <div>
@@ -984,10 +954,17 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Slot Date *</label>
                 <input
                   type="date"
+                  min={todayStr}
                   value={sellRowForm.start_date}
-                  onChange={(e) => setSellRowForm({ ...sellRowForm, start_date: e.target.value })}
+                  onChange={(e) => {
+                    setSellRowForm({ ...sellRowForm, start_date: e.target.value });
+                    if (sellDateError) setSellDateError("");
+                  }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
+                {sellDateError && (
+                  <p className="text-xs text-rose-600 mt-1">{sellDateError}</p>
+                )}
               </div>
 
               <div>

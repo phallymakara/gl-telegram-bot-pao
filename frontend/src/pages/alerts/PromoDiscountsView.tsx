@@ -85,7 +85,7 @@ export default function PromoDiscountsView({ alerts, notify, deleteAlert }: Prom
             </thead>
             <tbody>
               {alerts.map((p, i) => (
-                <tr key={p.id} className="border-b border-slate-50 align-top hover:bg-slate-50/60">
+                <tr key={p.id} className="border-b border-slate-100 align-top hover:bg-slate-100 transition-colors">
                   <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
                   <td className="px-5 py-3.5 whitespace-nowrap">
                     <div className="font-medium text-slate-700">{p.title}</div>

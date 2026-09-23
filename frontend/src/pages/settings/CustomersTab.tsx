@@ -88,7 +88,7 @@ export default function CustomersTab({
                 </tr>
               ) : (
                 customers.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
+                  <tr key={c.id} className="hover:bg-slate-100 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-800 flex items-center gap-2">
                       <UserCheck size={15} className="text-emerald-500" />
                       {c.username ? `@${c.username}` : c.display_name || "Unknown"}

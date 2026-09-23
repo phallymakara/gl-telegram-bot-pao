@@ -106,13 +106,73 @@ def _resolve_target_store_type(order_type: str) -> str:
     return op
 
 
+def rollover_past_slots_sync(session=None) -> int:
+    """
+    Automatically rolls past slot rows (< today) forward to the next available future dates.
+    For each table:
+      - If a row's slot_date is before today, it is moved forward to the next available
+        date after the latest active slot date in that table.
+      - If all rows in a table were before today, they are set to today, today+1, today+2, etc.
+    This guarantees that slot schedules perpetually advance day-by-day into the future.
+    """
+    should_close = False
+    if session is None:
+        session = SessionLocal()
+        should_close = True
+
+    try:
+        from datetime import date as date_type, timedelta
+        from app.utils.helpers import get_cambodia_now
+        today = get_cambodia_now().date()
+
+        tables = session.query(SlotTable).all()
+        updated_count = 0
+
+        for tbl in tables:
+            rows = session.query(SlotRow).filter(SlotRow.slot_table_id == tbl.id).order_by(SlotRow.slot_date).all()
+            if not rows:
+                continue
+
+            past_rows = [r for r in rows if r.slot_date < today]
+            if not past_rows:
+                continue
+
+            future_dates = {r.slot_date for r in rows if r.slot_date >= today}
+
+            if future_dates:
+                max_future_date = max(future_dates)
+            else:
+                max_future_date = today - timedelta(days=1)
+
+            for past_row in past_rows:
+                max_future_date += timedelta(days=1)
+                past_row.slot_date = max_future_date
+                updated_count += 1
+
+        if updated_count > 0:
+            session.commit()
+            logger.info("Automatically rolled over %d expired slot rows to future dates", updated_count)
+
+        return updated_count
+    except Exception as exc:
+        session.rollback()
+        logger.error("Failed to rollover past slot rows: %s", exc)
+        return 0
+    finally:
+        if should_close:
+            session.close()
+
+
 def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
     """
     Query active trading slots for the requested order type.
     Merges duplicate slot dates across tables, sums total incoming and general stock.
+    Automatically rolls over past slot rows before returning.
     """
     session = SessionLocal()
     try:
+        rollover_past_slots_sync(session)
+
         query = session.query(SlotTable).filter(SlotTable.is_active == True)
         store_type = _resolve_target_store_type(order_type)
         if store_type == "SELL":
@@ -124,15 +184,37 @@ def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
 
         merged: dict[str, dict] = {}
         for t in tables:
+            t_stock = float(t.stock)
             for row in t.rows:
                 slot = _get_slot_dict(row, t)
                 key = slot["slot_date"]
+                row_incoming = float(row.incoming_kg or 0)
+                table_has_stock = (t_stock > 0 or row_incoming > 0)
+
                 if key in merged:
-                    merged[key]["stock_kg"] = float(merged[key]["stock_kg"]) + float(t.stock)
-                    merged[key]["incoming_kg"] = float(merged[key]["incoming_kg"]) + slot["incoming_kg"]
+                    merged[key]["stock_kg"] = float(merged[key]["stock_kg"]) + t_stock
+                    merged[key]["incoming_kg"] = float(merged[key]["incoming_kg"]) + row_incoming
+                    # If previously assigned slot table had 0 stock, but this table has stock, switch to active starting premium
+                    if not merged[key].get("_has_stock", False) and table_has_stock:
+                        merged[key]["premium"] = slot["premium"]
+                        merged[key]["_has_stock"] = True
                 else:
+                    slot["_has_stock"] = table_has_stock
                     merged[key] = slot
-        return list(merged.values())
+
+        # Clean internal helper flag before returning
+        for s in merged.values():
+            s.pop("_has_stock", None)
+
+        today_iso = get_cambodia_now().date().isoformat()
+        # Order slots starting from today (now on) into upcoming dates next
+        all_slots = list(merged.values())
+        upcoming = [s for s in all_slots if s["slot_date"] >= today_iso]
+        upcoming.sort(key=lambda s: s["slot_date"])
+        past = [s for s in all_slots if s["slot_date"] < today_iso]
+        past.sort(key=lambda s: s["slot_date"])
+
+        return upcoming + past if upcoming else all_slots
     finally:
         session.close()
 
@@ -166,16 +248,132 @@ def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | Non
     """
     Retrieve single slot details for a specific date and order type.
     Sums total incoming and general stock across matching slot tables.
+    Uses premium from first table with available stock, or first table if none have stock.
     """
     slots = _matching_slots_sync(slot_date, order_type)
     if not slots:
         return None
-    first = slots[0]
+    active_slot = next(
+        (s for s in slots if (float(s.get("stock_kg", 0)) > 0 or float(s.get("incoming_kg", 0)) > 0)),
+        slots[0],
+    )
+    first = dict(active_slot)
     total_incoming = sum(float(s["incoming_kg"]) for s in slots)
     total_stock = sum(float(s["stock_kg"]) for s in slots)
     first["incoming_kg"] = total_incoming
     first["stock_kg"] = total_stock
     return first
+
+
+def calculate_slot_tier_breakdown_sync(
+    slot_date: str,
+    quantity: float,
+    order_type: str = "BUY",
+    session=None,
+) -> dict:
+    """
+    Calculate tiered price cascading and allocation across active slot tables in display_order.
+    Handles:
+    - Out of stock in first table (falls forward to next table with stock at new price).
+    - Low stock in first table (splits order across tables, allocating remainder at new price).
+    - Sufficient stock in first table (standard single tier allocation).
+    """
+    should_close = False
+    if session is None:
+        session = SessionLocal()
+        should_close = True
+
+    try:
+        from app.utils.pricing import calculate_total_cost, calculate_unit_cost, DEFAULT_SPOT_PRICE
+
+        target = str(slot_date).strip()
+        store_type = _resolve_target_store_type(order_type)
+        tables = _matching_store_tables(session, store_type)
+
+        remaining_to_fill = float(quantity)
+        total_available = 0.0
+        tiers = []
+        first_table_checked = False
+        first_table_had_stock = False
+        first_table_avail = 0.0
+        first_table_premium = 0.0
+
+        for t in tables:
+            matching_row = None
+            for row in t.rows:
+                row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
+                if row_date == target:
+                    matching_row = row
+                    break
+
+            if not matching_row:
+                continue
+
+            avail = float(t.stock) + float(matching_row.incoming_kg or 0)
+            total_available += avail
+
+            if not first_table_checked:
+                first_table_checked = True
+                first_table_had_stock = (avail > 0)
+                first_table_avail = avail
+                first_table_premium = float(matching_row.premium)
+
+            if avail <= 0:
+                continue
+
+            if remaining_to_fill > 0:
+                alloc = min(avail, remaining_to_fill)
+                is_new_price = (len(tiers) > 0) or (not first_table_had_stock)
+                tiers.append({
+                    "table_id": t.id,
+                    "table_name": t.table_name,
+                    "available": avail,
+                    "quantity": alloc,
+                    "premium": float(matching_row.premium),
+                    "is_new_price": is_new_price,
+                })
+                remaining_to_fill -= alloc
+
+        is_sufficient = (remaining_to_fill <= 0) and (len(tiers) > 0)
+        has_spillover = (len(tiers) > 1)
+        is_first_table_exhausted = (not first_table_had_stock and len(tiers) > 0)
+        is_new_price_involved = has_spillover or is_first_table_exhausted
+
+        total_alloc_qty = sum(t["quantity"] for t in tiers)
+        if total_alloc_qty > 0:
+            total_premium_amount = sum(t["quantity"] * t["premium"] for t in tiers)
+            weighted_premium = total_premium_amount / total_alloc_qty
+        else:
+            total_premium_amount = 0.0
+            weighted_premium = first_table_premium
+
+        # Calculate exact total USD amount using spot price
+        spot_price_dec = DEFAULT_SPOT_PRICE
+        total_usd_amount = 0.0
+        for t in tiers:
+            unit_c = calculate_unit_cost(spot_price_dec, Decimal(str(t["premium"])))
+            t_cost = calculate_total_cost(Decimal(str(t["quantity"])), unit_c)
+            t["cost"] = float(t_cost)
+            total_usd_amount += float(t_cost)
+
+        return {
+            "is_sufficient": is_sufficient,
+            "total_available": total_available,
+            "requested_quantity": float(quantity),
+            "allocated_quantity": total_alloc_qty,
+            "has_spillover": has_spillover,
+            "is_first_table_exhausted": is_first_table_exhausted,
+            "is_new_price_involved": is_new_price_involved,
+            "first_table_avail": first_table_avail,
+            "first_table_premium": first_table_premium,
+            "tiers": tiers,
+            "weighted_premium": weighted_premium,
+            "total_premium_amount": total_premium_amount,
+            "total_amount": total_usd_amount,
+        }
+    finally:
+        if should_close:
+            session.close()
 
 
 def _matching_store_tables(session, store_type: str) -> list[SlotTable]:

@@ -35,7 +35,7 @@ async def handle_my_orders(update: Update, query, context: ContextTypes.DEFAULT_
     message = t("my_orders_title", lang)
 
     # Format latest 5 orders with translated field headers
-    for order in orders[-5:]:
+    for order in orders[:5]:
         type_str = t("buy", lang) if order["order_type"] == "BUY" else t("sell", lang)
         message += (
             f"{t('order_id', lang)}: {order['order_id']}\n"

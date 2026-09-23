@@ -280,9 +280,7 @@ export default function SalesPersonTable({
                 return (
                   <tr
                     key={sp.id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      idx % 2 === 1 ? "bg-slate-50/40" : ""
-                    }`}
+                    className="hover:bg-slate-100 transition-colors"
                   >
                     <td className="px-4 py-3 font-mono font-semibold text-indigo-600 whitespace-nowrap">
                       {sp.code || `SP-${String(sp.id).padStart(3, "0")}`}

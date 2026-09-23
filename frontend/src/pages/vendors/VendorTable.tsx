@@ -346,7 +346,7 @@ export default function VendorTable({
             </thead>
             <tbody className="divide-y divide-slate-100">
               {vendors.map((v, i) => (
-                <tr key={v.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={v.id} className="hover:bg-slate-100 transition-colors">
                   <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
                     {v.vendor_code || `VEND-${String(i + 1).padStart(3, "0")}`}
                   </td>

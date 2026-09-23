@@ -19,3 +19,7 @@ export * from "./vendors";
 export * from "./products";
 export * from "./salesPersons";
 export * from "./deliveryNotes";
+export * from "./deposits";
+export * from "./withdrawals";
+
+

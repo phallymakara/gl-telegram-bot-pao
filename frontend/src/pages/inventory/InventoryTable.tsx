@@ -329,7 +329,7 @@ export default function InventoryTable({
               {rows.map((row) => {
                 const isPositive = toNumber(row.stock_kg) >= 0;
                 return (
-                  <tr key={row.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                  <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                     <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
                       {row.inventory_date}
                     </td>

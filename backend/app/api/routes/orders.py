@@ -173,7 +173,7 @@ def list_orders(
         q = q.filter(Order.channel == channel.upper())
     if search:
         q = q.filter(Order.order_no.ilike(f"%{search}%"))
-    q = q.order_by(Order.created_at.desc()).limit(200)
+    q = q.order_by(Order.created_at.desc(), Order.id.desc()).limit(200)
     return [_to_order_response(o) for o in q.all()]
 
 

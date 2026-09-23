@@ -209,7 +209,7 @@ export default function PhysicalOrdersPage({
               {numericRows.map((r, idx) => (
                 <tr
                   key={r.id}
-                  className="border-b border-slate-50 hover:bg-slate-50/60"
+                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                 >
                   <td className="px-5 py-3.5 text-slate-400">{idx + 1}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">

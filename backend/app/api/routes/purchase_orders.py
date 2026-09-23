@@ -179,7 +179,7 @@ def list_purchase_orders(
             q = q.filter(func.date(PurchaseOrder.received_date) == target_date)
         except ValueError:
             pass
-    q = q.order_by(PurchaseOrder.created_at.desc()).limit(200)
+    q = q.order_by(PurchaseOrder.created_at.desc(), PurchaseOrder.id.desc()).limit(200)
     return [_to_response(po) for po in q.all()]
 
 

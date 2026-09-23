@@ -12,6 +12,7 @@ from app.bot.handlers import button_handler, start_command
 from app.core.config import BOT_TOKEN
 from app.core.logging import setup_logging
 from app.db import base  # ensure all SQLAlchemy models are registered
+from app.bot.notice_service import store_close_scheduler_loop
 from app.services.promotion_service import promotions_loop
 
 logger = logging.getLogger(__name__)
@@ -25,9 +26,10 @@ async def error_handler(update, context):
 async def post_init(application: Application):
     """
     Post-initialization hook executed after bot application startup.
-    Spawns background task for promotional alert broadcasting.
+    Spawns background tasks for promotional alert broadcasting and store close auto-notices.
     """
     asyncio.create_task(promotions_loop(application))
+    asyncio.create_task(store_close_scheduler_loop(application))
 
 
 def main():

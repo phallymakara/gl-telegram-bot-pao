@@ -346,7 +346,7 @@ export default function DeliveryDetailModal({
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {detail.payments.map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                        <tr key={p.id} className="hover:bg-slate-100 transition-colors">
                           <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                             {p.payment_date}
                           </td>

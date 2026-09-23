@@ -381,7 +381,7 @@ export default function DeliveryTable({
                 const dateDisplay = item.dispatch_date || (item.created_at ? item.created_at.split("T")[0] : "—");
 
                 return (
-                  <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
+                  <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                     {/* 1. Delivery No. */}
                     <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
                       {item.delivery_no}

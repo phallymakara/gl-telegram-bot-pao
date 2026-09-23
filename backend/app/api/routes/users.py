@@ -18,8 +18,24 @@ router = APIRouter()
 def list_users(db: Session = Depends(get_db)):
     """
     Retrieve all administrative platform users.
+    Auto-seeds a default Super Admin account if the database contains no users.
     """
-    return db.query(User).all()
+    users = db.query(User).order_by(User.id.asc()).all()
+    if not users:
+        admin_user = User(
+            name="Super Admin",
+            username="admin",
+            email="admin@goldsystem.com",
+            password_hash=hash_password("admin123"),
+            role="Super Admin",
+            is_active=True,
+            allowed_modules=["*"],
+        )
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        users = [admin_user]
+    return users
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -43,6 +59,8 @@ def create_user(body: UserCreate, db: Session = Depends(get_db)):
         email=body.email,
         password_hash=hash_password(body.password),
         role=body.role,
+        is_active=body.is_active,
+        allowed_modules=body.allowed_modules or [],
     )
     db.add(user)
     db.commit()
@@ -53,7 +71,7 @@ def create_user(body: UserCreate, db: Session = Depends(get_db)):
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: int, body: UserUpdate, db: Session = Depends(get_db)):
     """
-    Update administrative user fields (name, email, role, or active status) by ID.
+    Update administrative user fields (name, email, role, password, allowed_modules, or active status) by ID.
     Raises HTTP 404 if the user does not exist.
     """
     user = db.query(User).filter(User.id == user_id).first()
@@ -62,11 +80,18 @@ def update_user(user_id: int, body: UserUpdate, db: Session = Depends(get_db)):
     if body.name is not None:
         user.name = body.name
     if body.email is not None:
+        dup = db.query(User).filter(User.email == body.email, User.id != user_id).first()
+        if dup:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already in use")
         user.email = body.email
     if body.role is not None:
         user.role = body.role
     if body.is_active is not None:
         user.is_active = body.is_active
+    if body.allowed_modules is not None:
+        user.allowed_modules = body.allowed_modules
+    if body.password is not None and body.password.strip():
+        user.password_hash = hash_password(body.password.strip())
     db.commit()
     db.refresh(user)
     return user

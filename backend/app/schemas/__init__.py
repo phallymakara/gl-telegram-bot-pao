@@ -27,6 +27,19 @@ from app.schemas.delivery_note import (
     PartialDeliveryCalculationResponse,
 )
 
+from app.schemas.deposit import (
+    DepositCreate,
+    DepositResponse,
+    DepositReviewRequest,
+    DepositStatsResponse,
+)
+from app.schemas.withdrawal import (
+    WithdrawalCreate,
+    WithdrawalResponse,
+    WithdrawalReviewRequest,
+    WithdrawalStatsResponse,
+)
+
 __all__ = [
     "LoginRequest",
     "TokenResponse",
@@ -65,4 +78,13 @@ __all__ = [
     "EligibleOrderResponse",
     "PartialDeliveryCalculationRequest",
     "PartialDeliveryCalculationResponse",
+    "DepositCreate",
+    "DepositResponse",
+    "DepositReviewRequest",
+    "DepositStatsResponse",
+    "WithdrawalCreate",
+    "WithdrawalResponse",
+    "WithdrawalReviewRequest",
+    "WithdrawalStatsResponse",
 ]
+
