@@ -24,6 +24,12 @@ DEFAULT_SETTINGS = {
         "off_store_image_url": "",
         "off_store_image_urls": [],
     },
+    "bank_qr": {
+        "items": [],
+        "image_urls": [],
+        "enabled": True,
+        "caption": "",
+    },
 }
 
 
@@ -66,7 +72,7 @@ def save_settings_dict_sync(data: dict, session=None) -> dict:
         should_close = True
 
     try:
-        for key in ("bot", "security", "system"):
+        for key in ("bot", "security", "system", "bank_qr"):
             if key in data:
                 payload = json.dumps(data[key])
                 rec = session.query(SystemSetting).filter(SystemSetting.key == key).first()
@@ -169,3 +175,41 @@ def get_off_store_notice_sync(session=None) -> dict:
         "off_store_image_url": legacy_url or (image_urls[0] if image_urls else ""),
         "off_store_image_urls": image_urls,
     }
+
+
+def get_bank_qr_settings_sync(session=None) -> dict:
+    """
+    Retrieve Bank QR settings with individual item states (url, enabled).
+    """
+    settings = get_settings_dict_sync(session)
+    bank_qr_cfg = settings.get("bank_qr", {})
+
+    items = []
+    raw_items = bank_qr_cfg.get("items")
+    if isinstance(raw_items, list) and raw_items:
+        for it in raw_items:
+            if isinstance(it, dict) and it.get("url"):
+                items.append({
+                    "url": str(it.get("url", "")).strip(),
+                    "enabled": bool(it.get("enabled", True)),
+                })
+            elif isinstance(it, str) and it.strip():
+                items.append({"url": it.strip(), "enabled": True})
+    elif bank_qr_cfg.get("image_urls"):
+        for u in bank_qr_cfg.get("image_urls", []):
+            if u and str(u).strip():
+                items.append({
+                    "url": str(u).strip(),
+                    "enabled": bool(bank_qr_cfg.get("enabled", True)),
+                })
+
+    active_urls = [it["url"] for it in items if it.get("enabled", True) and it.get("url")]
+
+    return {
+        "items": items,
+        "active_image_urls": active_urls,
+        "image_urls": [it["url"] for it in items],
+        "enabled": len(active_urls) > 0,
+        "caption": str(bank_qr_cfg.get("caption", "") or ""),
+    }
+

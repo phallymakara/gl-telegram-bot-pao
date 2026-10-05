@@ -30,20 +30,20 @@ export default function CustomersTab({
   removeCustomer,
 }: CustomersTabProps) {
   return (
-    <div id="section-allow-user" className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-6">
-      <div className="p-6 md:p-8 border-b border-slate-100">
+    <div id="section-allow-user" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
+      <div className="p-6 md:p-8 pb-0">
         <h3 className="text-base font-bold text-slate-900">Allowed Telegram Users (Whitelist)</h3>
         <p className="text-xs text-slate-400 mt-1">
           Only authorized Telegram accounts will be permitted to access and interact with the bot.
         </p>
       </div>
       <div className="p-6 md:p-8 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200/80 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Telegram Username</label>
             <input
               type="text"
-              placeholder="@username"
+              placeholder="Telegram username"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -53,7 +53,7 @@ export default function CustomersTab({
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Telegram User ID</label>
             <input
               type="text"
-              placeholder="e.g. 123456789"
+              placeholder="Telegram user ID"
               value={newUserId}
               onChange={(e) => setNewUserId(e.target.value)}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono text-xs"
@@ -62,14 +62,14 @@ export default function CustomersTab({
           <div>
             <button
               onClick={addCustomer}
-              className="w-full py-2.5 px-4 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+              className="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus size={14} /> Add User
             </button>
           </div>
         </div>
 
-        <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto border border-slate-200 rounded-lg">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
               <tr>

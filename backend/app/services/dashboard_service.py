@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
 from app.services.slot_service import compute_sell_reservation_totals_sync, compute_vault_stock_sync
+from app.utils.pricing import is_non_stock_gold
 from app.schemas.dashboard import (
     DashboardStats,
     RevenuePoint,
@@ -77,6 +78,8 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     order_buyback = 0.0
 
     for o in all_orders:
+        if is_non_stock_gold(getattr(o, "product_type", None), getattr(o, "unit_type", None)):
+            continue
         d = get_effective_order_date(o)
         if d == target_dt_val:
             txn = (o.transaction_type or "").upper()
@@ -101,7 +104,15 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
     # "Physical" = a real supplier delivering physical gold to the vault (Oversea/Local POs).
     # "Platform" = gold that came in because a Telegram user sold to us through the bot (Buyback).
     po_base = db.query(func.coalesce(func.sum(PurchaseOrder.quantity), 0)).filter(
-        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"])  # Exclude RECEIVED and COMPLETED from incoming calculation
+        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"]),  # Exclude RECEIVED and COMPLETED from incoming calculation
+        or_(
+            PurchaseOrder.product_type.is_(None),
+            ~func.upper(PurchaseOrder.product_type).in_(["TL", "SL", "SV"]),
+        ),
+        or_(
+            PurchaseOrder.unit_type.is_(None),
+            func.upper(PurchaseOrder.unit_type) != "TL",
+        ),
     )
     if target_dt:
         po_base = po_base.filter(or_(
@@ -225,6 +236,14 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
             func.date(PurchaseOrder.expected_date) >= window_start,
             func.date(PurchaseOrder.expected_date) <= window_end,
             PurchaseOrder.status.in_(["INCOMING", "CONFIRMED"]),
+            or_(
+                PurchaseOrder.product_type.is_(None),
+                ~func.upper(PurchaseOrder.product_type).in_(["TL", "SL", "SV"]),
+            ),
+            or_(
+                PurchaseOrder.unit_type.is_(None),
+                func.upper(PurchaseOrder.unit_type) != "TL",
+            ),
         )
         .group_by(func.date(PurchaseOrder.expected_date), PurchaseOrder.po_type)
         .all()
@@ -251,6 +270,8 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
     ).all()
     buy_by_day: dict[date, float] = {}
     for o in buy_orders:
+        if is_non_stock_gold(getattr(o, "product_type", None), getattr(o, "unit_type", None)):
+            continue
         d = get_effective_order_date(o)
         if d and window_start <= d <= window_end:
             buy_by_day[d] = buy_by_day.get(d, 0.0) + float(o.quantity or 0)
@@ -262,6 +283,8 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
     ).all()
     out_by_day: dict[date, dict[str, float]] = {}
     for o in sell_orders:
+        if is_non_stock_gold(getattr(o, "product_type", None), getattr(o, "unit_type", None)):
+            continue
         d = get_effective_order_date(o)
         if d and window_start <= d <= window_end:
             if d not in out_by_day:

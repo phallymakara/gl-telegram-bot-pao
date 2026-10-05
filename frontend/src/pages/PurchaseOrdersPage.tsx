@@ -510,6 +510,11 @@ function getNextPoNo(existingRows: PurchaseOrderData[]): string {
   return `PO-${year}-${nextSeq}`;
 }
 
+const isDbOrSwiss = (pType?: string | null) => {
+  const t = (pType || "").trim().toUpperCase();
+  return t === "DB" || t === "SWISS";
+};
+
 export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPageProps) {
   const [rows, setRows] = useState<PurchaseOrderData[]>([]);
   const [generatedPoNo, setGeneratedPoNo] = useState<string>("");
@@ -610,6 +615,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       const next = { ...prev, [field]: value };
       if (field === "amount_kg") {
         next.quantity = value;
+      }
+      if (field === "product_type") {
+        if (!isDbOrSwiss(value) && next.unit_type === "TL") {
+          next.unit_type = "Kg";
+        }
       }
 
       let backendLastEdited = field as string;
@@ -1683,12 +1693,15 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
                   <select
-                    value={form.unit_type || "Kg"}
+                    value={isDbOrSwiss(form.product_type) ? (form.unit_type || "Kg") : "Kg"}
                     onChange={(e) => updateFormField("unit_type", e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                    disabled={!isDbOrSwiss(form.product_type)}
+                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
+                      !isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   >
                     <option value="Kg">Kg</option>
-                    <option value="TL">TL</option>
+                    {isDbOrSwiss(form.product_type) && <option value="TL">TL</option>}
                   </select>
                 </div>
               </div>

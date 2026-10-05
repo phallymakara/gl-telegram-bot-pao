@@ -12,6 +12,7 @@ import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
 import IconBtn from "../components/IconBtn";
 import UserModal from "../components/UserModal";
+import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
 import { api, UserData } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { ALL_MODULES } from "../data/navigation";
@@ -35,6 +36,11 @@ export default function UsersPage({ notify }: UsersPageProps) {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<UserData | null>(null);
+  const [verifyPasswordOpen, setVerifyPasswordOpen] = useState(false);
+  const [pendingSuperAdminUser, setPendingSuperAdminUser] = useState<UserData | null>(null);
+
+  const isSuperAdminUser = (u: UserData) =>
+    u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.name === "Super Admin";
 
   const loadUsers = async () => {
     try {
@@ -58,6 +64,11 @@ export default function UsersPage({ notify }: UsersPageProps) {
   };
 
   const handleEditOpen = (u: UserData) => {
+    if (isSuperAdminUser(u) && sessionStorage.getItem("super_admin_unlocked") !== "true") {
+      setPendingSuperAdminUser(u);
+      setVerifyPasswordOpen(true);
+      return;
+    }
     setUserToEdit(u);
     setIsModalOpen(true);
   };
@@ -223,7 +234,11 @@ export default function UsersPage({ notify }: UsersPageProps) {
                 </tr>
               ) : (
                 filtered.map((u, i) => (
-                  <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
+                  <tr
+                    key={u.id}
+                    onClick={() => handleEditOpen(u)}
+                    className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
@@ -264,7 +279,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
                       {u.last_login ? new Date(u.last_login).toLocaleDateString() : "—"}
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <IconBtn
                           title="Edit User & Permissions"
                           onClick={() => handleEditOpen(u)}
@@ -295,6 +310,24 @@ export default function UsersPage({ notify }: UsersPageProps) {
         userToEdit={userToEdit}
         onSuccess={handleModalSuccess}
         notify={notify}
+      />
+
+      {/* Super Admin Password Verification Modal */}
+      <SuperAdminPasswordModal
+        isOpen={verifyPasswordOpen}
+        onClose={() => {
+          setVerifyPasswordOpen(false);
+          setPendingSuperAdminUser(null);
+        }}
+        onSuccess={() => {
+          if (pendingSuperAdminUser) {
+            setUserToEdit(pendingSuperAdminUser);
+            setIsModalOpen(true);
+            setPendingSuperAdminUser(null);
+          }
+        }}
+        title="Super Admin Verification"
+        description="Enter password to view Super Admin user."
       />
     </div>
   );

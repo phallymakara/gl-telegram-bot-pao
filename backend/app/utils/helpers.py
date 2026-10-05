@@ -14,6 +14,7 @@ from app.utils.pricing import (
     calculate_premium_amount,
     calculate_total_cost,
     calculate_unit_cost,
+    is_non_stock_gold,
 )
 
 # Cambodia timezone is UTC+7 (ICT - Indochina Time)
@@ -71,18 +72,28 @@ def format_date_dd_mm_yy(val) -> str:
 
 def format_premium(premium) -> str:
     """
-    Format a premium numeric or string value with an explicit '+' sign for non-negative numbers (e.g. +200).
+    Format a premium numeric or string value with an explicit '+' sign for non-negative numbers (e.g. +200, +1,600).
     """
     try:
         val_str = str(premium).strip()
-        if val_str.startswith("+") or val_str.startswith("-"):
-            return val_str
-        val = float(val_str)
-        if val >= 0:
-            formatted_val = f"{val:g}"
-            return f"+{formatted_val}"
+        sign = "+"
+        if val_str.startswith("+"):
+            val_str = val_str[1:]
+        elif val_str.startswith("-"):
+            sign = "-"
+            val_str = val_str[1:]
+
+        val = float(val_str.replace(",", ""))
+        if val < 0:
+            sign = "-"
+            val = abs(val)
+
+        if val == int(val):
+            formatted_val = f"{int(val):,}"
         else:
-            return f"{val:g}"
+            formatted_val = f"{val:,.2f}".rstrip("0").rstrip(".")
+
+        return f"{sign}{formatted_val}"
     except (ValueError, TypeError):
         return str(premium)
 
@@ -90,10 +101,12 @@ def format_premium(premium) -> str:
 from app.utils.translation import t
 
 
-def generate_invoice_text(order, user, lang: str = "EN") -> str:
+def generate_invoice_text(order, user, lang: str = "EN", tier_info: dict | None = None) -> str:
     """
     Generate structured text for a Telegram order purchase invoice receipt.
     Matches the receipt layout and supports bilingual (KH/EN) formatting.
+    When an order spans multiple slot tables / price tiers, displays the breakdown
+    for each tier with sub-totals, along with total premium and total amount.
     """
     now = to_cambodia_time(getattr(order, "created_at", None))
     date_str = format_date_dd_mm_yy(now)
@@ -104,8 +117,14 @@ def generate_invoice_text(order, user, lang: str = "EN") -> str:
         full_name += f" {user.last_name}"
     full_name = full_name.strip().upper() or (f"@{user.username}" if user.username else "N/A")
 
-    order_type = getattr(order, "order_type", "BUY")
-    is_buy = (order_type == "BUY")
+    # Order direction: from customer perspective
+    # Note: store transaction_type 'SELL' means customer bought (ទិញ); 'BUY' means customer sold (លក់)
+    txn_type = getattr(order, "transaction_type", None) or getattr(order, "order_type", "BUY")
+    if txn_type in ("SELL", "BUY"):
+        is_buy = (txn_type == "SELL")
+    else:
+        is_buy = (txn_type == "BUY")
+
     type_action = "ទិញ" if (lang == "KH" and is_buy) else ("លក់" if (lang == "KH" and not is_buy) else ("BUY" if is_buy else "SELL"))
 
     slot_str = format_date_dd_mm_yy(getattr(order, "slot_date_str", None)) or "N/A"
@@ -114,7 +133,40 @@ def generate_invoice_text(order, user, lang: str = "EN") -> str:
     qty = float(order.quantity)
     qty_str = f"{qty:.1f}" if (qty == int(qty)) else f"{qty:g}"
 
-    premium_str = format_premium(order.premium)
+    effective_tier = tier_info or getattr(order, "_tier_info", None)
+    tiers = effective_tier.get("tiers", []) if (effective_tier and isinstance(effective_tier, dict)) else []
+
+    # If order was split across multiple price tiers, display separate tier calculations and total
+    if len(tiers) >= 2:
+        breakdown_lines = []
+        for item in tiers:
+            item_qty = float(item["quantity"])
+            item_qty_str = f"{item_qty:.1f}" if (item_qty == int(item_qty)) else f"{item_qty:g}"
+            item_rate = format_premium(item["premium"])
+            item_subtotal = item_qty * float(item["premium"])
+            subtotal_str = format_premium(item_subtotal)
+            breakdown_lines.append(
+                t("receipt_tier_item", lang).format(
+                    qty=item_qty_str,
+                    rate=item_rate,
+                    subtotal=subtotal_str,
+                )
+            )
+
+        total_prem_amt = order.premium_amount if getattr(order, "premium_amount", None) is not None else sum(float(t["quantity"]) * float(t["premium"]) for t in tiers)
+        premium_section = (
+            t("receipt_tier_title", lang) + "\n" +
+            "\n".join(breakdown_lines) + "\n" +
+            t("receipt_total_premium", lang).format(total_premium=format_premium(total_prem_amt))
+        )
+    else:
+        premium_str = format_premium(order.premium)
+        premium_section = t("receipt_premium", lang).format(premium=premium_str)
+
+    total_amount_val = getattr(order, "total_amount", None)
+    total_line = ""
+    if total_amount_val is not None:
+        total_line = "\n" + t("receipt_total_amount", lang).format(total=f"{float(total_amount_val):,.2f}")
 
     return (
         t("receipt_title", lang) +
@@ -123,6 +175,7 @@ def generate_invoice_text(order, user, lang: str = "EN") -> str:
         t("receipt_account", lang).format(name=full_name) + "\n" +
         slot_line + "\n" +
         t("receipt_quantity", lang).format(qty=qty_str) + "\n" +
-        t("receipt_premium", lang).format(premium=premium_str)
+        premium_section +
+        total_line
     )
 

@@ -4,9 +4,12 @@ Includes whitelist security decorator checking, language toggling, callback rout
 """
 
 import asyncio
+import logging
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
+
+logger = logging.getLogger(__name__)
 
 from app.bot.buy_handler import handle_buy
 from app.bot.keyboards import (
@@ -25,6 +28,7 @@ from app.bot.order_flow import (
     handle_custom_quantity_text_input,
     handle_deposit_amount_text_input,
     handle_deposit_bank,
+    handle_deposit_cheque,
     handle_deposit_cash,
     handle_deposit_doc_upload,
     handle_deposit_prompt,
@@ -38,6 +42,7 @@ from app.bot.order_flow import (
     handle_slot_selection,
     handle_withdraw_amount_text_input,
     handle_withdraw_bank,
+    handle_withdraw_cheque,
     handle_withdraw_cash,
     handle_withdraw_prompt,
 )
@@ -53,6 +58,7 @@ from app.constants.callback import (
     CUSTOM_QTY,
     DEPOSIT,
     DEPOSIT_BANK,
+    DEPOSIT_CHEQUE,
     DEPOSIT_CASH,
     MY_ORDERS,
     PAD_BACK,
@@ -66,6 +72,7 @@ from app.constants.callback import (
     SKIP_DEPOSIT_DOC,
     WITHDRAW,
     WITHDRAW_BANK,
+    WITHDRAW_CHEQUE,
     WITHDRAW_CASH,
     CALL_SALES_PHONE,
 )
@@ -205,11 +212,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == DEPOSIT_BANK:
         await handle_deposit_bank(update, query, context)
 
+    elif query.data == DEPOSIT_CHEQUE:
+        await handle_deposit_cheque(update, query, context)
+
     elif query.data == DEPOSIT_CASH:
         await handle_deposit_cash(update, query, context)
 
     elif query.data == WITHDRAW_BANK:
         await handle_withdraw_bank(update, query, context)
+
+    elif query.data == WITHDRAW_CHEQUE:
+        await handle_withdraw_cheque(update, query, context)
 
     elif query.data == WITHDRAW_CASH:
         await handle_withdraw_cash(update, query, context)
@@ -217,8 +230,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == SKIP_DEPOSIT_DOC:
         await handle_skip_deposit_doc(update, query, context)
 
-    elif query.data == CANCEL_ORDER:
-        await handle_cancel_order(query, context)
+    elif query.data == CANCEL_ORDER or query.data.startswith(f"{CANCEL_ORDER}:"):
+        order_id = None
+        if ":" in query.data:
+            try:
+                order_id = int(query.data.split(":", 1)[1])
+            except ValueError:
+                pass
+        await handle_cancel_order(query, context, order_id=order_id)
 
     elif query.data == BACK_MAIN:
         await handle_back_main(query, context)
@@ -259,11 +278,21 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
-async def handle_cancel_order(query, context: ContextTypes.DEFAULT_TYPE):
+async def handle_cancel_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: int | None = None):
     """
     Cancel current Telegram order flow and clear active user session state.
+    If an order was recently placed (or order_id provided), cancel it in the database and restore stock.
     """
     lang = context.user_data.get("lang", "EN")
+    target_order_id = order_id or context.user_data.get("last_order_id")
+    if target_order_id:
+        try:
+            from app.services.order_service import cancel_order_sync
+            await asyncio.to_thread(cancel_order_sync, target_order_id)
+            logger.info("Successfully cancelled order ID %s", target_order_id)
+        except Exception as e:
+            logger.error("Failed to cancel order %s: %s", target_order_id, e)
+
     context.user_data.clear()
     context.user_data["lang"] = lang
     await query.message.reply_text(

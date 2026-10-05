@@ -6,9 +6,10 @@ and interactive on-screen numpad entry for custom gold quantities and deposits.
 
 import asyncio
 import logging
+import random
 from decimal import Decimal
 from pathlib import Path
-from telegram import Update
+from telegram import InputMediaPhoto, Update
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
@@ -26,7 +27,7 @@ from app.bot.keyboards import (
     build_quantity_keyboard,
     build_withdraw_confirmation_keyboard,
 )
-from app.bot.notice_service import send_off_store_notice
+from app.bot.notice_service import _resolve_photo_source, send_off_store_notice
 from app.constants.callback import (
     BUY,
     BUY_SLOT_PREFIX,
@@ -45,7 +46,7 @@ from app.exceptions.order_exceptions import (
     SlotNotFoundError,
 )
 from app.services.order_service import place_buy_order, place_sell_order
-from app.services.settings_service import is_within_operating_hours_sync
+from app.services.settings_service import get_bank_qr_settings_sync, is_within_operating_hours_sync
 from app.services.slot_service import (
     calculate_slot_tier_breakdown_sync,
     get_slot_by_date_sync,
@@ -113,24 +114,8 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
         await query.answer(t("slot_out_of_stock", lang), show_alert=True)
         return
 
-    hint_msg = ""
-    if order_type == BUY:
-        tier_check = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, slot_date, 1.0, "BUY")
-        if tier_check.get("is_first_table_exhausted"):
-            first_tier = tier_check["tiers"][0] if tier_check.get("tiers") else {}
-            rate_str = format_premium(first_tier.get("premium", slot.get("premium", 0)))
-            hint_msg = t("slot_tier_hint_new", lang).format(rate=rate_str)
-        elif tier_check.get("first_table_avail", 0) < total_available and tier_check.get("first_table_avail", 0) > 0:
-            first_avail = tier_check["first_table_avail"]
-            first_rate = format_premium(tier_check.get("first_table_premium", slot.get("premium", 0)))
-            hint_msg = t("slot_tier_hint_low", lang).format(
-                avail_qty=f"{first_avail:.2f}",
-                rate=first_rate,
-            )
-
     await query.message.reply_text(
-        text=hint_msg + msg,
-        parse_mode="Markdown" if hint_msg else None,
+        text=msg,
         reply_markup=build_quantity_keyboard(stock=stock, incoming_kg=incoming, order_type=order_type, lang=lang),
     )
 
@@ -274,6 +259,40 @@ async def handle_custom_quantity_prompt(query, context: ContextTypes.DEFAULT_TYP
     )
 
 
+async def send_bank_qr_random_image(message_target, lang: str = "EN") -> bool:
+    """
+    Auto-send a randomly selected active Bank QR code image to customer.
+    If multiple active images are configured, randomly selects one to send.
+    Returns True if an image was sent, False otherwise.
+    """
+    qr_data = await asyncio.to_thread(get_bank_qr_settings_sync)
+    raw_urls = qr_data.get("active_image_urls") or []
+    image_urls = [u.strip() for u in raw_urls if u and u.strip()]
+    if not image_urls:
+        return False
+
+    chosen_url = random.choice(image_urls)
+    caption_text = qr_data.get("caption", "").strip() or t("bank_qr_caption", lang)
+
+    resolved = _resolve_photo_source(chosen_url)
+    try:
+        if isinstance(resolved, Path):
+            with open(resolved, "rb") as photo_f:
+                await message_target.reply_photo(
+                    photo=photo_f,
+                    caption=caption_text[:1024],
+                )
+        else:
+            await message_target.reply_photo(
+                photo=resolved,
+                caption=caption_text[:1024],
+            )
+        return True
+    except Exception as e:
+        logger.error("Failed to send Bank QR photo: %s", e)
+        return False
+
+
 async def handle_deposit_prompt(query, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user clicking 'Deposit' (ដាក់ប្រាក់).
@@ -282,6 +301,7 @@ async def handle_deposit_prompt(query, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get("lang", "EN")
     context.user_data["awaiting_deposit_amount"] = True
     context.user_data.pop("pad_qty", None)
+
     await query.message.reply_text(
         text=t("enter_deposit_qty", lang),
         reply_markup=build_back_main_keyboard(lang),
@@ -507,11 +527,43 @@ async def handle_numpad_back(query, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_deposit_bank(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle user selecting Bank Account / Cheque deposit method.
+    Handle user selecting Bank Account deposit method.
+    Sends a randomly chosen enabled Bank QR image if available, then prompts to attach verification documents.
+    If all QR codes are disabled / none available, prevents proceeding to the next step.
+    """
+    lang = context.user_data.get("lang", "EN")
+
+    qr_sent = False
+    try:
+        qr_sent = await send_bank_qr_random_image(query.message, lang)
+    except Exception as e:
+        logger.error("Error sending bank QR image on bank deposit: %s", e)
+
+    if not qr_sent:
+        msg = t("no_active_bank_qr", lang)
+        try:
+            await query.answer(msg, show_alert=True)
+        except Exception:
+            await query.message.reply_text(msg)
+        return
+
+    context.user_data["deposit_method"] = "BANK"
+    context.user_data["awaiting_deposit_doc"] = True
+    context.user_data["pad_mode"] = "DEPOSIT"
+
+    await query.message.reply_text(
+        text=t("attach_doc_prompt", lang),
+        reply_markup=build_attach_doc_keyboard(lang),
+    )
+
+
+async def handle_deposit_cheque(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle user selecting Cheque deposit method.
     Prompts user to attach verification documents.
     """
     lang = context.user_data.get("lang", "EN")
-    context.user_data["deposit_method"] = "BANK"
+    context.user_data["deposit_method"] = "CHEQUE"
     context.user_data["awaiting_deposit_doc"] = True
     context.user_data["pad_mode"] = "DEPOSIT"
 
@@ -524,26 +576,36 @@ async def handle_deposit_bank(update: Update, query, context: ContextTypes.DEFAU
 async def handle_deposit_cash(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user selecting Cash deposit method.
-    Prompts user to attach verification documents.
+    Directly submits Cash deposit and displays confirmation details without asking for documents.
     """
-    lang = context.user_data.get("lang", "EN")
     context.user_data["deposit_method"] = "CASH"
-    context.user_data["awaiting_deposit_doc"] = True
     context.user_data["pad_mode"] = "DEPOSIT"
-
-    await query.message.reply_text(
-        text=t("attach_doc_prompt", lang),
-        reply_markup=build_attach_doc_keyboard(lang),
-    )
+    await handle_skip_deposit_doc(update, query, context)
 
 
 async def handle_withdraw_bank(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle user selecting Bank Account / Cheque withdrawal method.
-    Prompts user to attach verification documents.
+    Handle user selecting Bank Account withdrawal method.
+    Prompts user to send their bank QR code to the store.
     """
     lang = context.user_data.get("lang", "EN")
     context.user_data["withdraw_method"] = "BANK"
+    context.user_data["awaiting_deposit_doc"] = True
+    context.user_data["pad_mode"] = "WITHDRAW"
+
+    await query.message.reply_text(
+        text=t("attach_withdraw_qr_prompt", lang),
+        reply_markup=build_attach_doc_keyboard(lang),
+    )
+
+
+async def handle_withdraw_cheque(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle user selecting Cheque withdrawal method.
+    Prompts user to attach verification documents.
+    """
+    lang = context.user_data.get("lang", "EN")
+    context.user_data["withdraw_method"] = "CHEQUE"
     context.user_data["awaiting_deposit_doc"] = True
     context.user_data["pad_mode"] = "WITHDRAW"
 
@@ -556,17 +618,11 @@ async def handle_withdraw_bank(update: Update, query, context: ContextTypes.DEFA
 async def handle_withdraw_cash(update: Update, query, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user selecting Cash withdrawal method.
-    Prompts user to attach verification documents.
+    Directly submits Cash withdrawal and displays confirmation details without asking for documents.
     """
-    lang = context.user_data.get("lang", "EN")
     context.user_data["withdraw_method"] = "CASH"
-    context.user_data["awaiting_deposit_doc"] = True
     context.user_data["pad_mode"] = "WITHDRAW"
-
-    await query.message.reply_text(
-        text=t("attach_doc_prompt", lang),
-        reply_markup=build_attach_doc_keyboard(lang),
-    )
+    await handle_skip_deposit_doc(update, query, context)
 
 
 async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -577,6 +633,7 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
     lang = context.user_data.get("lang", "EN")
     pad_mode = context.user_data.get("pad_mode", "DEPOSIT")
     deposit_method = context.user_data.get("deposit_method", "BANK")
+    withdraw_method = context.user_data.get("withdraw_method", "BANK")
     amount = context.user_data.get("withdraw_amount", 0.0) if pad_mode == "WITHDRAW" else context.user_data.get("deposit_amount", 0.0)
     amount_str = f"{amount:,.2f}" if (amount != int(amount)) else f"{int(amount):,}"
     now = get_cambodia_now()
@@ -593,6 +650,8 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
     # Download verification document or receipt photo if attached
     receipt_url = None
     telegram_file_id = None
+    subfolder = "withdrawals" if pad_mode == "WITHDRAW" else "deposits"
+    save_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / subfolder
     if update.message:
         if update.message.photo:
             photo = update.message.photo[-1]
@@ -603,16 +662,15 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
             telegram_file_id = photo.file_id
             try:
                 tg_file = await context.bot.get_file(photo.file_id)
-                save_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / "deposits"
                 save_dir.mkdir(parents=True, exist_ok=True)
                 filename = f"{txn_id}.jpg"
                 dest_path = save_dir / filename
                 await tg_file.download_to_drive(custom_path=dest_path)
                 optimize_uploaded_image(dest_path)
-                receipt_url = f"/uploads/deposits/{filename}"
-                logger.info("Successfully saved and optimized deposit slip photo to %s", receipt_url)
+                receipt_url = f"/uploads/{subfolder}/{filename}"
+                logger.info("Successfully saved and optimized %s photo to %s", subfolder, receipt_url)
             except Exception as e:
-                logger.error("Failed to download deposit photo: %s", e)
+                logger.error("Failed to download photo: %s", e)
         elif update.message.document:
             doc = update.message.document
             if doc.file_size and doc.file_size > MAX_UPLOAD_SIZE_BYTES:
@@ -622,7 +680,6 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
             telegram_file_id = doc.file_id
             try:
                 tg_file = await context.bot.get_file(doc.file_id)
-                save_dir = Path(__file__).resolve().parent.parent.parent / "uploads" / "deposits"
                 save_dir.mkdir(parents=True, exist_ok=True)
                 ext = Path(doc.file_name or "slip.jpg").suffix or ".jpg"
                 filename = f"{txn_id}{ext}"
@@ -630,10 +687,10 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
                 await tg_file.download_to_drive(custom_path=dest_path)
                 if ext.lower() in [".jpg", ".jpeg", ".png"]:
                     optimize_uploaded_image(dest_path)
-                receipt_url = f"/uploads/deposits/{filename}"
-                logger.info("Successfully saved deposit document to %s", receipt_url)
+                receipt_url = f"/uploads/{subfolder}/{filename}"
+                logger.info("Successfully saved %s document to %s", subfolder, receipt_url)
             except Exception as e:
-                logger.error("Failed to download deposit document: %s", e)
+                logger.error("Failed to download document: %s", e)
 
     # Persist deposit or withdrawal transaction to database
     if pad_mode == "DEPOSIT":
@@ -680,11 +737,11 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
                     account_name=full_name,
                     amount=Decimal(str(amount)),
                     currency="USD",
-                    payment_method=context.user_data.get("withdraw_method", "BANK"),
+                    payment_method=withdraw_method,
                     receipt_url=receipt_url,
                     telegram_file_id=telegram_file_id,
                     status="PENDING",
-                    notes="Customer requested withdrawal via Telegram bot",
+                    notes="Customer provided bank QR code via Telegram bot" if receipt_url else "Customer requested withdrawal via Telegram bot",
                     transaction_date=now,
                 )
                 db.add(withdrawal)
@@ -752,12 +809,12 @@ async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.D
                     payment_method=deposit_method,
                     receipt_url=None,
                     status="PENDING",
-                    notes="Deposit submitted directly (document attachment skipped)",
+                    notes="Cash deposit submitted via Telegram bot" if deposit_method == "CASH" else "Deposit submitted directly (document attachment skipped)",
                     transaction_date=now,
                 )
                 db.add(deposit)
                 db.commit()
-                logger.info("Created Deposit record (skipped slip) %s for user %s", txn_id, full_name)
+                logger.info("Created Deposit record (%s) %s for user %s", deposit_method, txn_id, full_name)
         except Exception as err:
             logger.error("Failed to save deposit record to database: %s", err)
     elif pad_mode == "WITHDRAW":
@@ -779,7 +836,7 @@ async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.D
                     payment_method=withdraw_method,
                     receipt_url=None,
                     status="PENDING",
-                    notes="Withdrawal request submitted via Telegram bot",
+                    notes="Cash withdrawal requested via Telegram bot" if withdraw_method == "CASH" else "Withdrawal request submitted via Telegram bot",
                     transaction_date=now,
                 )
                 db.add(withdrawal)
@@ -970,15 +1027,19 @@ async def handle_confirm_order(
                 quantity=quantity,
             )
 
+        # Preserve tier breakdown details for the receipt
+        tier_info = getattr(order, "_tier_info", None) or context.user_data.get("tier_info")
+
         # Reset session flow state upon successful placement
         context.user_data.clear()
         context.user_data["lang"] = lang
+        context.user_data["last_order_id"] = order.id
 
         # Generate formatted purchase receipt text
-        receipt_msg = generate_invoice_text(order, user, lang)
+        receipt_msg = generate_invoice_text(order, user, lang, tier_info=tier_info)
         await query.message.reply_text(
             text=receipt_msg,
-            reply_markup=build_invoice_keyboard(lang),
+            reply_markup=build_invoice_keyboard(lang, order_id=order.id),
         )
 
     except SlotNotFoundError as error:

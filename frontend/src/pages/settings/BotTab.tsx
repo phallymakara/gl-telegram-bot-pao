@@ -24,8 +24,8 @@ export default function BotTab({
   saveSettings,
 }: BotTabProps) {
   return (
-    <div id="section-bot" className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden scroll-mt-6">
-      <div className="p-6 md:p-8 border-b border-slate-100">
+    <div id="section-bot" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
+      <div className="p-6 md:p-8 pb-0">
         <h3 className="text-base font-bold text-slate-900">Telegram Bot Configurations</h3>
         <p className="text-xs text-slate-400 mt-1">Configure bot credentials and communication settings.</p>
       </div>
@@ -38,6 +38,7 @@ export default function BotTab({
               <input
                 value={botUsername}
                 onChange={(e) => setBotUsername(e.target.value)}
+                placeholder="Bot username"
                 className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
@@ -47,7 +48,7 @@ export default function BotTab({
             <div className="relative">
               <input
                 type={showToken ? "text" : "password"}
-                defaultValue="758493021:AAHk9d0sFk2m19-XzL4kLmN8p"
+                placeholder="Bot token API"
                 className="w-full pl-3 pr-10 py-2 text-sm border border-slate-200 rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
               <button
@@ -64,7 +65,7 @@ export default function BotTab({
         <div className="pt-2 flex justify-end">
           <button
             onClick={saveSettings}
-            className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shadow-sm"
+            className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors"
           >
             Save Configurations
           </button>

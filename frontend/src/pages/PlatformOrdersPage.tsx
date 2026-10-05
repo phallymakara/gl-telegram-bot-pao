@@ -535,6 +535,11 @@ function ExportSellOrdersDropdown({
   );
 }
 
+const isDbOrSwiss = (pType?: string | null) => {
+  const t = (pType || "").trim().toUpperCase();
+  return t === "DB" || t === "SWISS";
+};
+
 export default function PlatformOrdersPage({
   notify,
 }: PlatformOrdersPageProps) {
@@ -553,7 +558,7 @@ export default function PlatformOrdersPage({
     customer_name: "",
     sales_person: "",
     channel: "Oversea",
-    product_type: "",
+    product_type: "DB",
     unit_type: "Kg",
     spot_price: "",
     quantity: "",
@@ -569,6 +574,11 @@ export default function PlatformOrdersPage({
   ) {
     setNewOrderForm((prev) => {
       const next = { ...prev, [field]: value };
+      if (field === "product_type") {
+        if (!isDbOrSwiss(value) && next.unit_type === "TL") {
+          next.unit_type = "Kg";
+        }
+      }
 
       let backendLastEdited = field as string;
       if (field === "total_amount") backendLastEdited = "total_cost";
@@ -985,7 +995,7 @@ export default function PlatformOrdersPage({
         customer_name: "",
         sales_person: "",
         channel: "Oversea",
-        product_type: "",
+        product_type: "DB",
         unit_type: "Kg",
         spot_price: "",
         quantity: "",
@@ -1023,6 +1033,8 @@ export default function PlatformOrdersPage({
           total_amount: totalAmount,
           transaction_type: "SELL",
           slot_date_str: newOrderForm.slot_date_str,
+          product_type: newOrderForm.product_type || null,
+          unit_type: newOrderForm.unit_type || "Kg",
         })
         .then((updated) => {
           setRows((rs) => rs.map((row) => (row.id === editingOrder.id ? updated : row)));
@@ -1048,6 +1060,8 @@ export default function PlatformOrdersPage({
           total_amount: totalAmount,
           status: "CONFIRMED",
           slot_date_str: newOrderForm.slot_date_str,
+          product_type: newOrderForm.product_type || null,
+          unit_type: newOrderForm.unit_type || "Kg",
         })
         .then((created) => {
           setRows((rs) => [created, ...rs]);
@@ -1167,7 +1181,23 @@ export default function PlatformOrdersPage({
           <div className="flex items-center gap-2 sm:ml-auto">
             <ExportSellOrdersDropdown rows={filteredRows} notify={notify} />
             <button
-              onClick={() => setIsNewOrderModalOpen(true)}
+              onClick={() => {
+                setEditingOrder(null);
+                setNewOrderForm({
+                  customer_name: "",
+                  sales_person: "",
+                  channel: "Oversea",
+                  product_type: "DB",
+                  unit_type: "Kg",
+                  spot_price: "",
+                  quantity: "",
+                  premium: "",
+                  total_amount: "",
+                  slot_date_str: new Date().toISOString().split("T")[0],
+                  notes: "",
+                });
+                setIsNewOrderModalOpen(true);
+              }}
               className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
             >
               <Plus size={16} /> New Sell Orders
@@ -1341,7 +1371,7 @@ export default function PlatformOrdersPage({
                                     customer_name: r.customer_name || "",
                                     sales_person: r.sales_person || "",
                                     channel: editChan,
-                                    product_type: (r as any).product_type || "",
+                                    product_type: (r as any).product_type || "DB",
                                     unit_type: (r as any).unit_type || "Kg",
                                     spot_price: String(r.spot_price || "4376.50"),
                                     quantity: String(r.quantity),
@@ -1528,12 +1558,15 @@ export default function PlatformOrdersPage({
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
                   <select
-                    value={newOrderForm.unit_type || "Kg"}
+                    value={isDbOrSwiss(newOrderForm.product_type) ? (newOrderForm.unit_type || "Kg") : "Kg"}
                     onChange={(e) => updateSellOrderField("unit_type", e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                    disabled={!isDbOrSwiss(newOrderForm.product_type)}
+                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
+                      !isDbOrSwiss(newOrderForm.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
+                    }`}
                   >
                     <option value="Kg">Kg</option>
-                    <option value="TL">TL</option>
+                    {isDbOrSwiss(newOrderForm.product_type) && <option value="TL">TL</option>}
                   </select>
                 </div>
               </div>

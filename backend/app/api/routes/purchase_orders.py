@@ -24,7 +24,14 @@ from app.models.slot_table import SlotTable
 from app.services.purchase_order_service import receive_purchase_order_sync, return_purchase_order_sync
 from app.services.slot_service import add_incoming_to_slot_sync, remove_incoming_from_slot_sync
 from app.utils.generators import generate_po_no
-from app.utils.pricing import DEFAULT_PREMIUM, DEFAULT_SPOT_PRICE, TROY_OUNCES_PER_KG, calculate_total_cost, calculate_unit_cost
+from app.utils.pricing import (
+    DEFAULT_PREMIUM,
+    DEFAULT_SPOT_PRICE,
+    TROY_OUNCES_PER_KG,
+    calculate_total_cost,
+    calculate_unit_cost,
+    is_non_stock_gold,
+)
 
 router = APIRouter()
 
@@ -245,8 +252,8 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
     db.commit()
     db.refresh(po)
 
-    # Credit day-specific incoming stock to SlotRow for pre-sale availability
-    if po.order_date and slot_table_id:
+    # Credit day-specific incoming stock to SlotRow for pre-sale availability (skip for non-stock gold)
+    if po.order_date and slot_table_id and not is_non_stock_gold(body.product_type, body.unit_type):
         slot_date_str = po.order_date.isoformat() if hasattr(po.order_date, "isoformat") else str(po.order_date)
         add_incoming_to_slot_sync(
             slot_table_id=slot_table_id,
@@ -411,8 +418,8 @@ def cancel_purchase_order(po_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(po)
 
-    # Remove incoming stock if PO was in an incoming state
-    if old_status in ("INCOMING", "CONFIRMED", "DRAFT", "ORDERED", "PENDING") and po.order_date and po.slot_table_id:
+    # Remove incoming stock if PO was in an incoming state and was stock gold
+    if old_status in ("INCOMING", "CONFIRMED", "DRAFT", "ORDERED", "PENDING") and po.order_date and po.slot_table_id and not is_non_stock_gold(po.product_type, po.unit_type):
         slot_date_str = po.order_date.isoformat() if hasattr(po.order_date, "isoformat") else str(po.order_date)
         remove_incoming_from_slot_sync(
             slot_table_id=po.slot_table_id,

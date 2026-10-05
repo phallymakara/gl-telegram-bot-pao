@@ -234,6 +234,11 @@ interface PoFormModalProps {
 /**
  * Purchase Order creation form modal component.
  */
+const isDbOrSwiss = (pType?: string | null) => {
+  const t = (pType || "").trim().toUpperCase();
+  return t === "DB" || t === "SWISS";
+};
+
 export default function PoFormModal({
   isOpen,
   onClose,
@@ -327,6 +332,11 @@ export default function PoFormModal({
   ) {
     setForm((prev: any) => {
       const next = { ...prev, [field]: value };
+      if (field === "product_type") {
+        if (!isDbOrSwiss(value) && next.unit_type === "TL") {
+          next.unit_type = "Kg";
+        }
+      }
 
       let backendLastEdited = field as string;
       if (field === "qty_kg") backendLastEdited = "quantity";
@@ -425,12 +435,15 @@ export default function PoFormModal({
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Unit *</label>
               <select
-                value={form.unit_type || "Kg"}
+                value={isDbOrSwiss(form.product_type) ? (form.unit_type || "Kg") : "Kg"}
                 onChange={(e) => updateFormField("unit_type", e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
+                disabled={!isDbOrSwiss(form.product_type)}
+                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
+                  !isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
+                }`}
               >
                 <option value="Kg">Kg</option>
-                <option value="TL">TL</option>
+                {isDbOrSwiss(form.product_type) && <option value="TL">TL</option>}
               </select>
             </div>
           </div>

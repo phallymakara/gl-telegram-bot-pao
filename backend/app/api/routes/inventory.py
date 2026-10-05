@@ -18,6 +18,7 @@ from app.models.daily_inventory import DailyInventory
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
 from app.services.slot_service import adjust_vault_stock_sync
+from app.utils.pricing import is_non_stock_gold
 
 router = APIRouter()
 
@@ -64,6 +65,8 @@ def list_inventory(
     # 1. Purchase Orders (Inflow / Incoming stock from suppliers)
     pos = db.query(PurchaseOrder).all()
     for po in pos:
+        if is_non_stock_gold(po.product_type, po.unit_type):
+            continue
         p_date = po.received_date or po.order_date or (po.created_at.date() if hasattr(po.created_at, "date") else None)
         if not p_date:
             continue
@@ -91,6 +94,8 @@ def list_inventory(
     # 2. Customer Orders (Outflow for store SELL / Inflow for store BUY)
     orders = db.query(Order).all()
     for o in orders:
+        if is_non_stock_gold(getattr(o, "product_type", None), getattr(o, "unit_type", None)):
+            continue
         o_date = o.created_at.date() if hasattr(o.created_at, "date") else None
         if not o_date:
             continue

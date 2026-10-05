@@ -16,6 +16,8 @@ class OrderCreate(BaseModel):
     premium: Decimal = Decimal(0)
     customer_name: str | None = None
     sales_person: str | None = None
+    product_type: str | None = None
+    unit_type: str | None = "Kg"
     slot_date_str: str | None = None
     channel: str | None = "TELEGRAM"
     region: str | None = "LOCAL"
@@ -32,6 +34,8 @@ class OrderUpdate(BaseModel):
     premium: Decimal | None = None
     customer_name: str | None = None
     sales_person: str | None = None
+    product_type: str | None = None
+    unit_type: str | None = None
     status: str | None = None
     channel: str | None = None
     region: str | None = None
@@ -46,6 +50,8 @@ class OrderResponse(BaseModel):
     order_no: str
     customer_name: str | None = None
     sales_person: str | None = None
+    product_type: str | None = None
+    unit_type: str | None = None
     group_name: str | None = None
     slot_date: date | None = None
     slot_date_str: str | None = None

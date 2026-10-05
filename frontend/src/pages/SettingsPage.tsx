@@ -4,12 +4,13 @@
  */
 
 import { useEffect, useState } from "react";
-import { Clock, Send, Shield, User, UserCheck } from "lucide-react";
+import { Clock, QrCode, Send, User, UserCheck } from "lucide-react";
 import { api, CustomerData } from "../api";
 import ProfileTab from "./settings/ProfileTab";
 import BotTab from "./settings/BotTab";
 import CustomersTab from "./settings/CustomersTab";
 import SecurityTab from "./settings/SecurityTab";
+import BankQrTab, { BankQrItemData } from "./settings/BankQrTab";
 
 interface SettingsPageProps {
   /** Toast notification trigger callback */
@@ -20,7 +21,7 @@ interface SettingsPageProps {
  * System settings container page component.
  */
 export default function SettingsPage({ notify }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "allow-user" | "security" | "system">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "allow-user" | "system" | "bank-qr">("profile");
   const [showToken, setShowToken] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [openTime, setOpenTime] = useState("08:00");
@@ -31,6 +32,9 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [botUsername, setBotUsername] = useState("GoldSystemBot");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
+
+  // Bank QR State
+  const [bankQrItems, setBankQrItems] = useState<BankQrItemData[]>([]);
 
   // Whitelist / Allow User State
   const [customers, setCustomers] = useState<CustomerData[]>([]);
@@ -52,6 +56,19 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
         const initialUrls = rawUrls.length > 0 ? rawUrls : (s.system.off_store_image_url ? [s.system.off_store_image_url] : []);
         setOffStoreImageUrls(initialUrls);
         setOffStoreImageUrl(initialUrls[0] || "");
+        if (s.bank_qr) {
+          const items: BankQrItemData[] = s.bank_qr.items || [];
+          if (items.length > 0) {
+            setBankQrItems(items);
+          } else if (s.bank_qr.image_urls) {
+            setBankQrItems(
+              s.bank_qr.image_urls.map((u: string) => ({
+                url: u,
+                enabled: s.bank_qr.enabled !== undefined ? Boolean(s.bank_qr.enabled) : true,
+              }))
+            );
+          }
+        }
       })
       .catch(() => {});
 
@@ -60,7 +77,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
       .then(setCustomers)
       .catch(() => {});
 
-    const sectionIds = ["profile", "bot", "allow-user", "security", "system"];
+    const sectionIds = ["profile", "bot", "allow-user", "security", "system", "bank-qr"];
     const handleScroll = () => {
       for (const id of sectionIds) {
         const el = document.getElementById(`section-${id}`);
@@ -92,6 +109,12 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           off_store_message: offStoreMessage,
           off_store_image_url: offStoreImageUrls[0] || "",
           off_store_image_urls: offStoreImageUrls,
+        },
+        bank_qr: {
+          items: bankQrItems,
+          image_urls: bankQrItems.map((it) => it.url),
+          enabled: bankQrItems.some((it) => it.enabled),
+          caption: "",
         },
       })
       .then(() => notify("Settings saved"))
@@ -131,8 +154,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     { id: "profile", label: "User Profile", desc: "Personal info & avatar", icon: User },
     { id: "bot", label: "Telegram Bot", desc: "Bot token & username", icon: Send },
     { id: "allow-user", label: "Allow User", desc: "Whitelist allowed Telegram users", icon: UserCheck },
-    { id: "security", label: "Security Settings", desc: "2FA & timeout configs", icon: Shield },
     { id: "system", label: "Operating Hours", desc: "Store operating times", icon: Clock },
+    { id: "bank-qr", label: "Bank QR Code", desc: "Deposit account QR images", icon: QrCode },
   ] as const;
 
   function scrollToSection(id: string) {
@@ -158,7 +181,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
               onClick={() => scrollToSection(tab.id)}
               className={`shrink-0 whitespace-nowrap text-left px-3.5 py-2.5 md:py-3 rounded-lg transition-all duration-150 flex items-center gap-2.5 relative focus:outline-none cursor-pointer ${
                 isActive
-                  ? "bg-indigo-50 md:bg-slate-100 text-indigo-700 md:text-slate-900 font-semibold shadow-xs"
+                  ? "bg-indigo-50 md:bg-slate-100 text-indigo-700 md:text-slate-900 font-semibold"
                   : "text-slate-600 hover:bg-slate-50/80 hover:text-slate-900"
               }`}
             >
@@ -211,6 +234,11 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           passwordExpiry={passwordExpiry}
           setPasswordExpiry={setPasswordExpiry}
           saveSettings={saveSettings}
+          notify={notify}
+        />
+        <BankQrTab
+          bankQrItems={bankQrItems}
+          setBankQrItems={setBankQrItems}
           notify={notify}
         />
       </div>

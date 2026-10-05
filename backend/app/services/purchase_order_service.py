@@ -17,6 +17,7 @@ from app.services.slot_service import (
     remove_incoming_from_slot_sync,
 )
 from app.utils.generators import generate_po_no, generate_return_no
+from app.utils.pricing import is_non_stock_gold
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +70,8 @@ def create_purchase_order_sync(
     finally:
         session.close()
 
-    # Credit day-specific incoming stock to SlotRow
-    if order_date and slot_table_id:
+    # Credit day-specific incoming stock to SlotRow (skip for non-stock gold)
+    if order_date and slot_table_id and not is_non_stock_gold(product_type, unit_type):
         slot_date_str = order_date.isoformat() if isinstance(order_date, date) else str(order_date)
         add_incoming_to_slot_sync(
             slot_table_id=slot_table_id,
@@ -107,24 +108,25 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
     finally:
         session.close()
 
-    # Move stock from incoming to vault
-    if po.order_date and po.slot_table_id:
-        slot_date_str = po.order_date.isoformat() if isinstance(po.order_date, date) else str(po.order_date)
-        remove_incoming_from_slot_sync(
-            slot_table_id=po.slot_table_id,
-            slot_date_str=slot_date_str,
-            quantity=Decimal(po.quantity),
-            txn_type="PO_RECEIVE_INCOMING",
-            remark=f"Received {po.po_type} PO {po.po_no} - moved from incoming to vault",
-        )
+    # Move stock from incoming to vault only if stock gold
+    if not is_non_stock_gold(po.product_type, po.unit_type):
+        if po.order_date and po.slot_table_id:
+            slot_date_str = po.order_date.isoformat() if isinstance(po.order_date, date) else str(po.order_date)
+            remove_incoming_from_slot_sync(
+                slot_table_id=po.slot_table_id,
+                slot_date_str=slot_date_str,
+                quantity=Decimal(po.quantity),
+                txn_type="PO_RECEIVE_INCOMING",
+                remark=f"Received {po.po_type} PO {po.po_no} - moved from incoming to vault",
+            )
 
-    # Credit physical stock to inventory slot table (vault)
-    add_stock_to_table_sync(
-        slot_table_id=po.slot_table_id,
-        quantity=Decimal(po.quantity),
-        txn_type="PO_RECEIVE",
-        remark=f"Received {po.po_type} PO {po.po_no}",
-    )
+        # Credit physical stock to inventory slot table (vault)
+        add_stock_to_table_sync(
+            slot_table_id=po.slot_table_id,
+            quantity=Decimal(po.quantity),
+            txn_type="PO_RECEIVE",
+            remark=f"Received {po.po_type} PO {po.po_no}",
+        )
     return po
 
 

@@ -8,6 +8,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { Diamond, User, ChevronDown, Check, UserCheck, Shield } from "lucide-react";
 import { NAV_ITEMS, NavItem } from "../data/navigation";
 import { useAuth } from "../context/AuthContext";
+import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
 
 interface SidebarProps {
   /** Active page route key */
@@ -37,6 +38,8 @@ export default function Sidebar({
 }: SidebarProps) {
   const { currentUser, isAllowed, users, switchUser } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [verifyPasswordOpen, setVerifyPasswordOpen] = useState(false);
+  const [pendingUser, setPendingUser] = useState<any>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close profile dropdown on outside click
@@ -216,13 +219,27 @@ export default function Sidebar({
               <div className="py-1 space-y-0.5">
                 {users.map((u) => {
                   const isSelected = currentUser?.id === u.id;
+                  const isSuper =
+                    u.role === "Super Admin" ||
+                    u.role === "SUPER_ADMIN" ||
+                    u.name === "Super Admin";
                   return (
                     <button
                       key={u.id}
                       type="button"
                       onClick={() => {
-                        switchUser(u.id);
-                        setProfileMenuOpen(false);
+                        if (
+                          isSuper &&
+                          currentUser?.id !== u.id &&
+                          sessionStorage.getItem("super_admin_unlocked") !== "true"
+                        ) {
+                          setPendingUser(u);
+                          setProfileMenuOpen(false);
+                          setVerifyPasswordOpen(true);
+                        } else {
+                          switchUser(u.id);
+                          setProfileMenuOpen(false);
+                        }
                       }}
                       className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${
                         isSelected ? "bg-indigo-50 text-indigo-900 font-semibold" : "hover:bg-slate-50 text-slate-700"
@@ -285,6 +302,22 @@ export default function Sidebar({
           </div>
         </div>
       </aside>
+
+      <SuperAdminPasswordModal
+        isOpen={verifyPasswordOpen}
+        onClose={() => {
+          setVerifyPasswordOpen(false);
+          setPendingUser(null);
+        }}
+        onSuccess={() => {
+          if (pendingUser) {
+            switchUser(pendingUser.id);
+            setPendingUser(null);
+          }
+        }}
+        title="Super Admin Verification"
+        description="Enter password to access Super Admin account."
+      />
     </>
   );
 }

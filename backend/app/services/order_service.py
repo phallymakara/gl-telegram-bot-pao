@@ -109,6 +109,7 @@ def _place_order_sync(
         store_txn_type = "SELL" if order_type == "BUY" else "BUY"
         spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
 
+        tier_info = None
         # Section 3: Calculate order totals (with multi-table tiered price support for store SELL)
         if store_txn_type == "SELL":
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
@@ -212,6 +213,7 @@ def _place_order_sync(
             session.commit()
 
         session.refresh(order)
+        order._tier_info = tier_info
         logger.info("Successfully created order_no=%s for customer=%s, total_amount=%.2f", order.order_no, customer.display_name, total_amt)
         return order
     except Exception as exc:

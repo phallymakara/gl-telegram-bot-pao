@@ -17,7 +17,12 @@ from app.models.order import Order
 from app.services.order_service import cancel_order_sync, return_order_sync
 from app.services.slot_service import credit_store_stock_sync, deduct_store_stock_sync, sell_order_lock
 from app.utils.generators import generate_order_no
-from app.utils.pricing import DEFAULT_SPOT_PRICE, calculate_order_total, calculate_premium_amount
+from app.utils.pricing import (
+    DEFAULT_SPOT_PRICE,
+    calculate_order_total,
+    calculate_premium_amount,
+    is_non_stock_gold,
+)
 
 OPEN_ORDER_STATUSES = ("CONFIRMED", "PENDING", "PROCESSING")
 COLLECTED_STATUSES = ("COLLECTED", "COMPLETED", "DELIVERED")
@@ -33,6 +38,8 @@ def _to_order_response(o: Order) -> OrderResponse:
         order_no=o.order_no,
         customer_name=cname,
         sales_person=o.sales_person,
+        product_type=o.product_type,
+        unit_type=o.unit_type,
         group_name=o.group.group_name if o.group else None,
         slot_date=o.slot.slot_date if o.slot else None,
         slot_date_str=o.slot_date_str or (o.created_at.strftime("%Y-%m-%d") if o.created_at else None),
@@ -104,6 +111,8 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         region=region_val,
         customer_name=body.customer_name,
         sales_person=body.sales_person,
+        product_type=body.product_type,
+        unit_type=body.unit_type or "Kg",
         spot_price=spot_price,
         total_amount=total_amount,
         username=body.customer_name,
@@ -113,16 +122,9 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(order)
 
-    # SELL orders reserve gold for real, right now: a table's STOCK box (and/or that date's eligible
-    # incoming) drops immediately, the same moment the order is created -- not deferred to collection.
-    # The true vault total (Physical Stock) stays untouched until collected, same as a PO isn't
-    # "physical" until someone explicitly receives it.
-    #
-    # deduct_store_stock_sync runs in its own session/transaction, so the order row must already be
-    # committed (and visible) before it can be referenced by FK -- hence committing above first.
-    # sell_order_lock is held around this: without it, two near-simultaneous requests could both pass
-    # this check before either commits, letting combined demand exceed what's actually available.
-    if txn_type == "SELL" and body.quantity:
+    # SELL orders reserve gold for real, right now: a table's STOCK box drops immediately.
+    # Non-stock products/units (TL, SL, SV) do not deduct or reserve stock.
+    if txn_type == "SELL" and body.quantity and not is_non_stock_gold(body.product_type, body.unit_type):
         with sell_order_lock:
             reserved = deduct_store_stock_sync(
                 quantity=float(body.quantity),
@@ -239,13 +241,17 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
         o.region = "OVERSEAS"
     if body.slot_date_str is not None:
         o.slot_date_str = body.slot_date_str
+    if body.product_type is not None:
+        o.product_type = body.product_type
+    if body.unit_type is not None:
+        o.unit_type = body.unit_type
     if body.status is not None:
         o.status = body.status.upper()
 
     db.commit()
     db.refresh(o)
 
-    if newly_collected and o.transaction_type == "SELL" and o.quantity:
+    if newly_collected and o.transaction_type == "SELL" and o.quantity and not is_non_stock_gold(o.product_type, o.unit_type):
         # Stock/incoming were already deducted for real at order-creation time (see create_order).
         # Collecting doesn't touch the table again -- it just logs that the reservation has now
         # genuinely left the vault, which is what actually moves the Physical Stock ledger total.
@@ -279,7 +285,7 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     txn_type, quantity, order_no = o.transaction_type, o.quantity, o.order_no
     # If it was already cancelled, its reservation was already released then -- releasing again here
     # would double-credit stock that was never actually held.
-    had_reservation = o.status != "CANCELLED"
+    had_reservation = (o.status != "CANCELLED") and not is_non_stock_gold(o.product_type, o.unit_type)
     was_collected = o.status in COLLECTED_STATUSES
     # Detach audit log entries so the FK on inventory_transactions.order_id doesn't block the delete.
     db.query(InventoryTransaction).filter(InventoryTransaction.order_id == order_id).update({"order_id": None})
@@ -307,7 +313,7 @@ def cancel_order(order_id: int, db: Session = Depends(get_db)):
     existing = db.query(Order).filter(Order.id == order_id).first()
     if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-    had_reservation = existing.status != "CANCELLED"
+    had_reservation = (existing.status != "CANCELLED") and not is_non_stock_gold(existing.product_type, existing.unit_type)
     was_collected = existing.status in COLLECTED_STATUSES
     txn_type, quantity, order_no = existing.transaction_type, existing.quantity, existing.order_no
 

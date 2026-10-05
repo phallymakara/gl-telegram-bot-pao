@@ -31,17 +31,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await usersApi.getUsers();
       setUsers(data);
 
+      const isSuper = (u: UserData) =>
+        u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.name === "Super Admin";
+
       const savedUserId = localStorage.getItem("current_user_id");
       if (savedUserId) {
         const found = data.find((u) => u.id === Number(savedUserId));
         if (found && found.is_active) {
-          setCurrentUserState(found);
-          return;
+          if (!isSuper(found) || sessionStorage.getItem("super_admin_unlocked") === "true") {
+            setCurrentUserState(found);
+            return;
+          }
         }
       }
 
-      // Default to first active super admin or first active user
-      const defaultUser = data.find((u) => u.is_active && (u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.role === "Admin")) || data[0] || null;
+      // Default to first active regular user so testing doesn't automatically expose Super Admin
+      const defaultUser =
+        data.find((u) => u.is_active && !isSuper(u)) ||
+        (sessionStorage.getItem("super_admin_unlocked") === "true" ? data[0] : null) ||
+        data[0] ||
+        null;
       setCurrentUserState(defaultUser);
       if (defaultUser) {
         localStorage.setItem("current_user_id", String(defaultUser.id));

@@ -80,3 +80,16 @@ def calculate_premium_amount(
     prem_dec = to_decimal(premium, DEFAULT_PREMIUM)
     return qty_dec * prem_dec
 
+
+def is_non_stock_gold(product_type: str | None = None, unit_type: str | None = None) -> bool:
+    """
+    Returns True if the gold type/unit is non-stock (TL, SL, SV).
+    These products/units do not count towards physical inventory stock and do not deduct stock.
+    """
+    NON_STOCK_TYPES = {"TL", "SL", "SV"}
+    if product_type and str(product_type).strip().upper() in NON_STOCK_TYPES:
+        return True
+    if unit_type and str(unit_type).strip().upper() == "TL":
+        return True
+    return False
+

@@ -13,6 +13,8 @@ export interface OrderData {
   order_no: string;
   customer_name: string | null;
   sales_person?: string | null;
+  product_type?: string | null;
+  unit_type?: string | null;
   group_name: string | null;
   slot_date: string | null;
   slot_date_str?: string | null;

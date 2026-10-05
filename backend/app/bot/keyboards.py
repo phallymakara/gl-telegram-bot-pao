@@ -17,10 +17,11 @@ from app.constants.callback import (
     CUSTOM_QTY,
     DEPOSIT,
     DEPOSIT_BANK,
+    DEPOSIT_CHEQUE,
     DEPOSIT_CASH,
-    MY_ORDERS,
-    PAD_BACK,
-    PAD_DEL,
+    WITHDRAW_BANK,
+    WITHDRAW_CHEQUE,
+    WITHDRAW_CASH,
     PAD_DIGIT_PREFIX,
     PAD_DOT,
     PAD_OK,
@@ -238,41 +239,38 @@ def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN", is_new
 
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(confirm_text, callback_data=CONFIRM_ORDER),
-            InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
-        ],
-        [
             InlineKeyboardButton(
                 t("back_slots", lang),
                 callback_data=f"{prefix}{selected_slot}",
             ),
+            InlineKeyboardButton(confirm_text, callback_data=CONFIRM_ORDER),
         ],
     ])
 
 
 def build_deposit_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct confirmation keyboard for deposit step matching the requested design:
-      Row 1: [ តាមគណនីធនាគារ/មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ]
-      Row 2: [ បោះបង់ ] [ ថយក្រោយ ]
+    Construct confirmation keyboard for deposit step:
+      Row 1: [ តាមគណនីធនាគារ ] [ មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ]
+      Row 2: [ បោះបង់ ]
     """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=DEPOSIT_BANK),
+            InlineKeyboardButton(t("deposit_cheque_btn", lang), callback_data=DEPOSIT_CHEQUE),
             InlineKeyboardButton(t("deposit_cash_btn", lang), callback_data=DEPOSIT_CASH),
         ],
         [
             InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
-            InlineKeyboardButton(t("back_slots", lang), callback_data=DEPOSIT),
         ],
     ])
 
 
 def build_withdraw_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct confirmation keyboard for withdrawal step matching the requested design:
-      Row 1: [ តាមគណនីធនាគារ/មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ]
-      Row 2: [ បោះបង់ ] [ ថយក្រោយ ]
+    Construct confirmation keyboard for withdrawal step:
+      Row 1: [ តាមគណនីធនាគារ ] [ សាច់ប្រាក់ ]
+      Row 2: [ បោះបង់ ]
     """
     return InlineKeyboardMarkup([
         [
@@ -281,7 +279,6 @@ def build_withdraw_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
-            InlineKeyboardButton(t("back_slots", lang), callback_data=WITHDRAW),
         ],
     ])
 
@@ -289,11 +286,10 @@ def build_withdraw_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
 def build_attach_doc_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
     Construct keyboard for attach document screen:
-      [ ថយក្រោយ / Back ] [ បោះបង់ / Cancel ]
+      [ បោះបង់ / Cancel ]
     """
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(t("back_slots", lang), callback_data=PAD_OK),
             InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
         ]
     ])
@@ -302,25 +298,26 @@ def build_attach_doc_keyboard(lang="EN") -> InlineKeyboardMarkup:
 def build_deposit_details_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
     Construct keyboard for deposit details confirmation matching image:
-      [ ថយក្រោយ / Back ] [ រួចរាល់ / Done ]
+      [ រួចរាល់ / Done ]
     """
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(t("back_slots", lang), callback_data=PAD_OK),
             InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN),
         ]
     ])
 
 
-def build_invoice_keyboard(lang="EN") -> InlineKeyboardMarkup:
+def build_invoice_keyboard(lang="EN", order_id=None) -> InlineKeyboardMarkup:
     """
-    Construct invoice / receipt keyboard matching customer layout:
-      [ ចាប់ផ្តើមម្តងទៀត / Start Again ]
-      [ រួចរាល់ / Done ]
+    Construct invoice / receipt keyboard:
+      [ បោះបង់ / Cancel ] [ ✅ រួចរាល់ / Done ]
     """
+    cancel_cb = f"CANCEL_ORDER:{order_id}" if order_id else CANCEL_ORDER
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(t("start_again", lang), callback_data=BACK_MAIN)],
-        [InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN)],
+        [
+            InlineKeyboardButton(t("cancel", lang), callback_data=cancel_cb),
+            InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN),
+        ],
     ])
 
 
@@ -339,12 +336,12 @@ def build_custom_qty_keyboard(lang="EN") -> InlineKeyboardMarkup:
 
 def build_back_main_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct generic back/done keyboard for simple views.
+    Construct generic back keyboard for simple views:
+      [ ថយក្រោយ / Back ]
     """
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
-            InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN),
         ]
     ])
 
@@ -352,16 +349,9 @@ def build_back_main_keyboard(lang="EN") -> InlineKeyboardMarkup:
 def build_contact_sales_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
     Construct action keyboard for Contact Sales:
-      Row 1: [ 💬 Telegram Chat ] [ 📞 Phone Call ]
-      Row 2: [ ថយក្រោយ / Back ]
+      [ ថយក្រោយ / Back ]
     """
-    telegram_url = f"https://t.me/{SALES_TELEGRAM_USERNAME.lstrip('@')}"
-
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(t("contact_telegram_btn", lang), url=telegram_url),
-            InlineKeyboardButton(t("contact_call_btn", lang), callback_data=CALL_SALES_PHONE),
-        ],
         [
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
         ],

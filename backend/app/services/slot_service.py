@@ -16,6 +16,7 @@ from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
+from app.utils.helpers import get_cambodia_now
 
 # Serializes every "check availability, then create/collect a SELL order" critical section across
 # the whole process -- both the admin API and the Telegram bot flow run their sync order logic in
@@ -122,7 +123,6 @@ def rollover_past_slots_sync(session=None) -> int:
 
     try:
         from datetime import date as date_type, timedelta
-        from app.utils.helpers import get_cambodia_now
         today = get_cambodia_now().date()
 
         tables = session.query(SlotTable).all()
