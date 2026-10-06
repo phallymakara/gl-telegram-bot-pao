@@ -30,6 +30,10 @@ DEFAULT_SETTINGS = {
         "enabled": True,
         "caption": "",
     },
+    "payment_methods": {
+        "deposit": {"bank": True, "cheque": True, "cash": True},
+        "withdrawal": {"bank": True, "cheque": False, "cash": True},
+    },
 }
 
 
@@ -72,7 +76,7 @@ def save_settings_dict_sync(data: dict, session=None) -> dict:
         should_close = True
 
     try:
-        for key in ("bot", "security", "system", "bank_qr"):
+        for key in ("bot", "security", "system", "bank_qr", "payment_methods"):
             if key in data:
                 payload = json.dumps(data[key])
                 rec = session.query(SystemSetting).filter(SystemSetting.key == key).first()
@@ -211,5 +215,27 @@ def get_bank_qr_settings_sync(session=None) -> dict:
         "image_urls": [it["url"] for it in items],
         "enabled": len(active_urls) > 0,
         "caption": str(bank_qr_cfg.get("caption", "") or ""),
+    }
+
+
+def get_payment_methods_sync(session=None) -> dict:
+    """
+    Retrieve active payment method toggle settings for deposit and withdrawal.
+    """
+    settings = get_settings_dict_sync(session)
+    pm = settings.get("payment_methods", {})
+    deposit = pm.get("deposit", {}) if isinstance(pm, dict) else {}
+    withdrawal = pm.get("withdrawal", {}) if isinstance(pm, dict) else {}
+    return {
+        "deposit": {
+            "bank": bool(deposit.get("bank", True)),
+            "cheque": bool(deposit.get("cheque", True)),
+            "cash": bool(deposit.get("cash", True)),
+        },
+        "withdrawal": {
+            "bank": bool(withdrawal.get("bank", True)),
+            "cheque": bool(withdrawal.get("cheque", False)),
+            "cash": bool(withdrawal.get("cash", True)),
+        },
     }
 

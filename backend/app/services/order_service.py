@@ -381,3 +381,67 @@ def get_orders_by_telegram_id_sync(telegram_id: str) -> list[dict]:
     finally:
         session.close()
 
+
+def get_orders_by_period_sync(telegram_id: str, days: int) -> list[dict]:
+    """
+    Retrieve customer BUY and SELL order history from today forward up to `days` days.
+    Checks effective order date (slot_date_str settlement date, or created_at) within [today, today + days].
+    Matches orders by telegram_user_id or associated customer_id.
+    """
+    from datetime import date, datetime, timedelta
+
+    session = SessionLocal()
+    try:
+        today = date.today()
+        end_date = today + timedelta(days=days)
+
+        customer = session.query(Customer).filter(Customer.telegram_user_id == telegram_id).first()
+        customer_id = customer.id if customer else None
+
+        filter_condition = Order.telegram_user_id == telegram_id
+        if customer_id:
+            filter_condition = (Order.telegram_user_id == telegram_id) | (Order.customer_id == customer_id)
+
+        orders = (
+            session.query(Order)
+            .filter(filter_condition)
+            .order_by(Order.created_at.desc())
+            .all()
+        )
+
+        matched_orders = []
+        for o in orders:
+            # Parse effective date (slot_date_str settlement date, or fallback to created_at)
+            eff_date = None
+            if o.slot_date_str and isinstance(o.slot_date_str, str):
+                s = o.slot_date_str.strip()
+                for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d-%m-%y"):
+                    try:
+                        eff_date = datetime.strptime(s[:10], fmt).date()
+                        break
+                    except ValueError:
+                        pass
+            if not eff_date and o.created_at:
+                eff_date = o.created_at.date()
+
+            # Include if within forward date window: [today, today + days]
+            if eff_date and today <= eff_date <= end_date:
+                matched_orders.append({
+                    "order_id": o.order_no,
+                    "telegram_id": o.telegram_user_id or "",
+                    "username": o.username or "",
+                    "order_type": o.transaction_type,
+                    "slot_date": o.slot_date_str or (eff_date.isoformat() if eff_date else ""),
+                    "premium": float(o.premium),
+                    "quantity_kg": float(o.quantity),
+                    "status": o.status,
+                    "total_amount": float(o.total_amount or 0) if o.total_amount else 0.0,
+                    "created_at": o.created_at.isoformat() if o.created_at else "",
+                    "effective_date": eff_date.isoformat() if eff_date else "",
+                })
+
+        return matched_orders
+    finally:
+        session.close()
+
+

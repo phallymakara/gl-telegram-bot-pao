@@ -76,3 +76,74 @@ class DailyBreakdownResponse(BaseModel):
     year: int
     month: int
     days: list[DailyBreakdownRow] = []
+
+
+class StockMatrixCell(BaseModel):
+    value: float | None = None
+    order_id: int | None = None
+    order_no: str | None = None
+
+
+class StockMatrixColumn(BaseModel):
+    id: str
+    brand: str
+    date_label: str
+    target_date: str | None = None
+    header_color: str
+    text_color: str = "text-slate-900"
+    import_stock: float
+    trade_in: float = 0.0
+    physical_sale: float = 0.0
+    bot_sale: float = 0.0
+    available_stock: float
+    total_deductions: float
+    deductions: list[float] = []
+    trade_in_cell: StockMatrixCell | None = None
+    physical_sale_cell: StockMatrixCell | None = None
+    bot_sale_cell: StockMatrixCell | None = None
+
+
+class StockMatrixLeftTotal(BaseModel):
+    label: str
+    value: float
+    category: str = "cream"
+
+
+class StockMatrixData(BaseModel):
+    columns: list[StockMatrixColumn]
+    deduction_rows: list[list[float | None]]
+    deduction_cells: list[list[StockMatrixCell]] = []
+    left_totals: list[StockMatrixLeftTotal]
+    summary_deductions: list[float]
+
+
+class StockMatrixDeductionCreate(BaseModel):
+    brand: str
+    date: str
+    quantity: float
+    channel: str | None = None
+    transaction_type: str | None = "SELL"
+    customer_name: str | None = "Manual Matrix Entry"
+
+
+class StockMatrixDeductionUpdate(BaseModel):
+    quantity: float
+
+
+class StockMatrixImportUpdate(BaseModel):
+    brand: str
+    date: str
+    quantity: float
+
+
+class StockMatrixColumnCreate(BaseModel):
+    brand: str
+    date: str
+    header_color: str | None = None
+    after_id: str | None = None
+
+
+class StockMatrixColumnUpdate(BaseModel):
+    brand: str | None = None
+    date: str | None = None
+

@@ -36,11 +36,11 @@ async def load_whitelist(force_refresh=False) -> set:
     try:
         session = SessionLocal()
         try:
-            customers = session.query(Customer).all()
+            customers = session.query(Customer).filter(Customer.is_active == True).all()
             allowed = set()
             for c in customers:
                 if c.telegram_user_id:
-                    allowed.add(c.telegram_user_id)
+                    allowed.add(str(c.telegram_user_id).strip())
                 if c.username:
                     allowed.add(c.username.strip().lower().lstrip("@"))
             _cached_users = allowed
@@ -100,9 +100,13 @@ def restricted(func):
             lang = context.user_data.get("lang", "EN")
             unauth_msg = t("unauthorized", lang)
             if update.callback_query:
+                # Show private popup alert only on that user's device without posting in group
                 await update.callback_query.answer(unauth_msg, show_alert=True)
             elif update.message:
-                await update.message.reply_text(unauth_msg)
+                is_group = bool(update.effective_chat and update.effective_chat.type in ("group", "supergroup"))
+                if not is_group:
+                    await update.message.reply_text(unauth_msg)
+                # In groups: stay completely silent so unauthorized members cannot trigger any response
             return
 
         return await func(update, context, *args, **kwargs)

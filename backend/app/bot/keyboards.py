@@ -33,6 +33,10 @@ from app.constants.callback import (
     WITHDRAW_BANK,
     WITHDRAW_CASH,
     CALL_SALES_PHONE,
+    TRANSACTIONS,
+    TXN_PERIOD_3D,
+    TXN_PERIOD_1W,
+    TXN_PERIOD_1M,
 )
 from app.core.config import SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.utils.helpers import format_date_dd_mm_yy, format_premium
@@ -59,7 +63,8 @@ MAIN_MENU = InlineKeyboardMarkup([
         InlineKeyboardButton("ដកប្រាក់", callback_data=WITHDRAW),
     ],
     [
-        InlineKeyboardButton("ទំនាក់ទំនងទៅកាន់ ភ្នាក់ងារលក់ 📞", callback_data=CONTACT_SALES),
+        InlineKeyboardButton("ភ្នាក់ងារលក់ 📞", callback_data=CONTACT_SALES),
+        InlineKeyboardButton("ប្រតិបត្តិការ 📋", callback_data=TRANSACTIONS),
     ],
 ])
 
@@ -79,6 +84,7 @@ def build_main_menu(lang="EN") -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(t("contact_sales", lang), callback_data=CONTACT_SALES),
+            InlineKeyboardButton(t("transactions_btn", lang), callback_data=TRANSACTIONS),
         ],
     ])
 
@@ -250,36 +256,51 @@ def build_confirmation_keyboard(selected_slot, order_type=BUY, lang="EN", is_new
 
 def build_deposit_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct confirmation keyboard for deposit step:
-      Row 1: [ តាមគណនីធនាគារ ] [ មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ]
+    Construct confirmation keyboard for deposit step with dynamically enabled payment methods:
+      Row 1: [ តាមគណនីធនាគារ ] [ មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ] (only enabled ones)
       Row 2: [ បោះបង់ ]
     """
+    from app.services.settings_service import get_payment_methods_sync
+    pm = get_payment_methods_sync().get("deposit", {})
+
+    buttons_row = []
+    if pm.get("bank", True):
+        buttons_row.append(InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=DEPOSIT_BANK))
+    if pm.get("cheque", True):
+        buttons_row.append(InlineKeyboardButton(t("deposit_cheque_btn", lang), callback_data=DEPOSIT_CHEQUE))
+    if pm.get("cash", True):
+        buttons_row.append(InlineKeyboardButton(t("deposit_cash_btn", lang), callback_data=DEPOSIT_CASH))
+
+    if not buttons_row:
+        buttons_row.append(InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=DEPOSIT_BANK))
+
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=DEPOSIT_BANK),
-            InlineKeyboardButton(t("deposit_cheque_btn", lang), callback_data=DEPOSIT_CHEQUE),
-            InlineKeyboardButton(t("deposit_cash_btn", lang), callback_data=DEPOSIT_CASH),
-        ],
-        [
-            InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
-        ],
+        buttons_row,
+        [InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER)],
     ])
 
 
 def build_withdraw_confirmation_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
-    Construct confirmation keyboard for withdrawal step:
-      Row 1: [ តាមគណនីធនាគារ ] [ សាច់ប្រាក់ ]
+    Construct confirmation keyboard for withdrawal step with dynamically enabled payment methods:
+      Row 1: [ តាមគណនីធនាគារ ] [ មូលប្បទានប័ត្រ ] [ សាច់ប្រាក់ ] (only enabled ones)
       Row 2: [ បោះបង់ ]
     """
+    from app.services.settings_service import get_payment_methods_sync
+    pm = get_payment_methods_sync().get("withdrawal", {})
+
+    buttons_row = []
+    if pm.get("bank", True):
+        buttons_row.append(InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=WITHDRAW_BANK))
+    if pm.get("cash", True):
+        buttons_row.append(InlineKeyboardButton(t("deposit_cash_btn", lang), callback_data=WITHDRAW_CASH))
+
+    if not buttons_row:
+        buttons_row.append(InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=WITHDRAW_BANK))
+
     return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(t("deposit_bank_btn", lang), callback_data=WITHDRAW_BANK),
-            InlineKeyboardButton(t("deposit_cash_btn", lang), callback_data=WITHDRAW_CASH),
-        ],
-        [
-            InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER),
-        ],
+        buttons_row,
+        [InlineKeyboardButton(t("cancel", lang), callback_data=CANCEL_ORDER)],
     ])
 
 
@@ -371,4 +392,45 @@ def build_closed_hours_keyboard(lang="EN") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
         ],
-    ])
+    ])
+
+
+def build_transaction_periods_keyboard(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct keyboard for selecting transaction history time range:
+      Row 1: [ ៣ ថ្ងៃចុងក្រោយ / Last 3 Days ]
+      Row 2: [ ១ សប្តាហ៍ចុងក្រោយ / Last 1 Week ]
+      Row 3: [ ១ ខែចុងក្រោយ / Last 1 Month ]
+      Row 4: [ ថយក្រោយ / Back ]
+    """
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(t("period_3_days", lang), callback_data=TXN_PERIOD_3D),
+        ],
+        [
+            InlineKeyboardButton(t("period_1_week", lang), callback_data=TXN_PERIOD_1W),
+        ],
+        [
+            InlineKeyboardButton(t("period_1_month", lang), callback_data=TXN_PERIOD_1M),
+        ],
+        [
+            InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
+        ],
+    ])
+
+
+def build_transaction_result_keyboard(lang="EN") -> InlineKeyboardMarkup:
+    """
+    Construct navigation keyboard for transaction history results:
+      Row 1: [ 🔄 Select Other Period ]
+      Row 2: [ ថយក្រោយ / Back ]
+    """
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(t("back_periods", lang), callback_data=TRANSACTIONS),
+        ],
+        [
+            InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
+        ],
+    ])
+

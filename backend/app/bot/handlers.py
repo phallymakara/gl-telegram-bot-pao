@@ -46,7 +46,11 @@ from app.bot.order_flow import (
     handle_withdraw_cash,
     handle_withdraw_prompt,
 )
-from app.bot.order_handler import handle_my_orders
+from app.bot.order_handler import (
+    handle_my_orders,
+    handle_transactions_menu,
+    handle_transactions_by_period,
+)
 from app.bot.sell_handler import handle_sell
 from app.constants.callback import (
     BACK_MAIN,
@@ -75,6 +79,10 @@ from app.constants.callback import (
     WITHDRAW_CHEQUE,
     WITHDRAW_CASH,
     CALL_SALES_PHONE,
+    TRANSACTIONS,
+    TXN_PERIOD_3D,
+    TXN_PERIOD_1W,
+    TXN_PERIOD_1M,
 )
 from app.services.whitelist_service import restricted
 from app.utils.translation import t
@@ -83,14 +91,23 @@ from app.utils.translation import t
 @restricted
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle Telegram /start command.
-    Checks customer whitelist authorization via @restricted decorator.
-    Guides user through language selection menu or active session prompt.
+    Handle Telegram /start command and strictly the 'Hi' keyword.
+    Ignores any other message unless user is in an active input prompt.
     """
-    is_slash_start = update.message and update.message.text == "/start"
+    msg_text = update.message.text.strip() if (update.message and update.message.text) else ""
+    clean_text = msg_text.lower()
+    words = [w for w in clean_text.split() if not w.startswith("@")]
+    clean_without_mention = " ".join(words).strip()
 
-    if is_slash_start:
-        # Reset session context on explicit /start command invocation
+    is_start_trigger = (
+        clean_without_mention in ("hi", "សន្ទនាជាមួយបត", "សន្ទនាជាមួយ bot")
+        or clean_text in ("/start", "/hi")
+        or clean_text.startswith("/start@")
+        or clean_text.startswith("/hi@")
+    )
+
+    if is_start_trigger:
+        # Reset session context on 'សន្ទនាជាមួយបត' button click or 'hi' keyword
         context.user_data.clear()
         await update.message.reply_text(
             t("choose_lang", "EN"),
@@ -118,19 +135,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_withdraw_amount_text_input(update, context)
         return
 
-    lang = context.user_data.get("lang", "EN")
-    if "selected_slot" in context.user_data:
-        # Warn user if an order flow session is currently in progress
+    # In active order session, only warn in private chat; stay silent in groups
+    is_private = update.effective_chat and update.effective_chat.type == "private"
+    if is_private and "selected_slot" in context.user_data:
         msg = (
             "Please use the buttons provided above to complete your order, or send /start to start a new order.\n\n"
             "សូមប្រើប៊ូតុងដែលបានផ្តល់ជូនខាងលើដើម្បីបញ្ចប់ការបញ្ជាទិញរបស់អ្នក ឬផ្ញើ /start ដើម្បីចាប់ផ្តើមថ្មី។"
         )
         await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text(
-            t("choose_lang", lang),
-            reply_markup=LANG_MENU,
-        )
+        return
+
+    # For any other text (other words), DO NOT respond at all
+    return
 
 
 async def check_trading_hours(query, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -276,6 +292,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             last_name="(Sales Support)",
             reply_markup=build_back_main_keyboard(lang),
         )
+
+    elif query.data == TRANSACTIONS:
+        await handle_transactions_menu(update, query, context)
+
+    elif query.data == TXN_PERIOD_3D:
+        await handle_transactions_by_period(update, query, context, days=3, period_key="period_3_days")
+
+    elif query.data == TXN_PERIOD_1W:
+        await handle_transactions_by_period(update, query, context, days=7, period_key="period_1_week")
+
+    elif query.data == TXN_PERIOD_1M:
+        await handle_transactions_by_period(update, query, context, days=30, period_key="period_1_month")
 
 
 async def handle_cancel_order(query, context: ContextTypes.DEFAULT_TYPE, order_id: int | None = None):

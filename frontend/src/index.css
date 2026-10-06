@@ -1,6 +1,13 @@
+@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.font-kantoumrouy {
+  font-family: 'Kantumruy Pro', sans-serif;
+}
+
 
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {
@@ -34,5 +41,15 @@
 .scrollbar-none {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Remove up and down stepper arrows / spin buttons from inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
 }
 

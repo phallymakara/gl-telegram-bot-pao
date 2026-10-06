@@ -87,6 +87,45 @@ export interface DailyBreakdownResponseData {
   days: DailyBreakdownRowData[];
 }
 
+export interface StockMatrixCellData {
+  value: number | null;
+  order_id: number | null;
+  order_no: string | null;
+}
+
+export interface StockMatrixColumnData {
+  id: string;
+  brand: string;
+  date_label: string;
+  target_date?: string;
+  header_color: string;
+  text_color?: string;
+  import_stock: number;
+  trade_in?: number;
+  physical_sale?: number;
+  bot_sale?: number;
+  available_stock: number;
+  total_deductions: number;
+  deductions: number[];
+  trade_in_cell?: StockMatrixCellData | null;
+  physical_sale_cell?: StockMatrixCellData | null;
+  bot_sale_cell?: StockMatrixCellData | null;
+}
+
+export interface StockMatrixLeftTotalData {
+  label: string;
+  value: number;
+  category: "cream" | "orange";
+}
+
+export interface StockMatrixResponseData {
+  columns: StockMatrixColumnData[];
+  deduction_rows: (number | null)[][];
+  deduction_cells: StockMatrixCellData[][];
+  left_totals: StockMatrixLeftTotalData[];
+  summary_deductions: number[];
+}
+
 /**
  * Dashboard API service fetching dashboard summary statistics and chart metrics.
  */
@@ -108,4 +147,69 @@ export const dashboardApi = {
     api.get<DailyBreakdownResponseData>(
       `/api/dashboard/daily-breakdown${targetDate ? `?target_date=${targetDate}` : ""}`
     ),
+
+  /**
+   * Fetches the operational brand & date stock inventory matrix.
+   */
+  getStockMatrix: () => api.get<StockMatrixResponseData>("/api/dashboard/stock-matrix"),
+
+  /**
+   * Persists a new deduction SELL order or trade-in BUY order in the real database from the matrix.
+   */
+  createDeduction: (data: {
+    brand: string;
+    date: string;
+    quantity: number;
+    channel?: string;
+    transaction_type?: string;
+    customer_name?: string;
+  }) =>
+    api.post<{ success: boolean; order_id: number; order_no: string }>(
+      "/api/dashboard/stock-matrix/deduction",
+      data
+    ),
+
+  /**
+   * Updates an existing deduction SELL order's quantity in the real database.
+   */
+  updateDeduction: (orderId: number, data: { quantity: number }) =>
+    api.put<{ success: boolean; order_id: number; order_no: string }>(
+      `/api/dashboard/stock-matrix/deduction/${orderId}`,
+      data
+    ),
+
+  /**
+   * Deletes a deduction SELL order from the real database.
+   */
+  deleteDeduction: (orderId: number) =>
+    api.delete(`/api/dashboard/stock-matrix/deduction/${orderId}`),
+
+  /**
+   * Updates or creates a PurchaseOrder import stock for a brand & date in the real database.
+   */
+  updateImport: (data: { brand: string; date: string; quantity: number }) =>
+    api.put<{ success: boolean; po_id: number; po_no: string }>(
+      "/api/dashboard/stock-matrix/import-stock",
+      data
+    ),
+
+  /**
+   * Persistently adds a new column to the stock matrix in the database.
+   */
+  addColumn: (data: { brand: string; date: string; header_color?: string; after_id?: string }) =>
+    api.post<StockMatrixResponseData>("/api/dashboard/stock-matrix/column", data),
+
+  /**
+   * Persistently deletes a column from the stock matrix in the database.
+   */
+  deleteColumn: (colId: string) =>
+    api.delete<StockMatrixResponseData>(`/api/dashboard/stock-matrix/column/${colId}`),
+
+  /**
+   * Persistently updates brand or date for a column in the stock matrix.
+   */
+  updateColumn: (colId: string, data: { brand?: string; date?: string }) =>
+    api.put<StockMatrixResponseData>(`/api/dashboard/stock-matrix/column/${colId}`, data),
 };
+
+

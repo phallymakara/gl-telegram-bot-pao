@@ -27,7 +27,18 @@ async def post_init(application: Application):
     """
     Post-initialization hook executed after bot application startup.
     Spawns background tasks for promotional alert broadcasting and store close auto-notices.
+    Registers 'សន្ទនាជាមួយបត' command menu button for easy one-click starting in groups.
     """
+    try:
+        from telegram import BotCommand, MenuButtonCommands
+        await application.bot.set_my_commands([
+            BotCommand("start", "សន្ទនាជាមួយបត"),
+            BotCommand("hi", "សន្ទនាជាមួយបត"),
+        ])
+        await application.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+    except Exception as e:
+        logger.warning("Could not set bot commands: %s", e)
+
     asyncio.create_task(promotions_loop(application))
     asyncio.create_task(store_close_scheduler_loop(application))
 
@@ -43,7 +54,7 @@ def main():
     app = Application.builder().token(BOT_TOKEN).persistence(persistence).post_init(post_init).build()
 
     # Register bot handlers
-    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler(["start", "hi"], start_command))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL | filters.TEXT, start_command))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_error_handler(error_handler)

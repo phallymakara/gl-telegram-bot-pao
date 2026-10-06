@@ -64,22 +64,38 @@ class BankQrSettings(BaseModel):
     caption: str = ""
 
 
+from pydantic import BaseModel, Field
+
+
+class PaymentMethodToggles(BaseModel):
+    bank: bool = True
+    cheque: bool = True
+    cash: bool = True
+
+
+class PaymentMethodsSettings(BaseModel):
+    deposit: PaymentMethodToggles = Field(default_factory=PaymentMethodToggles)
+    withdrawal: PaymentMethodToggles = Field(default_factory=lambda: PaymentMethodToggles(bank=True, cheque=False, cash=True))
+
+
 class SettingsResponse(BaseModel):
     """Schema aggregating all system settings domains."""
     bot: BotSettings
     security: SecuritySettings
     system: SystemSettings
     bank_qr: BankQrSettings = BankQrSettings()
+    payment_methods: PaymentMethodsSettings = Field(default_factory=PaymentMethodsSettings)
 
 
 @router.get("/", response_model=SettingsResponse)
 def get_settings(db: Session = Depends(get_db)):
     """
     Retrieve global system settings configuration.
-    Returns currently stored bot, security, system, and bank_qr parameters from database.
+    Returns currently stored bot, security, system, bank_qr, and payment_methods parameters from database.
     """
     store = get_settings_dict_sync(db)
     bank_qr_data = get_bank_qr_settings_sync(db)
+    pm_store = store.get("payment_methods", {})
     return SettingsResponse(
         bot=BotSettings(**store.get("bot", {})),
         security=SecuritySettings(**store.get("security", {})),
@@ -89,6 +105,10 @@ def get_settings(db: Session = Depends(get_db)):
             image_urls=bank_qr_data.get("image_urls", []),
             enabled=bank_qr_data.get("enabled", True),
             caption=bank_qr_data.get("caption", ""),
+        ),
+        payment_methods=PaymentMethodsSettings(
+            deposit=PaymentMethodToggles(**pm_store.get("deposit", {})),
+            withdrawal=PaymentMethodToggles(**pm_store.get("withdrawal", {})),
         ),
     )
 
@@ -103,8 +123,20 @@ def update_settings(body: SettingsResponse, db: Session = Depends(get_db)):
         "security": body.security.model_dump(),
         "system": body.system.model_dump(),
         "bank_qr": body.bank_qr.model_dump() if body.bank_qr else {"enabled": False, "image_urls": [], "caption": ""},
+        "payment_methods": body.payment_methods.model_dump() if body.payment_methods else {"deposit": {"bank": True, "cheque": True, "cash": True}, "withdrawal": {"bank": True, "cheque": False, "cash": True}},
     }
     save_settings_dict_sync(payload, db)
+    return body
+
+
+@router.put("/payment-methods", response_model=PaymentMethodsSettings)
+def update_payment_methods(body: PaymentMethodsSettings, db: Session = Depends(get_db)):
+    """
+    Update payment method toggle settings for deposit and withdrawal immediately.
+    """
+    store = get_settings_dict_sync(db)
+    store["payment_methods"] = body.model_dump()
+    save_settings_dict_sync(store, db)
     return body
 
 

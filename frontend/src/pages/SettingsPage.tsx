@@ -36,6 +36,15 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   // Bank QR State
   const [bankQrItems, setBankQrItems] = useState<BankQrItemData[]>([]);
 
+  // Payment Method Toggles State
+  const [paymentMethods, setPaymentMethods] = useState<{
+    deposit: { bank: boolean; cheque: boolean; cash: boolean };
+    withdrawal: { bank: boolean; cheque: boolean; cash: boolean };
+  }>({
+    deposit: { bank: true, cheque: true, cash: true },
+    withdrawal: { bank: true, cheque: false, cash: true },
+  });
+
   // Whitelist / Allow User State
   const [customers, setCustomers] = useState<CustomerData[]>([]);
   const [newUserId, setNewUserId] = useState("");
@@ -68,6 +77,20 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
               }))
             );
           }
+        }
+        if (s.payment_methods) {
+          setPaymentMethods({
+            deposit: {
+              bank: s.payment_methods.deposit?.bank !== undefined ? Boolean(s.payment_methods.deposit.bank) : true,
+              cheque: s.payment_methods.deposit?.cheque !== undefined ? Boolean(s.payment_methods.deposit.cheque) : true,
+              cash: s.payment_methods.deposit?.cash !== undefined ? Boolean(s.payment_methods.deposit.cash) : true,
+            },
+            withdrawal: {
+              bank: s.payment_methods.withdrawal?.bank !== undefined ? Boolean(s.payment_methods.withdrawal.bank) : true,
+              cheque: s.payment_methods.withdrawal?.cheque !== undefined ? Boolean(s.payment_methods.withdrawal.cheque) : false,
+              cash: s.payment_methods.withdrawal?.cash !== undefined ? Boolean(s.payment_methods.withdrawal.cash) : true,
+            },
+          });
         }
       })
       .catch(() => {});
@@ -116,6 +139,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           enabled: bankQrItems.some((it) => it.enabled),
           caption: "",
         },
+        payment_methods: paymentMethods,
       })
       .then(() => notify("Settings saved"))
       .catch(() => notify("Failed to save settings"));
@@ -205,7 +229,10 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           setBotUsername={setBotUsername}
           showToken={showToken}
           setShowToken={setShowToken}
+          paymentMethods={paymentMethods}
+          setPaymentMethods={setPaymentMethods}
           saveSettings={saveSettings}
+          notify={notify}
         />
         <CustomersTab
           customers={customers}
