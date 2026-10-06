@@ -175,11 +175,13 @@ def format_confirmation_message(
             premium_str = format_premium(t_first["premium"])
             new_price_suffix = t("new_price_tag", lang)
 
+    date_line = (t("date_label", lang).format(date=format_date_dd_mm_yy(selected_slot)) + "\n") if order_type == BUY else ""
+
     summary_text = (
         notice_header +
         t("order_summary_title", lang) +
         t("type_label", lang).format(type=type_str) + "\n" +
-        t("date_label", lang).format(date=format_date_dd_mm_yy(selected_slot)) + "\n" +
+        date_line +
         t("premium_label", lang).format(premium=premium_str) + new_price_suffix + "\n" +
         t("quantity_label", lang).format(qty=qty_str) + "\n\n" +
         breakdown_section
