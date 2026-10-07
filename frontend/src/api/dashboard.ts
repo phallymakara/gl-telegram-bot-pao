@@ -126,6 +126,21 @@ export interface StockMatrixResponseData {
   summary_deductions: number[];
 }
 
+export interface SoldTrendPointData {
+  date: string;
+  date_label: string;
+  swiss: number;
+  db: number;
+  sv: number;
+}
+
+export interface SoldTrendResponseData {
+  start_date: string;
+  end_date: string;
+  range_type: string;
+  points: SoldTrendPointData[];
+}
+
 /**
  * Dashboard API service fetching dashboard summary statistics and chart metrics.
  */
@@ -134,6 +149,18 @@ export const dashboardApi = {
    * Fetches overall KPI metrics summary for dashboard widgets.
    */
   getStats: () => api.get<DashboardStatsData>("/api/dashboard/stats"),
+
+  /**
+   * Fetches gold sold trend metrics by brand (Swiss, DB, SV) over a date range.
+   */
+  getSoldTrend: (params?: { range_type?: string; start_date?: string; end_date?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.range_type) q.append("range_type", params.range_type);
+    if (params?.start_date) q.append("start_date", params.start_date);
+    if (params?.end_date) q.append("end_date", params.end_date);
+    const qs = q.toString();
+    return api.get<SoldTrendResponseData>(`/api/dashboard/sold-trend${qs ? `?${qs}` : ""}`);
+  },
 
   /**
    * Fetches revenue chart metrics data points.

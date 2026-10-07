@@ -42,6 +42,8 @@ from app.schemas.dashboard import (
     StockMatrixLeftTotal,
     StockMatrixData,
     StockMatrixDeductionCreate,
+    SoldTrendPoint,
+    SoldTrendResponse,
 )
 
 
@@ -1110,6 +1112,115 @@ def update_matrix_column(
     db.commit()
 
     return calculate_stock_matrix(db)
+
+
+def calculate_brand_sold_trend(
+    db: Session,
+    range_type: str = "7d",
+    start_date: str = "",
+    end_date: str = "",
+) -> SoldTrendResponse:
+    """
+    Calculate gold sold volume trends aggregated by brand (Swiss, DB, SV) over a date range.
+    Supports presets: '7d', '14d', '30d', 'month', or 'custom' with explicit start/end dates.
+    """
+    today = date.today()
+
+    if range_type == "custom" and start_date and end_date:
+        try:
+            start_dt = datetime.strptime(start_date.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            start_dt = today - timedelta(days=6)
+        try:
+            end_dt = datetime.strptime(end_date.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            end_dt = today
+        if start_dt > end_dt:
+            start_dt, end_dt = end_dt, start_dt
+    elif range_type == "14d":
+        start_dt = today - timedelta(days=13)
+        end_dt = today
+    elif range_type == "30d":
+        start_dt = today - timedelta(days=29)
+        end_dt = today
+    elif range_type == "month":
+        start_dt = date(today.year, today.month, 1)
+        end_dt = today
+    else:  # default '7d'
+        start_dt = today - timedelta(days=6)
+        end_dt = today
+
+    # Limit range to max 90 days to maintain performance
+    if (end_dt - start_dt).days > 90:
+        start_dt = end_dt - timedelta(days=90)
+
+    # Build continuous list of days
+    dates_list: list[date] = []
+    curr = start_dt
+    while curr <= end_dt:
+        dates_list.append(curr)
+        curr += timedelta(days=1)
+
+    daily_totals: dict[date, dict[str, float]] = {
+        d: {"swiss": 0.0, "db": 0.0, "sv": 0.0} for d in dates_list
+    }
+
+    # Query all active SELL orders
+    sell_orders = (
+        db.query(Order)
+        .filter(
+            Order.status != "CANCELLED",
+            func.upper(Order.transaction_type) == "SELL",
+        )
+        .all()
+    )
+
+    def resolve_brand(o: Order) -> str:
+        pt = getattr(o, "product_type", None)
+        if pt and pt.strip():
+            pt_l = pt.strip().lower()
+            if "db" in pt_l:
+                return "db"
+            if "sv" in pt_l:
+                return "sv"
+            if "swiss" in pt_l:
+                return "swiss"
+
+        ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
+        if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+            return "db"
+        return "swiss"
+
+    for o in sell_orders:
+        eff_date = get_effective_order_date(o)
+        if not eff_date or eff_date < start_dt or eff_date > end_dt:
+            continue
+        if eff_date in daily_totals:
+            b = resolve_brand(o)
+            qty = abs(float(o.quantity or 0))
+            if b in daily_totals[eff_date]:
+                daily_totals[eff_date][b] += qty
+
+    points: list[SoldTrendPoint] = []
+    for d in dates_list:
+        d_str = d.strftime("%Y-%m-%d")
+        d_label = f"{d.strftime('%b')} {d.day}"
+        points.append(
+            SoldTrendPoint(
+                date=d_str,
+                date_label=d_label,
+                swiss=round(daily_totals[d]["swiss"], 3),
+                db=round(daily_totals[d]["db"], 3),
+                sv=round(daily_totals[d]["sv"], 3),
+            )
+        )
+
+    return SoldTrendResponse(
+        start_date=start_dt.strftime("%Y-%m-%d"),
+        end_date=end_dt.strftime("%Y-%m-%d"),
+        range_type=range_type,
+        points=points,
+    )
 
 
 

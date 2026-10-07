@@ -147,3 +147,18 @@ class StockMatrixColumnUpdate(BaseModel):
     brand: str | None = None
     date: str | None = None
 
+
+class SoldTrendPoint(BaseModel):
+    date: str
+    date_label: str
+    swiss: float = 0.0
+    db: float = 0.0
+    sv: float = 0.0
+
+
+class SoldTrendResponse(BaseModel):
+    start_date: str
+    end_date: str
+    range_type: str
+    points: list[SoldTrendPoint] = []
+

@@ -17,12 +17,14 @@ from app.schemas.dashboard import (
     StockMatrixImportUpdate,
     StockMatrixColumnCreate,
     StockMatrixColumnUpdate,
+    SoldTrendResponse,
 )
 from app.services.dashboard_service import (
     calculate_dashboard_stats,
     calculate_revenue_points,
     calculate_daily_breakdown,
     calculate_stock_matrix,
+    calculate_brand_sold_trend,
     create_stock_matrix_deduction,
     update_stock_matrix_deduction,
     delete_stock_matrix_deduction,
@@ -70,6 +72,25 @@ def get_stock_matrix(target_date: str = "", db: Session = Depends(get_db)):
     Defaults to today and forward dates. Past dates are strictly excluded.
     """
     return calculate_stock_matrix(db, target_date)
+
+
+@router.get("/sold-trend", response_model=SoldTrendResponse)
+def get_sold_trend(
+    range_type: str = "7d",
+    start_date: str = "",
+    end_date: str = "",
+    db: Session = Depends(get_db),
+):
+    """
+    Retrieve gold sold volume trend metrics grouped by brand (Swiss, DB, SV) over a date range.
+    Supports preset ranges ('7d', '14d', '30d', 'month') and custom start_date/end_date filters.
+    """
+    return calculate_brand_sold_trend(
+        db,
+        range_type=range_type,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 @router.post("/stock-matrix/deduction", status_code=status.HTTP_201_CREATED)

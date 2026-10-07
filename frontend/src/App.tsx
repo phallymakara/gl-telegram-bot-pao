@@ -167,7 +167,11 @@ function AppContent() {
               {page === "inventory" && <InventoryPage notify={notify} />}
 
               {!isCustomFullPage && (
-                <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between">
+                <div
+                  className={`flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between ${
+                    page === "dashboard" ? "bg-white" : ""
+                  }`}
+                >
                   <div>
                     {page === "dashboard" && <DashboardPage />}
                     {page === "settings" && <SettingsPage notify={notify} />}
