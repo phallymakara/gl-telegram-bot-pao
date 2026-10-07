@@ -60,6 +60,7 @@ function AppContent() {
   };
 
   const isCustomFullPage =
+    page === "dashboard" ||
     page === "platform-orders" ||
     page === "physical-orders" ||
     page === "po-local" ||
@@ -142,6 +143,7 @@ function AppContent() {
             </div>
           ) : (
             <>
+              {page === "dashboard" && <DashboardPage />}
               {page === "purchase" && <PurchaseOrdersPage poType="" notify={notify} />}
               {page === "buy-back-slots" && <SlotsPage mode="buyback" notify={notify} />}
               {page === "sell-slots-premium" && <SlotsPage mode="sell" notify={notify} />}
@@ -167,13 +169,8 @@ function AppContent() {
               {page === "inventory" && <InventoryPage notify={notify} />}
 
               {!isCustomFullPage && (
-                <div
-                  className={`flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between ${
-                    page === "dashboard" ? "bg-white" : ""
-                  }`}
-                >
+                <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col justify-between">
                   <div>
-                    {page === "dashboard" && <DashboardPage />}
                     {page === "settings" && <SettingsPage notify={notify} />}
                     {simplePages[page] && (
                       <ComingSoon label={PAGE_TITLE[page]} icon={simplePages[page]} />

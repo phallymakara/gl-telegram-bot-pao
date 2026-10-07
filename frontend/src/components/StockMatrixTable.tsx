@@ -386,12 +386,20 @@ export default function StockMatrixTable() {
   };
 
   return (
-    <div className="p-4 sm:p-5 bg-white min-h-screen space-y-3 font-sans">
-      {/* 1. TOP MATRIX TABLE WITH INDIVIDUAL GAPS AND READ-ONLY CELLS */}
-      <div className="w-full overflow-x-auto pb-1">
-        <div className="min-w-[960px] space-y-1.5">
+    <div className="w-full flex-1 p-3 sm:p-5 lg:p-6 bg-white space-y-4 font-sans min-w-0">
+      {/* 1. TOP MATRIX TABLE WITH DYNAMIC RESPONSIVE FULL-WIDTH GRID */}
+      <div className="w-full overflow-x-auto pb-1.5">
+        <div
+          className="w-full space-y-1.5"
+          style={{ minWidth: `${Math.max(680, 160 + (columns.length || 7) * 85)}px` }}
+        >
           {/* MERGED COLUMN HEADERS (BRAND + DATE MERGED VERTICALLY) */}
-          <div className="grid grid-cols-[200px_repeat(7,1fr)] gap-1.5 items-center">
+          <div
+            className="grid gap-1.5 items-center w-full"
+            style={{
+              gridTemplateColumns: `minmax(140px, 180px) repeat(${Math.max(1, columns.length)}, minmax(85px, 1fr))`,
+            }}
+          >
             {/* Empty space above row titles matching height */}
             <div className="h-[70px]" />
 
@@ -409,7 +417,7 @@ export default function StockMatrixTable() {
               return (
                 <div
                   key={`header_${col.id}`}
-                  className="h-[70px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none"
+                  className="h-[70px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
                 >
                   {/* Top half: Brand */}
                   <div
@@ -427,21 +435,27 @@ export default function StockMatrixTable() {
             })}
           </div>
 
-          {/* 5 DATA ROWS (EACH CELL IS READ-ONLY AND NON-CLICKABLE) */}
+          {/* 5 DATA ROWS (EACH CELL IS READ-ONLY AND RESPONSIVE) */}
           {rowsConfig.map((row) => (
-            <div key={row.key} className="grid grid-cols-[200px_repeat(7,1fr)] gap-1.5 items-center">
+            <div
+              key={row.key}
+              className="grid gap-1.5 items-center w-full"
+              style={{
+                gridTemplateColumns: `minmax(140px, 180px) repeat(${Math.max(1, columns.length)}, minmax(85px, 1fr))`,
+              }}
+            >
               {/* Row Title Card */}
-              <div className={`h-[70px] rounded-md ${row.headerBg} px-3 flex items-center gap-2.5 select-none`}>
+              <div className={`h-[70px] rounded-md ${row.headerBg} px-3 flex items-center gap-2.5 select-none w-full min-w-0`}>
                 <div className={`w-9 h-9 rounded-md ${row.badgeBg} text-white flex items-center justify-center shrink-0`}>
                   {row.icon}
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-slate-900 leading-tight">{row.title}</div>
-                  <div className="text-[11px] text-slate-500 font-medium">{row.subtitle}</div>
+                <div className="min-w-0 overflow-hidden">
+                  <div className="text-sm font-bold text-slate-900 leading-tight truncate">{row.title}</div>
+                  <div className="text-[11px] text-slate-500 font-medium truncate">{row.subtitle}</div>
                 </div>
               </div>
 
-              {/* 7 Read-only Value Cells */}
+              {/* Read-only Value Cells */}
               {columns.map((col) => {
                 const val = getCellValue(col, row.key);
                 const isRed = row.key === "physical" || row.key === "bot";
@@ -449,11 +463,12 @@ export default function StockMatrixTable() {
                 return (
                   <div
                     key={`cell_${row.key}_${col.id}`}
-                    className={`h-[70px] rounded-md ${row.cellBg} flex flex-col items-center justify-center select-none cursor-default`}
+                    className={`h-[70px] rounded-md ${row.cellBg} flex flex-col items-center justify-center select-none cursor-default w-full min-w-0`}
                   >
                     <div
-                      className={`text-[15px] sm:text-base font-semibold tracking-tight leading-none ${isRed ? "text-[#ef4444]" : "text-slate-900"
-                        }`}
+                      className={`text-[15px] sm:text-base font-semibold tracking-tight leading-none ${
+                        isRed ? "text-[#ef4444]" : "text-slate-900"
+                      }`}
                     >
                       {val < 0 ? `-${Math.abs(val).toLocaleString()}` : val.toLocaleString()}
                     </div>
@@ -466,7 +481,7 @@ export default function StockMatrixTable() {
       </div>
 
       {/* 2. BOTTOM 3 KPI CARDS */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 pt-1">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1 w-full">
         {/* CARD 1: TOTAL SOLD TREND WITH WORKING RANGE PICKER */}
         <div className="bg-white border border-[#e2e8f0] rounded-lg p-4 shadow-none flex flex-col justify-between">
           <div>
@@ -727,9 +742,9 @@ export default function StockMatrixTable() {
             </div>
 
             {/* Donut Chart & Legend Side-by-Side */}
-            <div className="flex items-center justify-around py-2">
+            <div className="flex flex-col sm:flex-row items-center justify-around py-2 gap-4">
               {/* Donut Circle */}
-              <div className="relative w-36 h-36 flex items-center justify-center">
+              <div className="relative w-36 h-36 flex items-center justify-center shrink-0">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                   {/* Background track if total is 0 */}
                   <circle
@@ -800,7 +815,7 @@ export default function StockMatrixTable() {
               </div>
 
               {/* Legend List */}
-              <div className="space-y-3 pl-2">
+              <div className="space-y-3 pl-2 shrink-0">
                 <div className="flex items-center gap-3 text-xs font-semibold text-slate-700">
                   <span className="w-3.5 h-3.5 rounded bg-yellow-400 shrink-0" />
                   <span className="w-12">Swiss</span>
@@ -822,7 +837,7 @@ export default function StockMatrixTable() {
         </div>
 
         {/* CARD 3: QUICK SUMMARY */}
-        <div className="bg-white border border-[#e2e8f0] rounded-lg p-4 shadow-none flex flex-col justify-between">
+        <div className="bg-white border border-[#e2e8f0] rounded-lg p-4 shadow-none flex flex-col justify-between md:col-span-2 lg:col-span-1">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <div className="w-7 h-7 rounded-md bg-[#3b82f6] text-white flex items-center justify-center shrink-0">
@@ -831,7 +846,7 @@ export default function StockMatrixTable() {
               <h3 className="text-base font-bold text-[#0f172a]">Quick Summary</h3>
             </div>
 
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
               {/* Item 1: Highest Available Stock */}
               <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-slate-50 transition">
                 <div className="flex items-center gap-2">

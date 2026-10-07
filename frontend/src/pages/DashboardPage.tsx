@@ -5,7 +5,7 @@ import StockMatrixTable from "../components/StockMatrixTable";
  */
 export default function DashboardPage() {
   return (
-    <div className="w-full bg-white min-h-full">
+    <div className="flex-1 w-full min-w-0 overflow-y-auto bg-white flex flex-col min-h-0 h-full">
       <StockMatrixTable />
     </div>
   );
