@@ -14,6 +14,7 @@ import {
   ChevronRightIcon,
 } from "lucide-react";
 import Card from "./Card";
+import { TableLoader } from "./Loader";
 import {
   dashboardApi,
   DailyBreakdownRowData,
@@ -166,26 +167,20 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                           )}
                         </td>
                         <td className="py-1.5 px-2 text-slate-600">{o.customer_name || "-"}</td>
-                        <td className="py-1.5 px-2">
-                          {isPO ? (
-                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200/60">
-                              {rawCh === "OVERSEA" ? "Overseas PO" : rawCh === "BUYBACK" ? "Buyback PO" : "Local PO"}
-                            </span>
-                          ) : rawCh === "OVERSEA" || rawCh === "OVERSEAS" ? (
-                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-                              Oversea
-                            </span>
-                          ) : rawCh === "TELEGRAM" ? (
-                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                              Local-Telegram
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                              Local-Physical
-                            </span>
-                          )}
+                        <td className="py-1.5 px-2 text-slate-600 text-xs whitespace-nowrap">
+                          {isPO
+                            ? (rawCh === "OVERSEA" ? "Overseas PO" : rawCh === "BUYBACK" ? "Buyback PO" : "Local PO")
+                            : (rawCh === "OVERSEA" || rawCh === "OVERSEAS"
+                              ? "Oversea"
+                              : rawCh === "TELEGRAM"
+                              ? "Local-Telegram"
+                              : "Local-Physical")}
                         </td>
-                        <td className="py-1.5 px-2 text-right font-medium text-slate-700">{fmt(o.quantity)}</td>
+                        <td className="py-1.5 px-2 text-right font-medium text-slate-700">
+                          {o.transaction_type === "SELL" && toNumber(o.quantity) > 0
+                            ? `-${fmt(o.quantity)}`
+                            : fmt(o.quantity)}
+                        </td>
                         <td className="py-1.5 px-2 text-slate-600">{o.status}</td>
                         <td className="py-1.5 px-2 text-slate-500">{formatTime(o.created_at)}</td>
                       </tr>
@@ -323,9 +318,7 @@ export default function DailyBreakdownTable() {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-slate-400 text-sm">Loading...</td>
-              </tr>
+              <TableLoader colSpan={6} text="Loading breakdown..." position="middle" />
             ) : data.length === 0 ? (
               <tr>
                 <td colSpan={6} className="py-8 text-center text-slate-400 text-sm">No data for this period</td>

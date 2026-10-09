@@ -32,6 +32,8 @@ class BotSettings(BaseModel):
     """Schema for bot configuration parameters."""
     bot_token: str = ""
     bot_username: str = "GoldSystemBot"
+    sales_telegram_username: str = "phallymakara"
+    sales_phone_number: str = "+85589804659"
 
 
 class SecuritySettings(BaseModel):

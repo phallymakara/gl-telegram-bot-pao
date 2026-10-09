@@ -642,7 +642,9 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
 
         import_stock = sum(float(p.quantity or 0) for p in matching_pos)
 
-        # Trade In orders (BUY customer buybacks)
+        # BUY orders (Customer buybacks / Inward inventory)
+        physical_buy_orders = []
+        bot_buy_orders = []
         trade_in_orders = []
         # Matching customer SELL orders (Deductions)
         physical_orders = []
@@ -662,6 +664,10 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
 
             if txn == "BUY":
                 trade_in_orders.append(o)
+                if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+                    bot_buy_orders.append(o)
+                else:
+                    physical_buy_orders.append(o)
             elif txn == "SELL":
                 matching_sell_orders.append(o)
                 if ch in ("TELEGRAM", "WEB", "PLATFORM"):
@@ -670,12 +676,24 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                     physical_orders.append(o)
 
         trade_in_qty = sum(float(o.quantity or 0) for o in trade_in_orders)
+        physical_buy_qty = sum(float(o.quantity or 0) for o in physical_buy_orders)
+        bot_buy_qty = sum(float(o.quantity or 0) for o in bot_buy_orders)
         physical_qty = -sum(abs(float(o.quantity or 0)) for o in physical_orders)
         bot_qty = -sum(abs(float(o.quantity or 0)) for o in bot_orders)
 
         trade_in_cell = (
             StockMatrixCell(value=trade_in_qty, order_id=trade_in_orders[0].id, order_no=trade_in_orders[0].order_no)
             if trade_in_orders
+            else None
+        )
+        physical_buy_cell = (
+            StockMatrixCell(value=physical_buy_qty, order_id=physical_buy_orders[0].id, order_no=physical_buy_orders[0].order_no)
+            if physical_buy_orders
+            else None
+        )
+        bot_buy_cell = (
+            StockMatrixCell(value=bot_buy_qty, order_id=bot_buy_orders[0].id, order_no=bot_buy_orders[0].order_no)
+            if bot_buy_orders
             else None
         )
         physical_cell = (
@@ -692,7 +710,7 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         col_orders.append(matching_sell_orders)
         deductions = [-abs(float(o.quantity or 0)) for o in matching_sell_orders]
         total_deductions = sum(deductions)
-        avail = max(0.0, import_stock + trade_in_qty - abs(total_deductions))
+        avail = max(0.0, import_stock + physical_buy_qty + bot_buy_qty - abs(total_deductions))
 
         # Format date label to D-MMM (e.g. 6-Oct) if valid date object
         if isinstance(t_date, (date, datetime)):
@@ -712,12 +730,16 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                 trade_in=trade_in_qty,
                 physical_sale=physical_qty,
                 bot_sale=bot_qty,
+                physical_buy=physical_buy_qty,
+                bot_buy=bot_buy_qty,
                 available_stock=avail,
                 total_deductions=total_deductions,
                 deductions=deductions,
                 trade_in_cell=trade_in_cell,
                 physical_sale_cell=physical_cell,
                 bot_sale_cell=bot_cell,
+                physical_buy_cell=physical_buy_cell,
+                bot_buy_cell=bot_buy_cell,
             )
         )
 

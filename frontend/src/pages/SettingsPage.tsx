@@ -30,6 +30,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [offStoreImageUrl, setOffStoreImageUrl] = useState("");
   const [offStoreImageUrls, setOffStoreImageUrls] = useState<string[]>([]);
   const [botUsername, setBotUsername] = useState("GoldSystemBot");
+  const [salesTelegramUsername, setSalesTelegramUsername] = useState("phallymakara");
+  const [salesPhoneNumber, setSalesPhoneNumber] = useState("+85589804659");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
 
@@ -55,6 +57,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
       .get<any>("/api/settings/")
       .then((s) => {
         setBotUsername(s.bot.bot_username);
+        if (s.bot.sales_telegram_username) setSalesTelegramUsername(s.bot.sales_telegram_username);
+        if (s.bot.sales_phone_number) setSalesPhoneNumber(s.bot.sales_phone_number);
         setSessionTimeout(s.security.session_timeout);
         setPasswordExpiry(s.security.password_expiry);
         setTwoFA(s.security.two_factor);
@@ -120,7 +124,12 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   function saveSettings() {
     api
       .put("/api/settings/", {
-        bot: { bot_token: "", bot_username: botUsername },
+        bot: {
+          bot_token: "",
+          bot_username: botUsername,
+          sales_telegram_username: salesTelegramUsername,
+          sales_phone_number: salesPhoneNumber,
+        },
         security: {
           session_timeout: sessionTimeout,
           password_expiry: passwordExpiry,
@@ -191,8 +200,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 w-full items-start">
-      <div className="md:col-span-1 md:sticky md:top-4 self-start flex flex-row overflow-x-auto flex-nowrap gap-1.5 md:flex-col scrollbar-none min-w-0 border-b md:border-b-0 border-slate-200/60 pb-3 md:pb-0 z-10 bg-slate-50/90 backdrop-blur-xs md:bg-transparent">
+    <div className="flex flex-col md:flex-row gap-6 w-full items-start">
+      <div className="w-full md:w-48 lg:w-52 shrink-0 md:sticky md:top-4 self-start flex flex-row overflow-x-auto flex-nowrap gap-1 md:flex-col scrollbar-none min-w-0 border-b md:border-b-0 border-slate-200/60 pb-3 md:pb-0 z-10 bg-slate-50/90 backdrop-blur-xs md:bg-transparent">
         <div className="hidden md:block px-3 mb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Settings Menu
         </div>
@@ -203,37 +212,43 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
             <button
               key={tab.id}
               onClick={() => scrollToSection(tab.id)}
-              className={`shrink-0 whitespace-nowrap text-left px-3.5 py-2.5 md:py-3 rounded-lg transition-all duration-150 flex items-center gap-2.5 relative focus:outline-none cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap text-left px-3 py-2 rounded-lg transition-all duration-150 flex items-center gap-2 relative focus:outline-none cursor-pointer ${
                 isActive
                   ? "bg-indigo-50 md:bg-slate-100 text-indigo-700 md:text-slate-900 font-semibold"
                   : "text-slate-600 hover:bg-slate-50/80 hover:text-slate-900"
               }`}
             >
               {isActive && (
-                <span className="hidden md:block absolute left-0 top-3 bottom-3 w-1 rounded-r bg-indigo-600" />
+                <span className="hidden md:block absolute left-0 top-2 bottom-2 w-1 rounded-r bg-indigo-600" />
               )}
               <Icon
-                size={16}
+                size={15}
                 className={`shrink-0 ${isActive ? "text-indigo-600" : "text-slate-400"}`}
               />
-              <span className="text-[13px] leading-normal">{tab.label}</span>
+              <span className="text-xs leading-normal">{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="md:col-span-3 space-y-6">
-        <ProfileTab />
-        <BotTab
-          botUsername={botUsername}
-          setBotUsername={setBotUsername}
-          showToken={showToken}
-          setShowToken={setShowToken}
-          paymentMethods={paymentMethods}
-          setPaymentMethods={setPaymentMethods}
-          saveSettings={saveSettings}
-          notify={notify}
-        />
+      <div className="flex-1 min-w-0 space-y-6">
+        <div className="bg-white rounded-xl border border-slate-200 p-6 md:p-8 space-y-8">
+          <ProfileTab />
+          <BotTab
+            botUsername={botUsername}
+            setBotUsername={setBotUsername}
+            salesTelegramUsername={salesTelegramUsername}
+            setSalesTelegramUsername={setSalesTelegramUsername}
+            salesPhoneNumber={salesPhoneNumber}
+            setSalesPhoneNumber={setSalesPhoneNumber}
+            showToken={showToken}
+            setShowToken={setShowToken}
+            paymentMethods={paymentMethods}
+            setPaymentMethods={setPaymentMethods}
+            saveSettings={saveSettings}
+            notify={notify}
+          />
+        </div>
         <CustomersTab
           customers={customers}
           newUserId={newUserId}

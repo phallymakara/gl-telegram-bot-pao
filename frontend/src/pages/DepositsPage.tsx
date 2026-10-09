@@ -5,16 +5,11 @@
  * inspect uploaded payment slips or payout bank details, and approve or reject transactions.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  Clock,
-  CheckCircle2,
-  XCircle,
   Search,
   Eye,
-  RefreshCw,
-  Image as ImageIcon,
-  Check,
 } from "lucide-react";
 import { getFriendlyErrorMessage } from "../utils/errorMessage";
 import Card from "../components/Card";
@@ -22,6 +17,9 @@ import StatCard from "../components/StatCard";
 import SearchInput from "../components/SearchInput";
 import DepositDetailModal from "./deposits/DepositDetailModal";
 import WithdrawalDetailModal from "./deposits/WithdrawalDetailModal";
+import Loader, { TableLoader } from "../components/Loader";
+import LazyTableFooter from "../components/LazyTableFooter";
+import useLazyRecords from "../hooks/useLazyRecords";
 import {
   DepositItem,
   DepositStats,
@@ -37,8 +35,35 @@ interface DepositsPageProps {
 
 type TabType = "deposits" | "withdrawals";
 
+function getShortProofLabel(notes?: string | null): string {
+  if (!notes) return "No Slip";
+  const lower = notes.toLowerCase();
+  if (lower.includes("cash")) return "Cash";
+  if (lower.includes("qr")) return "Bank QR";
+  if (lower.includes("slip") || lower.includes("receipt")) return "Slip";
+  if (lower.includes("bank")) return "Bank";
+  if (notes.length <= 15) return notes;
+  return notes
+    .replace(/requested via telegram bot/gi, "")
+    .replace(/submitted via telegram bot/gi, "")
+    .replace(/via telegram bot/gi, "")
+    .trim() || "No Slip";
+}
+
 export default function DepositsPage({ notify }: DepositsPageProps) {
-  const [activeTab, setActiveTab] = useState<TabType>("deposits");
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tabParam === "withdrawals" ? "withdrawals" : "deposits"
+  );
+
+  useEffect(() => {
+    if (tabParam === "withdrawals") {
+      setActiveTab("withdrawals");
+    } else if (tabParam === "deposits") {
+      setActiveTab("deposits");
+    }
+  }, [tabParam]);
 
   // Deposits State
   const [deposits, setDeposits] = useState<DepositItem[]>([]);
@@ -57,44 +82,71 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [methodFilter, setMethodFilter] = useState("All Methods");
+  const isFirstLoad = useRef(true);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      if (activeTab === "deposits") {
-        const [depList, dStats] = await Promise.all([
-          depositsApi.getDeposits({
-            status: statusFilter,
-            payment_method: methodFilter,
-            search: q || undefined,
-          }),
-          depositsApi.getStats(),
-        ]);
-        setDeposits(depList);
-        setDepositStats(dStats);
-      } else {
-        const [wthList, wStats] = await Promise.all([
-          withdrawalsApi.getWithdrawals({
-            status: statusFilter,
-            payment_method: methodFilter,
-            search: q || undefined,
-          }),
-          withdrawalsApi.getStats(),
-        ]);
-        setWithdrawals(wthList);
-        setWithdrawalStats(wStats);
+  // Lazy records progressive loader (15 records per load)
+  const {
+    visibleRecords: visibleDeposits,
+    displayCount: depositCount,
+    isLoadingMore: isDepositsLoadingMore,
+    sentinelRef: depositSentinelRef,
+    handleScroll: handleDepositScroll,
+  } = useLazyRecords(deposits, { initialCount: 15, batchSize: 15 });
+
+  const {
+    visibleRecords: visibleWithdrawals,
+    displayCount: withdrawalCount,
+    isLoadingMore: isWithdrawalsLoadingMore,
+    sentinelRef: withdrawalSentinelRef,
+    handleScroll: handleWithdrawalScroll,
+  } = useLazyRecords(withdrawals, { initialCount: 15, batchSize: 15 });
+
+  // Live realtime data fetcher
+  const loadData = useCallback(
+    async (silent = false) => {
+      if (!silent && isFirstLoad.current) {
+        setLoading(true);
       }
-    } catch {
-      notify(
-        activeTab === "deposits"
-          ? "Failed to load customer deposits"
-          : "Failed to load customer withdrawals",
-        "error"
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        if (activeTab === "deposits") {
+          const [depList, dStats] = await Promise.all([
+            depositsApi.getDeposits({
+              status: statusFilter,
+              payment_method: methodFilter,
+              search: q || undefined,
+            }),
+            depositsApi.getStats(),
+          ]);
+          setDeposits(depList);
+          setDepositStats(dStats);
+        } else {
+          const [wthList, wStats] = await Promise.all([
+            withdrawalsApi.getWithdrawals({
+              status: statusFilter,
+              payment_method: methodFilter,
+              search: q || undefined,
+            }),
+            withdrawalsApi.getStats(),
+          ]);
+          setWithdrawals(wthList);
+          setWithdrawalStats(wStats);
+        }
+      } catch {
+        if (!silent) {
+          notify(
+            activeTab === "deposits"
+              ? "Failed to load customer deposits"
+              : "Failed to load customer withdrawals",
+            "error"
+          );
+        }
+      } finally {
+        setLoading(false);
+        isFirstLoad.current = false;
+      }
+    },
+    [activeTab, statusFilter, methodFilter, q, notify]
+  );
 
   // Preload both stats on initial mount so badge counts are available
   useEffect(() => {
@@ -102,13 +154,24 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
     withdrawalsApi.getStats().then(setWithdrawalStats).catch(() => {});
   }, []);
 
+  // Realtime polling (every 2s + window focus)
   useEffect(() => {
-    loadData();
-  }, [activeTab, statusFilter, methodFilter]);
+    isFirstLoad.current = true;
+    loadData(false);
+    const interval = setInterval(() => {
+      loadData(true);
+    }, 2000);
+    const handleFocus = () => loadData(true);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [loadData]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadData();
+    loadData(false);
   };
 
   const handleResetFilters = () => {
@@ -124,19 +187,9 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
   };
 
   const handleDepositStatusUpdated = (updated: DepositItem) => {
+    setSelectedDeposit(updated);
     setDeposits((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     depositsApi.getStats().then(setDepositStats).catch(() => {});
-  };
-
-  const handleQuickApproveDeposit = async (e: React.MouseEvent, d: DepositItem) => {
-    e.stopPropagation();
-    try {
-      const updated = await depositsApi.reviewDeposit(d.id, "APPROVED", undefined, "Admin");
-      notify(`Deposit ${d.deposit_no} approved`);
-      handleDepositStatusUpdated(updated);
-    } catch (err: any) {
-      notify(getFriendlyErrorMessage(err, "Failed to approve deposit"), "error");
-    }
   };
 
   // Withdrawals handlers
@@ -146,50 +199,36 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
   };
 
   const handleWithdrawalStatusUpdated = (updated: WithdrawalItem) => {
+    setSelectedWithdrawal(updated);
     setWithdrawals((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
     withdrawalsApi.getStats().then(setWithdrawalStats).catch(() => {});
-  };
-
-  const handleQuickApproveWithdrawal = async (e: React.MouseEvent, w: WithdrawalItem) => {
-    e.stopPropagation();
-    try {
-      const updated = await withdrawalsApi.reviewWithdrawal(
-        w.id,
-        "APPROVED",
-        undefined,
-        undefined,
-        "Admin"
-      );
-      notify(`Withdrawal ${w.withdraw_no} marked as approved / paid`);
-      handleWithdrawalStatusUpdated(updated);
-    } catch (err: any) {
-      notify(getFriendlyErrorMessage(err, "Failed to approve withdrawal"), "error");
-    }
   };
 
   const formatCurrency = (val: number) =>
     `$${val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  const statusTint: Record<string, string> = {
-    APPROVED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    PENDING: "bg-amber-50 text-amber-700 border-amber-200",
-    REJECTED: "bg-rose-50 text-rose-700 border-rose-200",
+  const statusColor: Record<string, string> = {
+    APPROVED: "text-emerald-600 font-medium",
+    PENDING: "text-amber-600 font-medium",
+    REJECTED: "text-rose-600 font-medium",
   };
 
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
+    <div className="flex-1 pt-2 px-3.5 pb-2 sm:pt-2 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-2 min-h-0">
       {/* Tab Switcher */}
-      <div className="flex items-center gap-8 border-b border-slate-200 flex-shrink-0">
+      <div className="flex items-center gap-6 flex-shrink-0" role="tablist">
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "deposits"}
           onClick={() => {
             setActiveTab("deposits");
             handleResetFilters();
           }}
-          className={`pb-3 text-sm font-semibold transition-colors relative flex items-center gap-1.5 cursor-pointer ${
+          className={`rounded-none bg-transparent border-0 pb-1 text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer outline-none focus:outline-none ${
             activeTab === "deposits"
-              ? "text-indigo-600 border-b-2 border-indigo-600 -mb-px"
-              : "text-slate-500 hover:text-slate-800 border-b-2 border-transparent"
+              ? "text-indigo-600"
+              : "text-slate-500 hover:text-slate-800"
           }`}
         >
           <span>Customer Deposits</span>
@@ -197,14 +236,16 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
 
         <button
           type="button"
+          role="tab"
+          aria-selected={activeTab === "withdrawals"}
           onClick={() => {
             setActiveTab("withdrawals");
             handleResetFilters();
           }}
-          className={`pb-3 text-sm font-semibold transition-colors relative flex items-center gap-1.5 cursor-pointer ${
+          className={`rounded-none bg-transparent border-0 pb-1 text-sm font-semibold transition-colors flex items-center gap-1.5 cursor-pointer outline-none focus:outline-none ${
             activeTab === "withdrawals"
-              ? "text-indigo-600 border-b-2 border-indigo-600 -mb-px"
-              : "text-slate-500 hover:text-slate-800 border-b-2 border-transparent"
+              ? "text-indigo-600"
+              : "text-slate-500 hover:text-slate-800"
           }`}
         >
           <span>Customer Withdrawals</span>
@@ -212,78 +253,58 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
       </div>
 
       {/* 4 Summary Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 flex-shrink-0">
         {activeTab === "deposits" ? (
           <>
             <StatCard
+              compact
               label="Total Deposits"
               value={depositStats ? depositStats.total_count : "—"}
-              sub={depositStats ? `${formatCurrency(depositStats.total_amount)} USD Total` : "Volume"}
               tint="bg-indigo-50 text-indigo-600"
             />
             <StatCard
+              compact
               label="Pending Review"
               value={depositStats ? depositStats.pending_count : "—"}
-              sub={
-                depositStats ? `${formatCurrency(depositStats.pending_amount)} USD Pending` : "Needs Action"
-              }
               tint="bg-amber-50 text-amber-600"
             />
             <StatCard
+              compact
               label="Approved Deposits"
               value={depositStats ? depositStats.approved_count : "—"}
-              sub={
-                depositStats ? `${formatCurrency(depositStats.approved_amount)} USD Cleared` : "Approved"
-              }
               tint="bg-emerald-50 text-emerald-600"
             />
             <StatCard
+              compact
               label="Rejected Deposits"
               value={depositStats ? depositStats.rejected_count : "—"}
-              sub={
-                depositStats ? `${formatCurrency(depositStats.rejected_amount)} USD Declined` : "Declined"
-              }
               tint="bg-rose-50 text-rose-600"
             />
           </>
         ) : (
           <>
             <StatCard
+              compact
               label="Total Withdrawals"
               value={withdrawalStats ? withdrawalStats.total_count : "—"}
-              sub={
-                withdrawalStats ? `${formatCurrency(withdrawalStats.total_amount)} USD Total` : "Volume"
-              }
               tint="bg-indigo-50 text-indigo-600"
             />
             <StatCard
+              compact
               label="Pending Payout"
               value={withdrawalStats ? withdrawalStats.pending_count : "—"}
-              sub={
-                withdrawalStats
-                  ? `${formatCurrency(withdrawalStats.pending_amount)} USD Pending`
-                  : "Needs Payout"
-              }
               tint="bg-amber-50 text-amber-600"
             />
             <StatCard
+              compact
               label="Approved & Paid"
               value={withdrawalStats ? withdrawalStats.approved_count : "—"}
-              sub={
-                withdrawalStats
-                  ? `${formatCurrency(withdrawalStats.approved_amount)} USD Paid`
-                  : "Completed"
-              }
               tint="bg-emerald-50 text-emerald-600"
             />
             <StatCard
+              compact
               label="Rejected Requests"
               value={withdrawalStats ? withdrawalStats.rejected_count : "—"}
-              sub={
-                withdrawalStats
-                  ? `${formatCurrency(withdrawalStats.rejected_amount)} USD Cancelled`
-                  : "Declined"
-              }
               tint="bg-rose-50 text-rose-600"
             />
           </>
@@ -293,24 +314,26 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
       {/* Main Table Card */}
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Filters and Search Toolbar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 flex-shrink-0 items-stretch sm:items-center justify-between">
-          <form onSubmit={handleSearchSubmit} className="flex-1 min-w-[240px]">
+        <div className="px-3 py-2 border-b border-slate-100 flex flex-col sm:flex-row gap-2.5 flex-shrink-0 items-stretch sm:items-center">
+          <form onSubmit={handleSearchSubmit} className="w-full sm:w-80 shrink-0">
             <SearchInput
+              size="sm"
               value={q}
               onChange={setQ}
+              className="w-full"
               placeholder={
                 activeTab === "deposits"
-                  ? "Search by Transaction ID (e.g. DEP-), customer name or username…"
-                  : "Search by Withdrawal ID (e.g. WTH-), customer name or notes…"
+                  ? "Search by transaction ID, customer name or username…"
+                  : "Search by withdrawal ID, customer name or notes…"
               }
             />
           </form>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             >
               {["All Statuses", "PENDING", "APPROVED", "REJECTED"].map((s) => (
                 <option key={s} value={s}>
@@ -322,7 +345,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
             <select
               value={methodFilter}
               onChange={(e) => setMethodFilter(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             >
               {["All Methods", "BANK", "CASH"].map((m) => (
                 <option key={m} value={m}>
@@ -335,29 +358,35 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-sm px-3 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+                className="text-xs px-2.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
               >
                 Reset
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={loadData}
-              className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
-              title="Refresh records"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin text-indigo-600" : ""} />
-              Refresh
-            </button>
           </div>
         </div>
 
         {/* Data Table */}
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-          {activeTab === "deposits" ? (
+        <div
+          onScroll={activeTab === "deposits" ? handleDepositScroll : handleWithdrawalScroll}
+          className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full flex flex-col"
+        >
+          {loading && (activeTab === "deposits" ? deposits.length === 0 : withdrawals.length === 0) ? (
+            <div className="flex-1 w-full min-h-[360px] flex flex-col items-center justify-center p-8">
+              <Loader
+                size="md"
+                text={
+                  activeTab === "deposits"
+                    ? "Loading customer deposits..."
+                    : "Loading customer withdrawals..."
+                }
+              />
+            </div>
+          ) : activeTab === "deposits" ? (
             /* Deposits Table */
-            <table className="w-full text-sm">
+            <>
+              <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                   {[
@@ -371,141 +400,121 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                     "Status",
                     "Actions",
                   ].map((h) => (
-                    <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                    <th key={h} className="px-4 py-2 font-medium whitespace-nowrap bg-slate-50">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {loading && deposits.length === 0 ? (
+                {deposits.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
-                      Loading customer deposits...
-                    </td>
-                  </tr>
-                ) : deposits.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                       No customer deposit transactions found.
                     </td>
                   </tr>
                 ) : (
-                  deposits.map((d, i) => (
+                  visibleDeposits.map((d, i) => (
                     <tr
                       key={d.id}
-                      onClick={() => handleOpenDepositDetail(d)}
-                      className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                     >
-                      <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="font-mono font-bold text-slate-800 text-xs bg-slate-100/80 px-2 py-1 rounded">
+                      <td className="px-4 py-2 text-slate-400 text-xs">{i + 1}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className="text-slate-500 text-xs">
                           {d.deposit_no}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold shrink-0">
-                            {d.account_name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </div>
-                          <div className="leading-tight">
-                            <span className="font-semibold text-slate-800 block">
-                              {d.account_name}
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                              {d.username
-                                ? `@${d.username}`
-                                : d.telegram_user_id
-                                ? `ID: ${d.telegram_user_id}`
-                                : "Telegram Customer"}
-                            </span>
-                          </div>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="leading-tight">
+                          <span className="font-medium text-slate-800 text-xs block">
+                            {d.account_name}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {d.username
+                              ? `@${d.username}`
+                              : d.telegram_user_id
+                              ? `ID: ${d.telegram_user_id}`
+                              : "Telegram Customer"}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="font-bold text-slate-900 text-sm">
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className="text-slate-900 text-xs font-medium">
                           {formatCurrency(d.amount)}
                         </span>
-                        <span className="text-xs text-slate-400 ml-1">USD</span>
+                        <span className="text-[11px] text-slate-400 ml-1">USD</span>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-700 font-medium">
+                      <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-700">
                         {d.payment_method === "BANK" ? "Bank Transfer" : d.payment_method}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-2 whitespace-nowrap">
                         {d.receipt_url ? (
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={d.receipt_url}
-                              alt="Slip thumbnail"
-                              className="h-9 w-9 rounded-lg object-cover border border-slate-200 shadow-2xs hover:scale-110 transition-transform"
-                            />
-                            <span className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-0.5">
-                              Slip Attached
-                            </span>
-                          </div>
+                          <img
+                            src={d.receipt_url}
+                            alt="Slip thumbnail"
+                            className="h-6 w-6 rounded object-cover border border-slate-200 hover:opacity-90 transition-opacity"
+                          />
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
-                            <ImageIcon size={12} /> No Slip
+                          <span className="text-xs text-slate-400">
+                            No Slip
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-500">
-                        {new Date(d.transaction_date).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="leading-tight">
+                          <span className="text-slate-700 text-xs font-medium block">
+                            {new Date(d.transaction_date).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {new Date(d.transaction_date).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-2 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                            statusTint[d.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                          className={`text-xs ${
+                            statusColor[d.status] || "text-slate-600 font-medium"
                           }`}
                         >
-                          {d.status === "PENDING" && <Clock size={11} />}
-                          {d.status === "APPROVED" && <CheckCircle2 size={11} />}
-                          {d.status === "REJECTED" && <XCircle size={11} />}
                           {d.status}
                         </span>
                       </td>
                       <td
-                        className="px-5 py-3.5 whitespace-nowrap"
+                        className="px-4 py-2 whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenDepositDetail(d)}
-                            className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-md border border-indigo-200 transition-colors flex items-center gap-1"
+                            className="p-1 rounded-md text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors flex items-center justify-center"
+                            title="Review Deposit"
                           >
-                            <Eye size={13} /> Review
+                            <Eye size={13} />
                           </button>
-                          {d.status === "PENDING" && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleQuickApproveDeposit(e, d)}
-                              className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition-colors"
-                              title="Quick Approve Deposit"
-                            >
-                              <Check size={14} />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
                   ))
                 )}
+                {isDepositsLoadingMore && (
+                  <TableLoader colSpan={9} text="Loading more customer deposits..." position="bottom" size="sm" />
+                )}
               </tbody>
             </table>
-          ) : (
-            /* Withdrawals Table */
+            <div ref={depositSentinelRef} className="h-2 w-full" />
+          </>
+        ) : (
+          /* Withdrawals Table */
+          <>
             <table className="w-full text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
@@ -520,148 +529,145 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                     "Status",
                     "Actions",
                   ].map((h) => (
-                    <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                    <th
+                      key={h}
+                      className={`px-4 py-2 font-medium whitespace-nowrap bg-slate-50 ${
+                        h === "Withdraw Amount" ? "text-right" : ""
+                      }`}
+                    >
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {loading && withdrawals.length === 0 ? (
+                {withdrawals.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
-                      Loading customer withdrawals...
-                    </td>
-                  </tr>
-                ) : withdrawals.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
+                    <td colSpan={9} className="px-4 py-12 text-center text-slate-400">
                       No customer withdrawal requests found.
                     </td>
                   </tr>
                 ) : (
-                  withdrawals.map((w, i) => (
+                  visibleWithdrawals.map((w, i) => (
                     <tr
                       key={w.id}
-                      onClick={() => handleOpenWithdrawalDetail(w)}
-                      className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                     >
-                      <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="font-mono font-bold text-slate-800 text-xs bg-slate-100/80 px-2 py-1 rounded">
+                      <td className="px-4 py-2 text-slate-400 text-xs">{i + 1}</td>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <span className="text-slate-500 text-xs">
                           {w.withdraw_no}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold shrink-0">
-                            {w.account_name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase()}
-                          </div>
-                          <div className="leading-tight">
-                            <span className="font-semibold text-slate-800 block">
-                              {w.account_name}
-                            </span>
-                            <span className="text-[11px] text-slate-400">
-                              {w.username
-                                ? `@${w.username}`
-                                : w.telegram_user_id
-                                ? `ID: ${w.telegram_user_id}`
-                                : "Telegram Customer"}
-                            </span>
-                          </div>
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="leading-tight">
+                          <span className="font-medium text-slate-800 text-xs block">
+                            {w.account_name}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {w.username
+                              ? `@${w.username}`
+                              : w.telegram_user_id
+                              ? `ID: ${w.telegram_user_id}`
+                              : "Telegram Customer"}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <span className="font-bold text-rose-600 text-sm">
+                      <td className="px-4 py-2 whitespace-nowrap text-right">
+                        <span className="text-rose-600 text-xs font-medium">
                           -{formatCurrency(w.amount)}
                         </span>
-                        <span className="text-xs text-slate-400 ml-1">USD</span>
+                        <span className="text-[11px] text-rose-500 ml-1">USD</span>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-700 font-medium">
+                      <td className="px-4 py-2 whitespace-nowrap text-xs text-slate-700">
                         {w.payment_method === "BANK" ? "Bank Transfer" : w.payment_method}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-2 whitespace-nowrap">
                         {w.receipt_url ? (
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={w.receipt_url}
-                              alt="Payout slip thumbnail"
-                              className="h-9 w-9 rounded-lg object-cover border border-slate-200 shadow-2xs hover:scale-110 transition-transform"
-                            />
-                            <span className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-0.5">
-                              Proof Attached
-                            </span>
-                          </div>
+                          <img
+                            src={w.receipt_url}
+                            alt="Payout slip thumbnail"
+                            className="h-6 w-6 rounded object-cover border border-slate-200 hover:opacity-90 transition-opacity"
+                          />
                         ) : w.notes ? (
                           <span
-                            className="text-xs text-slate-600 max-w-[180px] truncate block"
+                            className="text-xs text-slate-600 block"
                             title={w.notes}
                           >
-                            {w.notes}
+                            {getShortProofLabel(w.notes)}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400 italic">
-                            Standard Payout
+                          <span className="text-xs text-slate-400">
+                            No Slip
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap text-xs text-slate-500">
-                        {new Date(w.transaction_date).toLocaleString([], {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                      <td className="px-4 py-2 whitespace-nowrap">
+                        <div className="leading-tight">
+                          <span className="text-slate-700 text-xs font-medium block">
+                            {new Date(w.transaction_date).toLocaleDateString([], {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            {new Date(w.transaction_date).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5 whitespace-nowrap">
+                      <td className="px-4 py-2 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
-                            statusTint[w.status] || "bg-slate-100 text-slate-700 border-slate-200"
+                          className={`text-xs ${
+                            statusColor[w.status] || "text-slate-600 font-medium"
                           }`}
                         >
-                          {w.status === "PENDING" && <Clock size={11} />}
-                          {w.status === "APPROVED" && <CheckCircle2 size={11} />}
-                          {w.status === "REJECTED" && <XCircle size={11} />}
                           {w.status}
                         </span>
                       </td>
                       <td
-                        className="px-5 py-3.5 whitespace-nowrap"
+                        className="px-4 py-2 whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() => handleOpenWithdrawalDetail(w)}
-                            className="px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-md border border-indigo-200 transition-colors flex items-center gap-1"
+                            className="p-1 rounded-md text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors flex items-center justify-center"
+                            title="Review Withdrawal"
                           >
-                            <Eye size={13} /> Review
+                            <Eye size={13} />
                           </button>
-                          {w.status === "PENDING" && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleQuickApproveWithdrawal(e, w)}
-                              className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition-colors"
-                              title="Quick Approve / Paid"
-                            >
-                              <Check size={14} />
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
                   ))
                 )}
+                {isWithdrawalsLoadingMore && (
+                  <TableLoader colSpan={9} text="Loading more customer withdrawals..." position="bottom" size="sm" />
+                )}
               </tbody>
             </table>
-          )}
-        </div>
+            <div ref={withdrawalSentinelRef} className="h-2 w-full" />
+          </>
+        )}
+      </div>
+
+        {/* Progressive Lazy Records Footer */}
+        {activeTab === "deposits" ? (
+          <LazyTableFooter
+            currentShown={depositCount}
+            totalRecords={deposits.length}
+          />
+        ) : (
+          <LazyTableFooter
+            currentShown={withdrawalCount}
+            totalRecords={withdrawals.length}
+          />
+        )}
       </Card>
 
       {/* Deposit Detail & Verification Modal */}

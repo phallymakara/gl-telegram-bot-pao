@@ -37,6 +37,7 @@ from app.constants.callback import (
     TXN_PERIOD_3D,
     TXN_PERIOD_1W,
     TXN_PERIOD_1M,
+    READY_TXN,
 )
 from app.core.config import SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.utils.helpers import format_date_dd_mm_yy, format_premium
@@ -319,11 +320,11 @@ def build_attach_doc_keyboard(lang="EN") -> InlineKeyboardMarkup:
 def build_deposit_details_keyboard(lang="EN") -> InlineKeyboardMarkup:
     """
     Construct keyboard for deposit details confirmation matching image:
-      [ រួចរាល់ / Done ]
+      [ រួចរាល់ / Done / Ready ]
     """
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(t("done", lang), callback_data=BACK_MAIN),
+            InlineKeyboardButton(t("done", lang), callback_data=READY_TXN),
         ]
     ])
 
@@ -367,16 +368,22 @@ def build_back_main_keyboard(lang="EN") -> InlineKeyboardMarkup:
     ])
 
 
-def build_contact_sales_keyboard(lang="EN") -> InlineKeyboardMarkup:
+def build_contact_sales_keyboard(lang="EN", telegram_username: str = "") -> InlineKeyboardMarkup:
     """
     Construct action keyboard for Contact Sales:
-      [ ថយក្រោយ / Back ]
+      Row 1: [ 💬 Telegram Chat (Direct link) ] (if username available)
+      Row 2: [ ថយក្រោយ / Back ]
     """
-    return InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
-        ],
+    rows = []
+    clean_username = (telegram_username or "").strip().lstrip("@")
+    if clean_username:
+        rows.append([
+            InlineKeyboardButton(t("contact_telegram_btn", lang), url=f"https://t.me/{clean_username}")
+        ])
+    rows.append([
+        InlineKeyboardButton(t("back_main", lang), callback_data=BACK_MAIN),
     ])
+    return InlineKeyboardMarkup(rows)
 
 
 def build_closed_hours_keyboard(lang="EN") -> InlineKeyboardMarkup:

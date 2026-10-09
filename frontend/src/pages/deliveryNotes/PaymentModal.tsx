@@ -245,7 +245,7 @@ export default function PaymentModal({
               </label>
               <input
                 type="text"
-                placeholder="e.g. John Doe / Cashier"
+                placeholder="Staff name or cashier"
                 value={collectedBy}
                 onChange={(e) => {
                   setCollectedBy(e.target.value);

@@ -95,12 +95,16 @@ class StockMatrixColumn(BaseModel):
     trade_in: float = 0.0
     physical_sale: float = 0.0
     bot_sale: float = 0.0
+    physical_buy: float = 0.0
+    bot_buy: float = 0.0
     available_stock: float
     total_deductions: float
     deductions: list[float] = []
     trade_in_cell: StockMatrixCell | None = None
     physical_sale_cell: StockMatrixCell | None = None
     bot_sale_cell: StockMatrixCell | None = None
+    physical_buy_cell: StockMatrixCell | None = None
+    bot_buy_cell: StockMatrixCell | None = None
 
 
 class StockMatrixLeftTotal(BaseModel):

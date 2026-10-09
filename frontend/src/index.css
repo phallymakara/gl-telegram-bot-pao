@@ -53,3 +53,67 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/* System Loader Animation */
+.loader {
+  --loader-color: #4f46e5;
+  height: 38px;
+  aspect-ratio: 1;
+  display: grid;
+}
+.loader.loader-sm {
+  height: 20px;
+}
+.loader.loader-md {
+  height: 32px;
+}
+.loader.loader-lg {
+  height: 44px;
+}
+.loader.loader-white {
+  --loader-color: #ffffff;
+}
+.loader:before,
+.loader:after {
+  content: "";
+  --c: no-repeat linear-gradient(var(--loader-color, #4f46e5) 0 0);
+  background: var(--c), var(--c);
+  background-size: 25% 50%;
+  animation: l5 1.5s infinite linear;
+}
+.loader:after {
+  transform: scale(-1);
+}
+@keyframes l5 {
+  0%,
+  5%   {background-position: 33.4% 100%, 66.6% 100%;}
+  25%  {background-position: 33.4% 100%, 100% 0;}
+  50%  {background-position: 0 0, 100% 0;}
+  75%  {background-position: 0 0, 66.6% 100%;}
+  95%,
+  100% {background-position: 33.4% 100%, 66.6% 100%;}
+}
+
+/* Global Button Styling: Full pill rounded for all action buttons across the entire system */
+button:not(.rounded-none):not([role="tab"]),
+[role="button"]:not(.rounded-none):not([role="tab"]),
+input[type="button"]:not(.rounded-none),
+input[type="submit"]:not(.rounded-none) {
+  border-radius: 9999px !important;
+}
+
+button[role="tab"],
+[role="tab"] {
+  border-radius: 0 !important;
+}
+
+/* Global Input Styling: Pill rounded for all inputs and select fields across the entire system */
+input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="button"]):not([type="submit"]):not(.rounded-none),
+select:not(.rounded-none) {
+  border-radius: 9999px !important;
+}
+
+textarea:not(.rounded-none) {
+  border-radius: 16px !important;
+}
+
+

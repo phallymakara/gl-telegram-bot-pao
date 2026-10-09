@@ -8,10 +8,14 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, Globe, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
 import Card from "../../components/Card";
 import StatusBadge from "../../components/StatusBadge";
+import LazyTableFooter from "../../components/LazyTableFooter";
+import useLazyRecords from "../../hooks/useLazyRecords";
+import Loader, { TableLoader } from "../../components/Loader";
 import { CustomerData } from "../../api";
 
 interface CustomerTableProps {
   customers: CustomerData[];
+  loading?: boolean;
   search: string;
   setSearch: (val: string) => void;
   openCreateModal: () => void;
@@ -294,6 +298,7 @@ function ActionMenu({
  */
 export default function CustomerTable({
   customers,
+  loading = false,
   search,
   setSearch,
   openCreateModal,
@@ -302,6 +307,14 @@ export default function CustomerTable({
   deleteCustomer,
   notify,
 }: CustomerTableProps) {
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(customers, { initialCount: 15, batchSize: 15 });
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-3.5 flex-shrink-0">
@@ -326,76 +339,96 @@ export default function CustomerTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-        {customers.length === 0 ? (
+      <div
+        onScroll={handleScroll}
+        className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+      >
+        {loading && customers.length === 0 ? (
+          <div className="py-24 flex items-center justify-center">
+            <Loader size="md" text="Loading customers..." />
+          </div>
+        ) : customers.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <Users size={32} className="mx-auto mb-2 text-slate-300" />
             <p className="text-xs font-medium">No customer master records found</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Add a new trade customer to build your master client list.</p>
           </div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Code</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Name</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Sex</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">DOB</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Nation</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Address</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
-                <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {customers.map((c, i) => (
-                <tr key={c.id} className="hover:bg-slate-100 transition-colors">
-                  <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
-                    {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
-                  </td>
-                  <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
-                    {c.name}
-                  </td>
-                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                    {c.contact || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                    {c.sex || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                    {c.dob || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                    {c.nation || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
-                    {c.address ? (
-                      <div className="flex items-center gap-1">
-                        <MapPin size={13} className="text-slate-400 shrink-0" />
-                        <span className="truncate">{c.address}</span>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="py-2 px-3 whitespace-nowrap">
-                    <StatusBadge status={c.is_active !== false ? "Active" : "Inactive"} />
-                  </td>
-                  <td className="py-2 px-3 text-right whitespace-nowrap">
-                    <ActionMenu
-                      isActive={c.is_active}
-                      onChangeStatus={() => toggleStatus(c)}
-                      onEdit={() => openEditModal(c)}
-                      onDelete={() => deleteCustomer(c.id)}
-                    />
-                  </td>
+          <>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-50">
+                <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Code</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Name</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Sex</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">DOB</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Nation</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Address</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
+                  <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleRecords.map((c, i) => (
+                  <tr key={c.id} className="hover:bg-slate-100 transition-colors">
+                    <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                      {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
+                    </td>
+                    <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                      {c.name}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      {c.contact || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      {c.sex || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      {c.dob || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      {c.nation || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
+                      {c.address ? (
+                        <div className="flex items-center gap-1">
+                          <MapPin size={13} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{c.address}</span>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <StatusBadge status={c.is_active !== false ? "Active" : "Inactive"} />
+                    </td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                      <ActionMenu
+                        isActive={c.is_active}
+                        onChangeStatus={() => toggleStatus(c)}
+                        onEdit={() => openEditModal(c)}
+                        onDelete={() => deleteCustomer(c.id)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {isLoadingMore && (
+                  <TableLoader colSpan={9} text="Loading more customers..." position="bottom" size="sm" />
+                )}
+              </tbody>
+            </table>
+            <div ref={sentinelRef} className="h-2 w-full" />
+          </>
         )}
       </div>
+
+      {/* Progressive Lazy Records Footer */}
+      <LazyTableFooter
+        currentShown={displayCount}
+        totalRecords={customers.length}
+        isLoadingMore={isLoadingMore}
+      />
     </Card>
   );
 }

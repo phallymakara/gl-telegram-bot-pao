@@ -442,28 +442,34 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
 
   return (
-    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-4 min-h-0 h-full">
+    <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-4 min-h-0 h-full">
       {/* Top Bar Header */}
       <div className="flex items-center justify-between flex-shrink-0">
         {/* Tab Bar Selection for Buy Slot / Sell Slot */}
-        <div className="flex items-center gap-6 border-b border-slate-200">
+        <div className="flex items-center gap-6" role="tablist">
           <button
             type="button"
+            role="tab"
+            aria-selected={selectedSlotType === "BUY"}
             onClick={() => setSelectedSlotType("BUY")}
-            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${selectedSlotType === "BUY"
-                ? "border-indigo-600 text-indigo-600"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-              }`}
+            className={`rounded-none bg-transparent border-0 py-1 text-sm sm:text-base font-bold transition-colors cursor-pointer outline-none focus:outline-none ${
+              selectedSlotType === "BUY"
+                ? "text-indigo-600"
+                : "text-slate-400 hover:text-slate-700"
+            }`}
           >
             Buy Slot
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={selectedSlotType === "SELL"}
             onClick={() => setSelectedSlotType("SELL")}
-            className={`text-sm sm:text-base py-2 font-bold transition-all cursor-pointer border-b-2 -mb-px ${selectedSlotType === "SELL"
-                ? "border-emerald-600 text-emerald-600"
-                : "border-transparent text-slate-400 hover:text-slate-700"
-              }`}
+            className={`rounded-none bg-transparent border-0 py-1 text-sm sm:text-base font-bold transition-colors cursor-pointer outline-none focus:outline-none ${
+              selectedSlotType === "SELL"
+                ? "text-emerald-600"
+                : "text-slate-400 hover:text-slate-700"
+            }`}
           >
             Sell Slot
           </button>
@@ -478,12 +484,12 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               addBuyTable();
             }
           }}
-          className={`flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg text-white font-medium shadow-sm transition-colors cursor-pointer ${selectedSlotType === "SELL"
+          className={`flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg text-white font-medium shadow-sm transition-colors cursor-pointer ${selectedSlotType === "SELL"
             ? "bg-emerald-600 hover:bg-emerald-700"
             : "bg-indigo-600 hover:bg-indigo-700"
             }`}
         >
-          <Plus size={16} /> Add Table
+          <Plus size={14} /> Add Table
         </button>
       </div>
 

@@ -26,6 +26,7 @@ export default function WithdrawalDetailModal({
   notify,
 }: WithdrawalDetailModalProps) {
   const { currentUser } = useAuth();
+  const [currentWithdrawal, setCurrentWithdrawal] = useState<WithdrawalItem | null>(withdrawal);
   const [notes, setNotes] = useState("");
   const [receiptUrl, setReceiptUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -34,26 +35,31 @@ export default function WithdrawalDetailModal({
 
   React.useEffect(() => {
     if (withdrawal) {
+      setCurrentWithdrawal(withdrawal);
       setNotes(withdrawal.notes || "");
       setReceiptUrl(withdrawal.receipt_url || "");
       setActionError("");
     }
   }, [withdrawal]);
 
-  if (!isOpen || !withdrawal) return null;
+  if (!isOpen || !currentWithdrawal) return null;
 
   const handleCopyId = () => {
-    navigator.clipboard.writeText(withdrawal.withdraw_no);
+    navigator.clipboard.writeText(currentWithdrawal.withdraw_no);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleAction = async (status: "APPROVED" | "REJECTED" | "PENDING") => {
+  const handleAction = async (status: "APPROVED" | "REJECTED") => {
+    if (currentWithdrawal.status === "APPROVED") {
+      notify("Approved withdrawal cannot be rejected or modified", "error");
+      return;
+    }
     setSubmitting(true);
     setActionError("");
     try {
       const updated = await withdrawalsApi.reviewWithdrawal(
-        withdrawal.id,
+        currentWithdrawal.id,
         status,
         notes.trim() || undefined,
         currentUser?.name || "Admin",
@@ -61,13 +67,11 @@ export default function WithdrawalDetailModal({
       );
       notify(
         status === "APPROVED"
-          ? `Withdrawal ${withdrawal.withdraw_no} approved & payout confirmed`
-          : status === "REJECTED"
-          ? `Withdrawal ${withdrawal.withdraw_no} rejected`
-          : `Withdrawal ${withdrawal.withdraw_no} reset to pending`
+          ? `Withdrawal ${currentWithdrawal.withdraw_no} approved & payout confirmed`
+          : `Withdrawal ${currentWithdrawal.withdraw_no} rejected`
       );
+      setCurrentWithdrawal(updated);
       onStatusUpdated(updated);
-      onClose();
     } catch (err: any) {
       const friendlyMsg = getFriendlyErrorMessage(err, "Failed to update withdrawal status");
       setActionError(friendlyMsg);
@@ -78,27 +82,27 @@ export default function WithdrawalDetailModal({
   };
 
   const statusTone: Record<string, string> = {
-    APPROVED: "text-emerald-700 font-semibold",
-    PENDING: "text-amber-700 font-semibold",
-    REJECTED: "text-rose-700 font-semibold",
+    APPROVED: "text-emerald-600 font-medium",
+    PENDING: "text-amber-600 font-medium",
+    REJECTED: "text-rose-600 font-medium",
   };
 
-  const activeAttachment = receiptUrl.trim() || withdrawal.receipt_url;
+  const activeAttachment = receiptUrl.trim() || currentWithdrawal.receipt_url;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-3 sm:p-4">
       <div
-        className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white rounded-xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
-              Withdrawal: {withdrawal.withdraw_no}
+            <h2 className="text-base sm:text-lg font-medium text-slate-800 truncate">
+              Withdrawal: {currentWithdrawal.withdraw_no}
             </h2>
-            <span className={`text-xs font-semibold ${statusTone[withdrawal.status] || "text-slate-600"}`}>
-              {withdrawal.status}
+            <span className={`text-xs ${statusTone[currentWithdrawal.status] || "text-slate-600"}`}>
+              {currentWithdrawal.status}
             </span>
           </div>
           <button
@@ -116,7 +120,7 @@ export default function WithdrawalDetailModal({
             {/* Left: Attachment / Payout Slip Viewer (5 cols) */}
             <div className="lg:col-span-5 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-700">
+                <span className="text-xs font-medium text-slate-500">
                   Attachment File
                 </span>
                 {activeAttachment && (
@@ -124,52 +128,47 @@ export default function WithdrawalDetailModal({
                     href={activeAttachment}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-medium text-indigo-600 hover:underline flex items-center gap-1"
+                    className="text-xs font-normal text-indigo-600 hover:underline flex items-center gap-1"
                   >
                     Open Original <ExternalLink size={12} />
                   </a>
                 )}
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden flex items-center justify-center min-h-[300px] max-h-[440px] p-2">
-                {activeAttachment ? (
+              {activeAttachment ? (
+                <div className="flex items-center justify-center min-h-[260px] max-h-[440px] overflow-hidden">
                   <img
                     src={activeAttachment}
                     alt="Withdrawal Attachment"
-                    className="max-h-[420px] w-auto object-contain rounded"
+                    className="max-h-[420px] w-auto object-contain rounded-lg border border-slate-200"
                   />
-                ) : (
-                  <div className="p-6 text-center space-y-1">
-                    <p className="text-sm font-medium text-slate-700">No Attachment Uploaded</p>
-                    <p className="text-xs text-slate-400 max-w-[200px]">
-                      No document or receipt file attached to this withdrawal request.
-                    </p>
-                  </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="py-16 text-center text-xs text-slate-400">
+                  No attachment uploaded
+                </div>
+              )}
             </div>
 
             {/* Right: Transaction Details & Review Form (7 cols) */}
-            <div className="lg:col-span-7 space-y-4">
-              {/* Financial summary: clean typography, no gradient card container */}
-              <div className="flex items-baseline justify-between pb-3 border-b border-slate-200">
+            <div className="lg:col-span-7 space-y-5">
+              <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="text-xs text-slate-500 font-medium">Requested Withdrawal Amount</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">
-                    ${withdrawal.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-500">USD</span>
+                  <span className="text-xs text-slate-400">Requested Withdrawal Amount</span>
+                  <div className="text-xl font-medium text-slate-900 mt-0.5">
+                    ${currentWithdrawal.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-400">USD</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-xs text-slate-500 font-medium block">Disbursement Channel</span>
-                  <span className="text-sm font-semibold text-slate-800 mt-0.5 block">
-                    {withdrawal.payment_method === "BANK" ? "Bank Transfer / Cheque" : withdrawal.payment_method}
+                  <span className="text-xs text-slate-400 block">Disbursement Channel</span>
+                  <span className="text-sm font-medium text-slate-700 mt-0.5 block">
+                    {currentWithdrawal.payment_method === "BANK" ? "Bank Transfer / Cheque" : currentWithdrawal.payment_method}
                   </span>
                 </div>
               </div>
 
-              {/* Transaction details: clean key-value layout */}
               <div className="space-y-3">
-                <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider block">
+                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider block">
                   Transaction Details
                 </span>
 
@@ -177,7 +176,7 @@ export default function WithdrawalDetailModal({
                   <div>
                     <span className="text-slate-400 block">Transaction Reference</span>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="font-mono font-semibold text-slate-800">{withdrawal.withdraw_no}</span>
+                      <span className="font-mono text-slate-700">{currentWithdrawal.withdraw_no}</span>
                       <button
                         type="button"
                         onClick={handleCopyId}
@@ -191,36 +190,36 @@ export default function WithdrawalDetailModal({
 
                   <div>
                     <span className="text-slate-400 block">Requested Date & Time</span>
-                    <span className="font-medium text-slate-700 mt-0.5 block">
-                      {new Date(withdrawal.transaction_date).toLocaleString()}
+                    <span className="text-slate-600 mt-0.5 block">
+                      {new Date(currentWithdrawal.transaction_date).toLocaleString()}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block">Account / Customer Name</span>
-                    <span className="font-semibold text-slate-800 mt-0.5 block">
-                      {withdrawal.account_name}
+                    <span className="font-medium text-slate-700 mt-0.5 block">
+                      {currentWithdrawal.account_name}
                     </span>
                   </div>
 
                   <div>
                     <span className="text-slate-400 block">Telegram Customer</span>
                     <span className="text-slate-600 font-mono mt-0.5 block">
-                      {withdrawal.username ? `@${withdrawal.username}` : "—"} {withdrawal.telegram_user_id && `(ID: ${withdrawal.telegram_user_id})`}
+                      {currentWithdrawal.username ? `@${currentWithdrawal.username}` : "—"} {currentWithdrawal.telegram_user_id && `(ID: ${currentWithdrawal.telegram_user_id})`}
                     </span>
                   </div>
                 </div>
 
-                {withdrawal.reviewed_by && (
-                  <p className="text-xs text-slate-500 pt-2 border-t border-slate-100">
-                    Reviewed by {withdrawal.reviewed_by} on {withdrawal.reviewed_at ? new Date(withdrawal.reviewed_at).toLocaleString() : "—"}
+                {currentWithdrawal.reviewed_by && (
+                  <p className="text-xs text-slate-400 pt-1">
+                    Reviewed by {currentWithdrawal.reviewed_by} on {currentWithdrawal.reviewed_at ? new Date(currentWithdrawal.reviewed_at).toLocaleString() : "—"}
                   </p>
                 )}
               </div>
 
               {/* Payout Slip URL (Optional) */}
-              <div className="space-y-1.5 pt-1">
-                <label className="block text-xs font-semibold text-slate-700">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-slate-600">
                   Payout Slip / Attachment URL
                 </label>
                 <input
@@ -230,14 +229,14 @@ export default function WithdrawalDetailModal({
                     setReceiptUrl(e.target.value);
                     if (actionError) setActionError("");
                   }}
-                  placeholder="Paste receipt or slip URL (e.g. /uploads/... or https://...)"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800 placeholder:text-slate-400"
+                  placeholder="Paste receipt or payment slip URL"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 placeholder:text-slate-400"
                 />
               </div>
 
               {/* Admin Payout Remarks */}
-              <div className="space-y-1.5 pt-1">
-                <label className="block text-xs font-semibold text-slate-700">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-medium text-slate-600">
                   Payout Verification Notes / Bank Transfer Reference
                 </label>
                 <textarea
@@ -248,7 +247,7 @@ export default function WithdrawalDetailModal({
                     if (actionError) setActionError("");
                   }}
                   placeholder="Enter bank transfer reference or payout remarks..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800 placeholder:text-slate-400 resize-none"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 placeholder:text-slate-400 resize-none"
                 />
                 {actionError && (
                   <p className="text-xs text-rose-600 mt-1">{actionError}</p>
@@ -259,65 +258,41 @@ export default function WithdrawalDetailModal({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
-          <div className="text-xs font-medium">
-            {withdrawal.status === "PENDING" ? (
-              <span className="text-amber-600">
-                Awaiting payout disbursement & approval
-              </span>
-            ) : withdrawal.status === "APPROVED" ? (
-              <span className="text-emerald-600">
-                Withdrawal approved and payout disbursed
-              </span>
-            ) : (
-              <span className="text-rose-600">
-                Withdrawal request rejected
-              </span>
-            )}
-          </div>
+        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            Close
+          </button>
 
-          <div className="flex items-center gap-2">
+          {currentWithdrawal.status !== "REJECTED" && (
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              disabled={submitting || currentWithdrawal.status === "APPROVED"}
+              onClick={() => handleAction("REJECTED")}
+              className="px-4 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              title={
+                currentWithdrawal.status === "APPROVED"
+                  ? "Approved withdrawal cannot be rejected"
+                  : "Reject Withdrawal"
+              }
             >
-              Close
+              Reject
             </button>
+          )}
 
-            {withdrawal.status !== "REJECTED" && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleAction("REJECTED")}
-                className="px-4 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                Reject
-              </button>
-            )}
-
-            {withdrawal.status !== "APPROVED" && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleAction("APPROVED")}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
-              >
-                Approve Payout
-              </button>
-            )}
-
-            {withdrawal.status !== "PENDING" && (
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleAction("PENDING")}
-                className="px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-              >
-                Reset to Pending
-              </button>
-            )}
-          </div>
+          {currentWithdrawal.status !== "APPROVED" && (
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleAction("APPROVED")}
+              className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Approve Payout
+            </button>
+          )}
         </div>
       </div>
     </div>

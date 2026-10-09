@@ -62,7 +62,7 @@ export default function CustomersTab({
           <div>
             <button
               onClick={addCustomer}
-              className="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="w-full sm:w-auto py-2.5 px-4 rounded-lg bg-indigo-600 text-white font-medium text-xs hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Plus size={14} /> Add User
             </button>

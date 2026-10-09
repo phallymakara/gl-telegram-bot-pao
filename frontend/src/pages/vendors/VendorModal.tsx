@@ -66,7 +66,7 @@ export default function VendorModal({
               <label className="text-xs font-semibold text-slate-600">Vendor Code *</label>
               <input
                 type="text"
-                placeholder="e.g. VEND-001"
+                placeholder="Vendor code"
                 value={form.vendor_code}
                 onChange={(e) => setForm((f) => ({ ...f, vendor_code: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono text-xs"
@@ -76,7 +76,7 @@ export default function VendorModal({
               <label className="text-xs font-semibold text-slate-600">Vendor / Supplier Name *</label>
               <input
                 type="text"
-                placeholder="e.g. Singapore Bullion Vault"
+                placeholder="Vendor or supplier name"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -89,7 +89,7 @@ export default function VendorModal({
               <label className="text-xs font-semibold text-slate-600">Contact Person</label>
               <input
                 type="text"
-                placeholder="Key Account Manager"
+                placeholder="Contact person"
                 value={form.contact_person}
                 onChange={(e) => setForm((f) => ({ ...f, contact_person: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -99,7 +99,7 @@ export default function VendorModal({
               <label className="text-xs font-semibold text-slate-600">Phone Number</label>
               <input
                 type="text"
-                placeholder="+855 23 123 456"
+                placeholder="Phone number"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -111,7 +111,7 @@ export default function VendorModal({
             <label className="text-xs font-semibold text-slate-600">Email Address</label>
             <input
               type="email"
-              placeholder="supplier@refinery.com"
+              placeholder="Email address"
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

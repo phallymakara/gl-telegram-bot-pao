@@ -34,11 +34,15 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
     address: "",
   });
 
+  const [loading, setLoading] = useState(true);
+
   function loadVendors() {
+    setLoading(true);
     vendorsApi
       .getVendors()
       .then(setVendors)
-      .catch(() => notify("Failed to load vendor list"));
+      .catch(() => notify("Failed to load vendor list"))
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -153,7 +157,7 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
+    <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
         <StatCard
           icon={Store}
@@ -186,6 +190,7 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
 
       <VendorTable
         vendors={filtered}
+        loading={loading}
         search={search}
         setSearch={setSearch}
         openCreateModal={openCreateModal}

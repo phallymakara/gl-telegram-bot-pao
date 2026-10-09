@@ -104,12 +104,16 @@ export interface StockMatrixColumnData {
   trade_in?: number;
   physical_sale?: number;
   bot_sale?: number;
+  physical_buy?: number;
+  bot_buy?: number;
   available_stock: number;
   total_deductions: number;
   deductions: number[];
   trade_in_cell?: StockMatrixCellData | null;
   physical_sale_cell?: StockMatrixCellData | null;
   bot_sale_cell?: StockMatrixCellData | null;
+  physical_buy_cell?: StockMatrixCellData | null;
+  bot_buy_cell?: StockMatrixCellData | null;
 }
 
 export interface StockMatrixLeftTotalData {

@@ -35,13 +35,17 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
     is_active: true,
   });
 
+  const [loading, setLoading] = useState(true);
+
   function loadCustomers() {
+    setLoading(true);
     customersApi
       .getCustomers()
       .then(setCustomers)
       .catch(() => {
         setCustomers([]);
-      });
+      })
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => {
@@ -164,7 +168,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
+    <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
         <StatCard
           icon={Users}
@@ -191,6 +195,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
 
       <CustomerTable
         customers={filtered}
+        loading={loading}
         search={search}
         setSearch={setSearch}
         openCreateModal={openCreateModal}

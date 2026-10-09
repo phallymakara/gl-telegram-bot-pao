@@ -5,16 +5,17 @@
  */
 
 import React, { useState, useRef, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Diamond, User, ChevronDown, Check, UserCheck, Shield } from "lucide-react";
 import { NAV_ITEMS, NavItem } from "../data/navigation";
 import { useAuth } from "../context/AuthContext";
 import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
 
 interface SidebarProps {
-  /** Active page route key */
-  page: string;
-  /** Navigation callback handler */
-  setPage: (page: string) => void;
+  /** Active page route key (optional, defaults to current route) */
+  page?: string;
+  /** Navigation callback handler (optional) */
+  setPage?: (page: string) => void;
   /** Mobile drawer visibility state */
   mobileOpen: boolean;
   /** Mobile drawer callback toggle */
@@ -36,6 +37,18 @@ export default function Sidebar({
   desktopOpen,
   setDesktopOpen,
 }: SidebarProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Current route identifier derived from URL path
+  const currentPath = location.pathname.replace(/^\//, "") || "dashboard";
+  const activePage = page || currentPath;
+
+  const handleNavigate = (targetId: string) => {
+    if (setPage) setPage(targetId);
+    navigate(`/${targetId}`);
+    setMobileOpen(false);
+  };
   const { currentUser, isAllowed, users, switchUser } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [verifyPasswordOpen, setVerifyPasswordOpen] = useState(false);
@@ -75,15 +88,13 @@ export default function Sidebar({
         />
       )}
       <aside
-        className={`fixed lg:sticky lg:top-0 z-40 top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col transition-all duration-300 overflow-visible ${
-          mobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
-        } ${!desktopOpen ? "lg:w-20" : "lg:w-72"}`}
+        className={`fixed lg:sticky lg:top-0 z-40 top-0 left-0 h-screen bg-white border-r border-slate-200 flex flex-col transition-all duration-300 overflow-visible ${mobileOpen ? "translate-x-0 w-72" : "-translate-x-full lg:translate-x-0"
+          } ${!desktopOpen ? "lg:w-20" : "lg:w-72"}`}
       >
         {/* Brand Header */}
         <div
-          className={`flex items-center border-b border-slate-100 shrink-0 h-[72px] justify-between px-5 transition-all duration-300 ${
-            !desktopOpen ? "lg:justify-center lg:px-0" : ""
-          }`}
+          className={`flex items-center border-b border-slate-100 shrink-0 h-[72px] justify-between px-5 transition-all duration-300 ${!desktopOpen ? "lg:justify-center lg:px-0" : ""
+            }`}
         >
           <div className="flex items-center gap-2.5">
             <button
@@ -102,9 +113,8 @@ export default function Sidebar({
 
         {/* Navigation List */}
         <nav
-          className={`flex-1 overflow-y-auto py-3 space-y-1.5 transition-all duration-300 ${
-            !desktopOpen ? "px-1.5" : "px-3"
-          }`}
+          className={`flex-1 overflow-y-auto py-3 space-y-1.5 transition-all duration-300 ${!desktopOpen ? "px-1.5" : "px-3"
+            }`}
         >
           {visibleNavItems.length === 0 ? (
             <div className="px-3 py-6 text-center text-xs text-slate-400">
@@ -113,17 +123,16 @@ export default function Sidebar({
           ) : (
             visibleNavItems.map((item) => {
               const Icon = item.icon;
-              const isParentActive = item.children?.some((c) => c.id === page);
-              const active = page === item.id || isParentActive;
+              const isParentActive = item.children?.some((c) => c.id === activePage);
+              const active = activePage === item.id || isParentActive;
 
               if (item.children) {
                 return (
                   <div key={item.id} className="pt-2 pb-1">
                     {/* Category Main Page Title Header */}
                     <div
-                      className={`w-full flex items-center text-[12px] font-bold text-slate-400 uppercase tracking-wider ${
-                        !desktopOpen ? "justify-center px-0 py-2 lg:w-12 mx-auto" : "gap-2.5 px-3 py-1.5"
-                      }`}
+                      className={`w-full flex items-center text-[12px] font-bold text-slate-400 uppercase tracking-wider ${!desktopOpen ? "justify-center px-0 py-2 lg:w-12 mx-auto" : "gap-2.5 px-3 py-1.5"
+                        }`}
                       title={item.label}
                     >
                       <Icon size={16} className="shrink-0 text-slate-400" />
@@ -143,22 +152,17 @@ export default function Sidebar({
                       {item.children.map((c) => (
                         <button
                           key={c.id}
-                          onClick={() => {
-                            setPage(c.id);
-                            setMobileOpen(false);
-                          }}
+                          onClick={() => handleNavigate(c.id)}
                           className={
                             desktopOpen
-                              ? `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] transition-all cursor-pointer ${
-                                  page === c.id
-                                    ? "text-indigo-700 font-semibold bg-indigo-50/80 shadow-2xs"
-                                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium"
-                                }`
-                              : `h-8 w-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${
-                                  page === c.id
-                                    ? "bg-indigo-50 text-indigo-700 font-semibold"
-                                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                }`
+                              ? `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] transition-all cursor-pointer ${activePage === c.id
+                                ? "text-indigo-700 font-semibold bg-indigo-50/80 shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-medium"
+                              }`
+                              : `h-8 w-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer ${activePage === c.id
+                                ? "bg-indigo-50 text-indigo-700 font-semibold"
+                                : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                              }`
                           }
                           title={c.label}
                         >
@@ -174,15 +178,10 @@ export default function Sidebar({
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setPage(item.id);
-                    setMobileOpen(false);
-                  }}
-                  className={`w-full flex items-center rounded-lg text-[14px] font-medium transition-colors cursor-pointer relative ${
-                    active ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-slate-600 hover:bg-slate-50"
-                  } ${
-                    !desktopOpen ? "justify-center px-0 py-3 lg:w-12 lg:h-12 mx-auto" : "gap-3 px-3 py-2.5"
-                  }`}
+                  onClick={() => handleNavigate(item.id)}
+                  className={`w-full flex items-center rounded-lg text-[14px] font-medium transition-colors cursor-pointer relative ${active ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-slate-600 hover:bg-slate-50"
+                    } ${!desktopOpen ? "justify-center px-0 py-3 lg:w-12 lg:h-12 mx-auto" : "gap-3 px-3 py-2.5"
+                    }`}
                   title={item.label}
                 >
                   <Icon size={17} className="shrink-0" />
@@ -208,9 +207,8 @@ export default function Sidebar({
           {/* Dropdown Menu for Switching Users */}
           {profileMenuOpen && (
             <div
-              className={`absolute bottom-[72px] z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[240px] max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-bottom-2 ${
-                !desktopOpen ? "left-3" : "left-3 right-3"
-              }`}
+              className={`absolute bottom-[72px] z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[240px] max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-bottom-2 ${!desktopOpen ? "left-3" : "left-3 right-3"
+                }`}
             >
               <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
                 <span>Switch Active User</span>
@@ -241,9 +239,8 @@ export default function Sidebar({
                           setProfileMenuOpen(false);
                         }
                       }}
-                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${
-                        isSelected ? "bg-indigo-50 text-indigo-900 font-semibold" : "hover:bg-slate-50 text-slate-700"
-                      }`}
+                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${isSelected ? "bg-indigo-50 text-indigo-900 font-semibold" : "hover:bg-slate-50 text-slate-700"
+                        }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="h-7 w-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -270,19 +267,18 @@ export default function Sidebar({
           {/* Profile Card Button */}
           <div
             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            className={`flex items-center rounded-lg hover:bg-slate-50 p-2 cursor-pointer transition-all duration-300 select-none ${
-              !desktopOpen ? "lg:justify-center lg:p-1" : "gap-2.5"
-            } ${profileMenuOpen ? "bg-slate-50" : ""}`}
+            className={`flex items-center rounded-lg hover:bg-slate-50 p-2 cursor-pointer transition-all duration-300 select-none ${!desktopOpen ? "lg:justify-center lg:p-1" : "gap-3"
+              } ${profileMenuOpen ? "bg-slate-50" : ""}`}
             title="Click to switch active user account"
           >
-            <div className="h-9 w-9 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 font-semibold text-xs shadow-xs">
+            <div className="h-11 w-11 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 font-bold text-sm shadow-none">
               {currentUser?.name
                 ? currentUser.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()
                 : "AD"}
             </div>
             <div className={`leading-tight min-w-0 ${!desktopOpen ? "lg:hidden" : "block"}`}>
@@ -295,9 +291,8 @@ export default function Sidebar({
             </div>
             <ChevronDown
               size={14}
-              className={`text-slate-400 ml-auto transition-transform ${profileMenuOpen ? "rotate-180" : ""} ${
-                !desktopOpen ? "lg:hidden" : "block"
-              }`}
+              className={`text-slate-400 ml-auto transition-transform ${profileMenuOpen ? "rotate-180" : ""} ${!desktopOpen ? "lg:hidden" : "block"
+                }`}
             />
           </div>
         </div>

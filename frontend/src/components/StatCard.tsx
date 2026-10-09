@@ -24,6 +24,10 @@ interface StatCardProps {
   sparkColor?: string;
   /** Custom class name for value text */
   valueClassName?: string;
+  /** Optional container class name */
+  className?: string;
+  /** If true, renders a reduced compact version */
+  compact?: boolean;
 }
 
 /**
@@ -37,21 +41,35 @@ export default function StatCard({
   tint = "bg-slate-50 text-slate-700",
   spark,
   sparkColor,
-  valueClassName = "text-2xl font-bold text-slate-800",
+  valueClassName,
+  className = "",
+  compact = false,
 }: StatCardProps) {
   const textColor = tint.split(" ").find(c => c.startsWith("text-")) || "text-slate-700";
 
   return (
-    <Card className="shadow-none p-4 flex items-center gap-4">
+    <Card className={`shadow-none ${compact ? "px-3.5 py-3.5 gap-2.5" : "p-4 gap-4"} flex items-center ${className}`}>
       {Icon && (
         <div className={`shrink-0 ${textColor}`}>
-          <Icon size={24} />
+          <Icon size={compact ? 18 : 24} />
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <div className="text-xs sm:text-sm text-slate-500 font-medium">{label}</div>
-        <div className={`mt-0.5 ${valueClassName}`}>{value}</div>
-        {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
+        <div className={`${compact ? "text-xs" : "text-xs sm:text-sm"} text-slate-500 font-medium truncate`}>
+          {label}
+        </div>
+        <div
+          className={`mt-0.5 ${
+            valueClassName || (compact ? "text-xl font-bold text-slate-800" : "text-2xl font-bold text-slate-800")
+          }`}
+        >
+          {value}
+        </div>
+        {sub && (
+          <div className={`${compact ? "text-[11px]" : "text-xs"} text-slate-400 mt-0.5 truncate`}>
+            {sub}
+          </div>
+        )}
       </div>
       {spark && <MiniSpark points={spark} color={sparkColor} />}
     </Card>

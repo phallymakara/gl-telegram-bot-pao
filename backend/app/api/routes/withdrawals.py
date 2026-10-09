@@ -163,6 +163,12 @@ def review_withdrawal(
     if new_status not in ("APPROVED", "REJECTED", "PENDING"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
 
+    if withdrawal.status == "APPROVED" and new_status in ("REJECTED", "PENDING"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approved withdrawal cannot be rejected or reset to pending",
+        )
+
     withdrawal.status = new_status
     if body.notes is not None:
         withdrawal.notes = body.notes

@@ -90,7 +90,7 @@ export default function DeliveryNotesPage({ notify }: DeliveryNotesPageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col min-h-0 h-full">
+    <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col min-h-0 h-full">
       {/* Delivery Notes Table */}
       <DeliveryTable
         deliveries={filtered}

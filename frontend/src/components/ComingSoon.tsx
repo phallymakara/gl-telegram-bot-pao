@@ -10,7 +10,7 @@ interface ComingSoonProps {
   /** Page section title label */
   label: string;
   /** Lucide icon component */
-  icon: React.ComponentType<{ size: number | string }>;
+  icon: React.ComponentType<any>;
 }
 
 /**

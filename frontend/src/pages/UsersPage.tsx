@@ -13,6 +13,9 @@ import StatusBadge from "../components/StatusBadge";
 import IconBtn from "../components/IconBtn";
 import UserModal from "../components/UserModal";
 import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
+import LazyTableFooter from "../components/LazyTableFooter";
+import useLazyRecords from "../hooks/useLazyRecords";
+import { TableLoader } from "../components/Loader";
 import { api, UserData } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { ALL_MODULES } from "../data/navigation";
@@ -107,6 +110,15 @@ export default function UsersPage({ notify }: UsersPageProps) {
     return mq && mr && ms;
   });
 
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(filtered, { initialCount: 15, batchSize: 15 });
+
   const roleTint: Record<string, string> = {
     "Super Admin": "bg-violet-50 text-violet-700 border-violet-100",
     SUPER_ADMIN: "bg-violet-50 text-violet-700 border-violet-100",
@@ -144,7 +156,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
   };
 
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
+    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
       {/* Top Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0">
         <StatCard icon={Users} label="Total Users" value={users.length} sub="System Accounts" tint="bg-indigo-50 text-indigo-600" />
@@ -200,15 +212,18 @@ export default function UsersPage({ notify }: UsersPageProps) {
 
             <button
               onClick={handleCreateOpen}
-              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium whitespace-nowrap shadow-sm transition-all cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-3.5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium whitespace-nowrap shadow-sm transition-all cursor-pointer"
             >
-              <Plus size={16} /> Add New User
+              <Plus size={14} /> Add User
             </button>
           </div>
         </div>
 
         {/* Users Table */}
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
+        <div
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+        >
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
@@ -221,11 +236,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-slate-400">
-                    Loading users...
-                  </td>
-                </tr>
+                <TableLoader colSpan={9} text="Loading users..." />
               ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
@@ -233,7 +244,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
                   </td>
                 </tr>
               ) : (
-                filtered.map((u, i) => (
+                visibleRecords.map((u, i) => (
                   <tr
                     key={u.id}
                     onClick={() => handleEditOpen(u)}
@@ -298,9 +309,20 @@ export default function UsersPage({ notify }: UsersPageProps) {
                   </tr>
                 ))
               )}
+              {isLoadingMore && (
+                <TableLoader colSpan={9} text="Loading more users..." position="bottom" size="sm" />
+              )}
             </tbody>
           </table>
+          <div ref={sentinelRef} className="h-2 w-full" />
         </div>
+
+        {/* Progressive Lazy Records Footer */}
+        <LazyTableFooter
+          currentShown={displayCount}
+          totalRecords={filtered.length}
+          isLoadingMore={isLoadingMore}
+        />
       </Card>
 
       {/* User Create / Edit Modal */}

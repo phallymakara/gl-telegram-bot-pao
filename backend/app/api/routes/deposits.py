@@ -165,6 +165,12 @@ def review_deposit(
     if new_status not in ("APPROVED", "REJECTED", "PENDING"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid status")
 
+    if deposit.status == "APPROVED" and new_status in ("REJECTED", "PENDING"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Approved deposit cannot be rejected or reset to pending",
+        )
+
     deposit.status = new_status
     if body.notes is not None:
         deposit.notes = body.notes

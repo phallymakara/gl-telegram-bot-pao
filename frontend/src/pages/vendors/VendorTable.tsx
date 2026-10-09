@@ -7,10 +7,14 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Download, FileSpreadsheet, FileText, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Store, Trash2 } from "lucide-react";
 import Card from "../../components/Card";
 import StatusBadge from "../../components/StatusBadge";
+import LazyTableFooter from "../../components/LazyTableFooter";
+import useLazyRecords from "../../hooks/useLazyRecords";
+import Loader, { TableLoader } from "../../components/Loader";
 import { VendorData } from "../../api";
 
 interface VendorTableProps {
   vendors: VendorData[];
+  loading?: boolean;
   search: string;
   setSearch: (val: string) => void;
   openCreateModal: () => void;
@@ -291,6 +295,7 @@ function ActionMenu({
  */
 export default function VendorTable({
   vendors,
+  loading = false,
   search,
   setSearch,
   openCreateModal,
@@ -299,6 +304,14 @@ export default function VendorTable({
   deleteVendor,
   notify,
 }: VendorTableProps) {
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(vendors, { initialCount: 15, batchSize: 15 });
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-3.5 flex-shrink-0">
@@ -323,73 +336,93 @@ export default function VendorTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-        {vendors.length === 0 ? (
+      <div
+        onScroll={handleScroll}
+        className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+      >
+        {loading && vendors.length === 0 ? (
+          <div className="py-24 flex items-center justify-center">
+            <Loader size="md" text="Loading vendors..." />
+          </div>
+        ) : vendors.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <Store size={32} className="mx-auto mb-2 text-slate-300" />
             <p className="text-xs font-medium">No vendor master records found</p>
             <p className="text-[11px] text-slate-400 mt-0.5">Add a vendor to record gold suppliers and refineries.</p>
           </div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Code</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Name</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Supplier Category</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact Person</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Phone / Email</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Location</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
-                <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {vendors.map((v, i) => (
-                <tr key={v.id} className="hover:bg-slate-100 transition-colors">
-                  <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
-                    {v.vendor_code || `VEND-${String(i + 1).padStart(3, "0")}`}
-                  </td>
-                  <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">{v.name}</td>
-                  <td className="py-2 px-3 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
-                      {v.supplier_type}
-                    </span>
-                  </td>
-                  <td className="py-2 px-3 text-slate-700 font-medium whitespace-nowrap">
-                    {v.contact_person || "—"}
-                  </td>
-                  <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                    <div>{v.phone || "—"}</div>
-                    {v.email && <div className="text-[11px] text-slate-400">{v.email}</div>}
-                  </td>
-                  <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
-                    {v.address ? (
-                      <div className="flex items-center gap-1">
-                        <MapPin size={13} className="text-slate-400 shrink-0" />
-                        <span className="truncate">{v.address}</span>
-                      </div>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="py-2 px-3 whitespace-nowrap">
-                    <StatusBadge status={v.is_active ? "Active" : "Inactive"} />
-                  </td>
-                  <td className="py-2 px-3 text-right whitespace-nowrap">
-                    <ActionMenu
-                      isActive={v.is_active}
-                      onChangeStatus={() => toggleStatus(v)}
-                      onEdit={() => openEditModal(v)}
-                      onDelete={() => deleteVendor(v.id)}
-                    />
-                  </td>
+          <>
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-50">
+                <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Code</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Name</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Supplier Category</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact Person</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Phone / Email</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Location</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
+                  <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {visibleRecords.map((v, i) => (
+                  <tr key={v.id} className="hover:bg-slate-100 transition-colors">
+                    <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                      {v.vendor_code || `VEND-${String(i + 1).padStart(3, "0")}`}
+                    </td>
+                    <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">{v.name}</td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
+                        {v.supplier_type}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-700 font-medium whitespace-nowrap">
+                      {v.contact_person || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      <div>{v.phone || "—"}</div>
+                      {v.email && <div className="text-[11px] text-slate-400">{v.email}</div>}
+                    </td>
+                    <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
+                      {v.address ? (
+                        <div className="flex items-center gap-1">
+                          <MapPin size={13} className="text-slate-400 shrink-0" />
+                          <span className="truncate">{v.address}</span>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <StatusBadge status={v.is_active ? "Active" : "Inactive"} />
+                    </td>
+                    <td className="py-2 px-3 text-right whitespace-nowrap">
+                      <ActionMenu
+                        isActive={v.is_active}
+                        onChangeStatus={() => toggleStatus(v)}
+                        onEdit={() => openEditModal(v)}
+                        onDelete={() => deleteVendor(v.id)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                {isLoadingMore && (
+                  <TableLoader colSpan={8} text="Loading more vendors..." position="bottom" size="sm" />
+                )}
+              </tbody>
+            </table>
+            <div ref={sentinelRef} className="h-2 w-full" />
+          </>
         )}
       </div>
+
+      {/* Progressive Lazy Records Footer */}
+      <LazyTableFooter
+        currentShown={displayCount}
+        totalRecords={vendors.length}
+        isLoadingMore={isLoadingMore}
+      />
     </Card>
   );
 }

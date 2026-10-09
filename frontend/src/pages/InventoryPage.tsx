@@ -148,7 +148,7 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
   }
 
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
+    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 flex-shrink-0">
         <StatCard
           label="Current Stock"

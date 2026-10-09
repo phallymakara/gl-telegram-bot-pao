@@ -8,10 +8,14 @@ import { useState, useRef, useEffect } from "react";
 import { MoreVertical, Package, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Card from "../../components/Card";
 import StatusBadge from "../../components/StatusBadge";
+import LazyTableFooter from "../../components/LazyTableFooter";
+import useLazyRecords from "../../hooks/useLazyRecords";
+import { TableLoader } from "../../components/Loader";
 import { ProductData } from "../../api";
 
 interface ProductTableProps {
   products: ProductData[];
+  loading?: boolean;
   openCreateModal: () => void;
   openEditModal: (p: ProductData) => void;
   toggleStatus: (p: ProductData) => void;
@@ -100,11 +104,20 @@ function ActionMenu({
  */
 export default function ProductTable({
   products,
+  loading = false,
   openCreateModal,
   openEditModal,
   toggleStatus,
   deleteProduct,
 }: ProductTableProps) {
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(products, { initialCount: 15, batchSize: 15 });
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden p-4 sm:p-5">
       <div className="flex items-center justify-end gap-3 mb-3.5 flex-shrink-0">
@@ -116,8 +129,15 @@ export default function ProductTable({
         </button>
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-        {products.length === 0 ? (
+      <div
+        onScroll={handleScroll}
+        className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+      >
+        {loading && products.length === 0 ? (
+          <div className="py-16 flex items-center justify-center">
+            <TableLoader colSpan={4} text="Loading products..." />
+          </div>
+        ) : products.length === 0 ? (
           <div className="text-center py-8 text-slate-400">
             <Package size={32} className="mx-auto mb-2 text-slate-300" />
             <p className="text-xs font-medium">No gold product catalog items found</p>
@@ -134,7 +154,7 @@ export default function ProductTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {products.map((p) => (
+              {visibleRecords.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-100 transition-colors">
                   <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
                     {p.name}

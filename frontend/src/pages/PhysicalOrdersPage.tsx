@@ -12,6 +12,9 @@ import { useEffect, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
+import LazyTableFooter from "../components/LazyTableFooter";
+import useLazyRecords from "../hooks/useLazyRecords";
+import { TableLoader } from "../components/Loader";
 /**
  * @file PhysicalOrdersPage.tsx
  * @description Physical Gold Orders page component for recording over-the-counter and physical store transactions.
@@ -31,6 +34,7 @@ export default function PhysicalOrdersPage({
   notify,
 }: PhysicalOrdersPageProps) {
   const [rows, setRows] = useState<OrderData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
   const [form, setForm] = useState({
     customer_name: "",
@@ -44,8 +48,14 @@ export default function PhysicalOrdersPage({
   useEffect(() => {
     api
       .get<OrderData[]>("/api/orders/?order_type=SELL")
-      .then(setRows)
-      .catch(() => notify("Failed to load orders"));
+      .then((data) => {
+        setRows(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        notify("Failed to load orders");
+        setLoading(false);
+      });
     api
       .get<DashboardStatsData>("/api/dashboard/stats")
       .then(setStats)
@@ -104,8 +114,17 @@ export default function PhysicalOrdersPage({
     .filter((r) => r.transaction_type === "SELL")
     .reduce((s, r) => s + r.quantity, 0);
 
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(numericRows, { initialCount: 15, batchSize: 15 });
+
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
+    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 flex-shrink-0">
         <div className="md:col-span-2">
           <StatCard
@@ -150,7 +169,7 @@ export default function PhysicalOrdersPage({
             label="Total Sell"
             value={
               <>
-                {totalSell.toFixed(2)}{" "}
+                {totalSell > 0 ? `-${totalSell.toFixed(2)}` : totalSell.toFixed(2)}{" "}
                 <span className="text-sm font-normal text-slate-400">KG</span>
               </>
             }
@@ -182,7 +201,10 @@ export default function PhysicalOrdersPage({
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
+        <div
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+        >
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
@@ -206,12 +228,21 @@ export default function PhysicalOrdersPage({
               </tr>
             </thead>
             <tbody>
-              {numericRows.map((r, idx) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
-                >
-                  <td className="px-5 py-3.5 text-slate-400">{idx + 1}</td>
+              {loading && rows.length === 0 ? (
+                <TableLoader colSpan={8} text="Loading physical orders..." />
+              ) : numericRows.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                    No physical gold orders found.
+                  </td>
+                </tr>
+              ) : (
+                visibleRecords.map((r, idx) => (
+                  <tr
+                    key={r.id}
+                    className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
+                  >
+                    <td className="px-5 py-3.5 text-slate-400">{idx + 1}</td>
                   <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">
                     {r.customer_name || "—"}
                   </td>
@@ -226,7 +257,9 @@ export default function PhysicalOrdersPage({
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-700">
-                    {r.quantity.toFixed(3)}
+                    {r.transaction_type === "SELL" && r.quantity > 0
+                      ? `-${r.quantity.toFixed(3)}`
+                      : r.quantity.toFixed(3)}
                   </td>
                   <td className="px-5 py-3.5 font-medium text-slate-600">
                     ${r.premium.toFixed(2)}
@@ -253,10 +286,21 @@ export default function PhysicalOrdersPage({
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
+              {isLoadingMore && (
+                <TableLoader colSpan={8} text="Loading more physical orders..." position="bottom" size="sm" />
+              )}
             </tbody>
           </table>
+          <div ref={sentinelRef} className="h-2 w-full" />
         </div>
+
+        {/* Progressive Lazy Records Footer */}
+        <LazyTableFooter
+          currentShown={displayCount}
+          totalRecords={numericRows.length}
+          isLoadingMore={isLoadingMore}
+        />
       </Card>
 
       {isOpen && (

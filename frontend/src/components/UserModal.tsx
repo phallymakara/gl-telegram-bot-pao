@@ -265,7 +265,7 @@ export default function UserModal({
                       setName(e.target.value);
                       if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
                     }}
-                    placeholder="e.g. Sokun Nisa"
+                    placeholder="Full name"
                     className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
                       fieldErrors.name
                         ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
@@ -291,7 +291,7 @@ export default function UserModal({
                     setUsername(e.target.value.replace(/\s+/g, ""));
                     if (fieldErrors.username) setFieldErrors((prev) => ({ ...prev, username: undefined }));
                   }}
-                  placeholder="e.g. sokun_staff"
+                  placeholder="Username"
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-mono ${
                     isEditing
                       ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
@@ -319,7 +319,7 @@ export default function UserModal({
                       setEmail(e.target.value);
                       if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
                     }}
-                    placeholder="e.g. sokun@gold.com"
+                    placeholder="Email address"
                     className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
                       fieldErrors.email
                         ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"

@@ -9,6 +9,9 @@ import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
+import LazyTableFooter from "../components/LazyTableFooter";
+import useLazyRecords from "../hooks/useLazyRecords";
+import Loader, { TableLoader } from "../components/Loader";
 import { api, OrderData, DashboardStatsData, CustomerData, SalesPersonData, salesPersonsApi, productsApi, purchaseOrdersApi, customersApi, toNumber } from "../api";
 
 function SearchableSalesPersonSelect({
@@ -504,11 +507,11 @@ function ExportSellOrdersDropdown({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
       >
-        <Download size={14} className="text-slate-500" />
+        <Download size={13} className="text-slate-500" />
         <span>Export</span>
-        <ChevronDown size={13} className="text-slate-400" />
+        <ChevronDown size={12} className="text-slate-400" />
       </button>
 
       {open && (
@@ -618,12 +621,19 @@ export default function PlatformOrdersPage({
   }
 
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = () => {
     api
       .get<OrderData[]>("/api/orders/?order_type=SELL")
-      .then(setRows)
-      .catch(() => notify("Failed to load orders"));
+      .then((data) => {
+        setRows(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        notify("Failed to load orders");
+        setLoading(false);
+      });
     api
       .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
       .then(setStats)
@@ -1084,9 +1094,18 @@ export default function PlatformOrdersPage({
     });
   }, [rows, q, status]);
 
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(filteredRows, { initialCount: 15, batchSize: 15 });
+
   return (
     <div
-      className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
+      className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
       onClick={() => setActiveMenuId(null)}
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
@@ -1198,41 +1217,57 @@ export default function PlatformOrdersPage({
                 });
                 setIsNewOrderModalOpen(true);
               }}
-              className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
             >
-              <Plus size={16} /> New Sell Orders
+              <Plus size={14} /> New Sell Orders
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-          <table className="w-full text-sm border-collapse min-w-[900px]">
-            <thead className="sticky top-0 z-10 bg-slate-50">
-              <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                {[
-                  "Order No",
-                  "Order Date",
-                  "Customer",
-                  "Sales Person",
-                  "Channel",
-                  "Qty",
-                  "Premium",
-                  "Total",
-                  "Status",
-                  "Actions",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className={`px-5 py-3 font-medium bg-slate-50 whitespace-nowrap ${h === "Actions" ? "text-center" : ""
-                      }`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((r: OrderData, idx: number) => {
+        <div
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full flex flex-col"
+        >
+          {loading && rows.length === 0 ? (
+            <div className="flex-1 w-full min-h-[360px] flex flex-col items-center justify-center p-8">
+              <Loader size="md" text="Loading sell orders..." />
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-sm border-collapse min-w-[900px]">
+                <thead className="sticky top-0 z-10 bg-slate-50">
+                  <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                    {[
+                      "Order No",
+                      "Order Date",
+                      "Customer",
+                      "Sales Person",
+                      "Channel",
+                      "Qty",
+                      "Premium",
+                      "Total",
+                      "Status",
+                      "Actions",
+                    ].map((h) => (
+                      <th
+                        key={h}
+                        className={`px-5 py-3 font-medium bg-slate-50 whitespace-nowrap ${h === "Actions" ? "text-center" : ""
+                          }`}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400">
+                        No sell orders found matching criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                visibleRecords.map((r: OrderData, idx: number) => {
                 const quantity = toNumber(r.quantity);
                 const premium = toNumber(r.premium);
                 const premiumAmount = toNumber(r.premium_amount);
@@ -1263,23 +1298,15 @@ export default function PlatformOrdersPage({
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {r.sales_person || "—"}
                     </td>
-                    <td className="px-5 py-2 whitespace-nowrap">
-                      {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" || r.region?.toUpperCase() === "OVERSEAS" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/60">
-                          Oversea
-                        </span>
-                      ) : rawChannel === "TELEGRAM" || Boolean(r.telegram_user_id) ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                          Local-Telegram
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                          Local-Physical
-                        </span>
-                      )}
+                    <td className="px-5 py-2 text-slate-600 whitespace-nowrap text-xs">
+                      {rawChannel === "OVERSEA" || rawChannel === "OVERSEAS" || r.region?.toUpperCase() === "OVERSEAS"
+                        ? "Oversea"
+                        : rawChannel === "TELEGRAM" || Boolean(r.telegram_user_id)
+                        ? "Local-Telegram"
+                        : "Local-Physical"}
                     </td>
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
-                      {quantity.toFixed(2)} {(r as any).unit_type || "Kg"}
+                      {quantity > 0 ? `-${quantity.toFixed(2)}` : quantity.toFixed(2)} {(r as any).unit_type || "Kg"}
                     </td>
                     <td className="px-5 py-2 text-slate-600 whitespace-nowrap">
                       ${premium.toFixed(2)}
@@ -1414,10 +1441,23 @@ export default function PlatformOrdersPage({
                     </td>
                   </tr>
                 );
-              })}
+              }))}
+              {isLoadingMore && (
+                <TableLoader colSpan={10} text="Loading more sell orders..." position="bottom" size="sm" />
+              )}
             </tbody>
           </table>
-        </div>
+          <div ref={sentinelRef} className="h-2 w-full" />
+        </>
+      )}
+    </div>
+
+        {/* Progressive Lazy Records Footer */}
+        <LazyTableFooter
+          currentShown={displayCount}
+          totalRecords={filteredRows.length}
+          isLoadingMore={isLoadingMore}
+        />
       </Card>
 
       {returnTarget && (

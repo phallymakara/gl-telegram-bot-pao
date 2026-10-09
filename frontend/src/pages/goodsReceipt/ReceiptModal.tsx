@@ -57,7 +57,7 @@ export default function ReceiptModal({
               <label className="text-xs font-semibold text-slate-600">PO Ref No.</label>
               <input
                 type="text"
-                placeholder="e.g. PO-LOCAL-101"
+                placeholder="Purchase order reference number"
                 value={form.po_no}
                 onChange={(e) => setForm((f) => ({ ...f, po_no: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -68,7 +68,7 @@ export default function ReceiptModal({
               <input
                 type="number"
                 step="0.1"
-                placeholder="25.0"
+                placeholder="Quantity in kg"
                 value={form.quantity_kg}
                 onChange={(e) => setForm((f) => ({ ...f, quantity_kg: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -80,7 +80,7 @@ export default function ReceiptModal({
             <label className="text-xs font-semibold text-slate-600">Supplier Name</label>
             <input
               type="text"
-              placeholder="e.g. Phnom Penh Precious Metals"
+              placeholder="Supplier name"
               value={form.supplier}
               onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

@@ -24,10 +24,10 @@ export default function ProfileTab() {
       .toUpperCase() || "SA";
 
   return (
-    <div id="section-profile" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6 p-6 md:p-8 space-y-6">
-      <div className="flex flex-col items-center justify-center text-center gap-3">
+    <div id="section-profile" className="space-y-6 scroll-mt-6">
+      <div className="flex items-center gap-4">
         <div className="relative group shrink-0">
-          <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center text-xl font-bold border-2 border-white">
+          <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center text-lg font-bold">
             {initials}
           </div>
           <button
@@ -43,7 +43,7 @@ export default function ProfileTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-1.5">
           <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
           <div className="relative">

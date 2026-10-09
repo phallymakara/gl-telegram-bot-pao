@@ -57,7 +57,7 @@ export default function InvoiceModal({
               <label className="text-xs font-semibold text-slate-600">Order Ref No.</label>
               <input
                 type="text"
-                placeholder="e.g. ORD-9901"
+                placeholder="Order reference number"
                 value={form.order_no}
                 onChange={(e) => setForm((f) => ({ ...f, order_no: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

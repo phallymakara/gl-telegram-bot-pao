@@ -68,7 +68,7 @@ export default function CustomerModal({
               <label className="text-xs font-semibold text-slate-600">Customer Code *</label>
               <input
                 type="text"
-                placeholder="e.g. CUST-001"
+                placeholder="Customer code"
                 value={form.customer_code}
                 onChange={(e) => setForm((f) => ({ ...f, customer_code: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono text-xs"
@@ -91,7 +91,7 @@ export default function CustomerModal({
               <label className="text-xs font-semibold text-slate-600">Contact (Phone / Email)</label>
               <input
                 type="text"
-                placeholder="e.g. +855 12 345 678 / client@mail.com"
+                placeholder="Phone number or email address"
                 value={form.contact}
                 onChange={(e) => setForm((f) => ({ ...f, contact: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -126,7 +126,7 @@ export default function CustomerModal({
               <label className="text-xs font-semibold text-slate-600">Nation / Nationality</label>
               <input
                 type="text"
-                placeholder="e.g. Cambodia, China, Singapore"
+                placeholder="Country or nationality"
                 value={form.nation}
                 onChange={(e) => setForm((f) => ({ ...f, nation: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

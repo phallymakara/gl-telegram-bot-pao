@@ -117,7 +117,7 @@ export default function ProductsPage({ notify }: ProductsPageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-6 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
+    <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
       <ProductTable
         products={products}
         openCreateModal={openCreateModal}

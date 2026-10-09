@@ -694,66 +694,35 @@ async def handle_deposit_doc_upload(update: Update, context: ContextTypes.DEFAUL
             except Exception as e:
                 logger.error("Failed to download document: %s", e)
 
-    # Persist deposit or withdrawal transaction to database
+    # Hold deposit or withdrawal in session state until user clicks Ready (រួចរាល់)
     if pad_mode == "DEPOSIT":
-        try:
-            from app.core.database import SessionLocal
-            from app.models.customer import Customer
-            from app.models.deposit import Deposit
-
-            with SessionLocal() as db:
-                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
-                deposit = Deposit(
-                    deposit_no=txn_id,
-                    customer_id=customer.id if customer else None,
-                    telegram_user_id=str(user.id),
-                    username=user.username,
-                    account_name=full_name,
-                    amount=Decimal(str(amount)),
-                    currency="USD",
-                    payment_method=deposit_method,
-                    receipt_url=receipt_url,
-                    telegram_file_id=telegram_file_id,
-                    status="PENDING",
-                    notes="Payment slip uploaded via Telegram bot",
-                    transaction_date=now,
-                )
-                db.add(deposit)
-                db.commit()
-                logger.info("Created Deposit record %s for user %s, amount %s", txn_id, full_name, amount)
-        except Exception as err:
-            logger.error("Failed to save deposit record to database: %s", err)
+        context.user_data["pending_deposit_data"] = {
+            "txn_id": txn_id,
+            "user_id": str(user.id),
+            "username": user.username,
+            "full_name": full_name,
+            "amount": Decimal(str(amount)),
+            "deposit_method": deposit_method,
+            "receipt_url": receipt_url,
+            "telegram_file_id": telegram_file_id,
+            "notes": "Payment slip" if receipt_url else "Direct deposit",
+            "transaction_date": now,
+        }
     elif pad_mode == "WITHDRAW":
-        try:
-            from app.core.database import SessionLocal
-            from app.models.customer import Customer
-            from app.models.withdrawal import Withdrawal
-
-            with SessionLocal() as db:
-                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
-                withdrawal = Withdrawal(
-                    withdraw_no=txn_id,
-                    customer_id=customer.id if customer else None,
-                    telegram_user_id=str(user.id),
-                    username=user.username,
-                    account_name=full_name,
-                    amount=Decimal(str(amount)),
-                    currency="USD",
-                    payment_method=withdraw_method,
-                    receipt_url=receipt_url,
-                    telegram_file_id=telegram_file_id,
-                    status="PENDING",
-                    notes="Customer provided bank QR code via Telegram bot" if receipt_url else "Customer requested withdrawal via Telegram bot",
-                    transaction_date=now,
-                )
-                db.add(withdrawal)
-                db.commit()
-                logger.info("Created Withdrawal record %s for user %s, amount %s", txn_id, full_name, amount)
-        except Exception as err:
-            logger.error("Failed to save withdrawal record to database: %s", err)
+        context.user_data["pending_withdrawal_data"] = {
+            "txn_id": txn_id,
+            "user_id": str(user.id),
+            "username": user.username,
+            "full_name": full_name,
+            "amount": Decimal(str(amount)),
+            "withdraw_method": withdraw_method,
+            "receipt_url": receipt_url,
+            "telegram_file_id": telegram_file_id,
+            "notes": "Bank QR" if receipt_url else ("Cash withdrawal" if withdraw_method == "CASH" else "Bank withdrawal"),
+            "transaction_date": now,
+        }
 
     context.user_data.pop("awaiting_deposit_doc", None)
-    context.user_data.clear()
     context.user_data["lang"] = lang
 
     msg = (
@@ -791,64 +760,35 @@ async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.D
         full_name += f" {user.last_name}"
     full_name = full_name.strip().upper() or (f"@{user.username}" if user.username else "N/A")
 
-    # Persist deposit or withdrawal transaction to database
+    # Hold deposit or withdrawal in session state until user clicks Ready (រួចរាល់)
     if pad_mode == "DEPOSIT":
-        try:
-            from app.core.database import SessionLocal
-            from app.models.customer import Customer
-            from app.models.deposit import Deposit
-
-            with SessionLocal() as db:
-                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
-                deposit = Deposit(
-                    deposit_no=txn_id,
-                    customer_id=customer.id if customer else None,
-                    telegram_user_id=str(user.id),
-                    username=user.username,
-                    account_name=full_name,
-                    amount=Decimal(str(amount)),
-                    currency="USD",
-                    payment_method=deposit_method,
-                    receipt_url=None,
-                    status="PENDING",
-                    notes="Cash deposit submitted via Telegram bot" if deposit_method == "CASH" else "Deposit submitted directly (document attachment skipped)",
-                    transaction_date=now,
-                )
-                db.add(deposit)
-                db.commit()
-                logger.info("Created Deposit record (%s) %s for user %s", deposit_method, txn_id, full_name)
-        except Exception as err:
-            logger.error("Failed to save deposit record to database: %s", err)
+        context.user_data["pending_deposit_data"] = {
+            "txn_id": txn_id,
+            "user_id": str(user.id),
+            "username": user.username,
+            "full_name": full_name,
+            "amount": Decimal(str(amount)),
+            "deposit_method": deposit_method,
+            "receipt_url": None,
+            "telegram_file_id": None,
+            "notes": "Cash deposit" if deposit_method == "CASH" else "Direct deposit",
+            "transaction_date": now,
+        }
     elif pad_mode == "WITHDRAW":
-        try:
-            from app.core.database import SessionLocal
-            from app.models.customer import Customer
-            from app.models.withdrawal import Withdrawal
-
-            with SessionLocal() as db:
-                customer = db.query(Customer).filter(Customer.telegram_user_id == str(user.id)).first()
-                withdrawal = Withdrawal(
-                    withdraw_no=txn_id,
-                    customer_id=customer.id if customer else None,
-                    telegram_user_id=str(user.id),
-                    username=user.username,
-                    account_name=full_name,
-                    amount=Decimal(str(amount)),
-                    currency="USD",
-                    payment_method=withdraw_method,
-                    receipt_url=None,
-                    status="PENDING",
-                    notes="Cash withdrawal requested via Telegram bot" if withdraw_method == "CASH" else "Withdrawal request submitted via Telegram bot",
-                    transaction_date=now,
-                )
-                db.add(withdrawal)
-                db.commit()
-                logger.info("Created Withdrawal record %s for user %s, amount %s", txn_id, full_name, amount)
-        except Exception as err:
-            logger.error("Failed to save withdrawal record to database: %s", err)
+        context.user_data["pending_withdrawal_data"] = {
+            "txn_id": txn_id,
+            "user_id": str(user.id),
+            "username": user.username,
+            "full_name": full_name,
+            "amount": Decimal(str(amount)),
+            "withdraw_method": withdraw_method,
+            "receipt_url": None,
+            "telegram_file_id": None,
+            "notes": "Cash withdrawal" if withdraw_method == "CASH" else "Bank withdrawal",
+            "transaction_date": now,
+        }
 
     context.user_data.pop("awaiting_deposit_doc", None)
-    context.user_data.clear()
     context.user_data["lang"] = lang
 
     msg = (

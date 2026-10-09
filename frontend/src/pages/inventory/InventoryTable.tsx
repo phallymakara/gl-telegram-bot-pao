@@ -8,6 +8,9 @@ import { ArrowDownLeft, ArrowUpRight, ChevronDown, Download, FileSpreadsheet, Fi
 import Card from "../../components/Card";
 import IconBtn from "../../components/IconBtn";
 import StatusBadge from "../../components/StatusBadge";
+import Loader, { TableLoader } from "../../components/Loader";
+import LazyTableFooter from "../../components/LazyTableFooter";
+import useLazyRecords from "../../hooks/useLazyRecords";
 import { InventoryData, toNumber } from "../../api";
 
 interface InventoryTableProps {
@@ -232,6 +235,14 @@ export default function InventoryTable({
   deleteRow,
   notify,
 }: InventoryTableProps) {
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(rows, { initialCount: 15, batchSize: 15 });
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0">
@@ -265,7 +276,7 @@ export default function InventoryTable({
             />
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-white border border-slate-200 rounded-full px-2.5 py-1.5">
             <input
               type="date"
               value={startDate}
@@ -307,64 +318,82 @@ export default function InventoryTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
+      <div
+        onScroll={handleScroll}
+        className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full"
+      >
         {loading ? (
-          <div className="p-12 text-center text-slate-400 text-sm">Loading inventory ledger...</div>
+          <div className="p-16 flex items-center justify-center">
+            <Loader size="md" text="Loading inventory ledger..." />
+          </div>
         ) : rows.length === 0 ? (
           <div className="p-12 text-center text-slate-400 text-sm">No inventory records found.</div>
         ) : (
-          <table className="w-full text-sm min-w-[900px]">
-            <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                {["Date", "Reference", "Party / Description", "Type", "Weight (KG)", "Actions"].map(
-                  (h) => (
-                    <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
-                      {h}
-                    </th>
-                  )
+          <>
+            <table className="w-full text-sm min-w-[900px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                  {["Date", "Reference", "Party / Description", "Type", "Weight (KG)", "Actions"].map(
+                    (h) => (
+                      <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRecords.map((row) => {
+                  const isPositive = toNumber(row.stock_kg) >= 0;
+                  return (
+                    <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
+                      <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                        {row.inventory_date}
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-700">
+                        {row.reference || `REF-${row.id}`}
+                      </td>
+                      <td className="px-5 py-3.5 text-slate-700 font-medium">
+                        {row.party || row.name || "Vault Stock Adjustment"}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={isPositive ? "Received" : "Returned"} />
+                      </td>
+                      <td
+                        className={`px-5 py-3.5 font-bold whitespace-nowrap ${
+                          isPositive ? "text-emerald-600" : "text-rose-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1">
+                          {isPositive ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
+                          {isPositive ? "+" : ""}
+                          {toNumber(row.stock_kg).toFixed(2)} KG
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <IconBtn title="Delete Record" tone="danger" onClick={() => deleteRow(row.id)}>
+                          <Trash2 size={15} />
+                        </IconBtn>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {isLoadingMore && (
+                  <TableLoader colSpan={6} text="Loading more ledger records..." position="bottom" size="sm" />
                 )}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const isPositive = toNumber(row.stock_kg) >= 0;
-                return (
-                  <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
-                    <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
-                      {row.inventory_date}
-                    </td>
-                    <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-700">
-                      {row.reference || `REF-${row.id}`}
-                    </td>
-                    <td className="px-5 py-3.5 text-slate-700 font-medium">
-                      {row.party || row.name || "Vault Stock Adjustment"}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <StatusBadge status={isPositive ? "Received" : "Returned"} />
-                    </td>
-                    <td
-                      className={`px-5 py-3.5 font-bold whitespace-nowrap ${
-                        isPositive ? "text-emerald-600" : "text-rose-600"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1">
-                        {isPositive ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
-                        {isPositive ? "+" : ""}
-                        {toNumber(row.stock_kg).toFixed(2)} KG
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <IconBtn title="Delete Record" tone="danger" onClick={() => deleteRow(row.id)}>
-                        <Trash2 size={15} />
-                      </IconBtn>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+            <div ref={sentinelRef} className="h-2 w-full" />
+          </>
         )}
       </div>
+
+      {/* Progressive Lazy Records Footer */}
+      <LazyTableFooter
+        currentShown={displayCount}
+        totalRecords={rows.length}
+        isLoadingMore={isLoadingMore}
+      />
     </Card>
   );
 }

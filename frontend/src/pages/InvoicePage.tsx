@@ -80,7 +80,7 @@ export default function InvoicePage({ notify }: InvoicePageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col space-y-6">
+    <div className="flex-1 px-3.5 sm:px-5 py-4 min-w-0 overflow-y-auto w-full flex flex-col space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           icon={DollarSign}

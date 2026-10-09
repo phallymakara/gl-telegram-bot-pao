@@ -67,7 +67,7 @@ export default function AdjustmentModal({
             <input
               type="number"
               step="0.01"
-              placeholder="e.g. 5.00"
+              placeholder="Quantity in kg"
               value={form.amount}
               onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
               className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"

@@ -20,7 +20,7 @@ from app.bot.keyboards import (
     build_main_menu,
 )
 from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
-from app.services.settings_service import is_within_operating_hours_sync
+from app.services.settings_service import get_sales_contact_sync, is_within_operating_hours_sync
 from app.bot.notice_service import send_off_store_notice
 from app.bot.order_flow import (
     handle_confirm_order,
@@ -54,6 +54,7 @@ from app.bot.order_handler import (
 from app.bot.sell_handler import handle_sell
 from app.constants.callback import (
     BACK_MAIN,
+    READY_TXN,
     BUY,
     BUY_SLOT_PREFIX,
     CANCEL_ORDER,
@@ -255,7 +256,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
         await handle_cancel_order(query, context, order_id=order_id)
 
-    elif query.data == BACK_MAIN:
+    elif query.data in (READY_TXN, BACK_MAIN):
         await handle_back_main(query, context)
 
     elif query.data == SELL:
@@ -274,22 +275,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == CONTACT_SALES:
         lang = context.user_data.get("lang", "EN")
+        sales_user, sales_phone, sales_display = get_sales_contact_sync()
         msg = t("contact_sales_title", lang).format(
-            phone=SALES_PHONE_DISPLAY,
-            username=SALES_TELEGRAM_USERNAME.lstrip("@"),
+            phone=sales_display or sales_phone,
+            username=sales_user,
         )
         await query.message.reply_text(
             text=msg,
             parse_mode="Markdown",
-            reply_markup=build_contact_sales_keyboard(lang),
+            reply_markup=build_contact_sales_keyboard(lang, telegram_username=sales_user),
         )
 
     elif query.data == CALL_SALES_PHONE:
         lang = context.user_data.get("lang", "EN")
+        sales_user, sales_phone, sales_display = get_sales_contact_sync()
         await query.message.reply_contact(
-            phone_number=SALES_PHONE_NUMBER,
-            first_name="PHALLY MAKARA",
-            last_name="(Sales Support)",
+            phone_number=sales_phone or SALES_PHONE_NUMBER,
+            first_name=sales_user or "Sales Support",
+            last_name="(Sales Agent)",
             reply_markup=build_back_main_keyboard(lang),
         )
 
@@ -329,15 +332,85 @@ async def handle_cancel_order(query, context: ContextTypes.DEFAULT_TYPE, order_i
     )
 
 
+def _commit_pending_transactions(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Commit any pending deposit or withdrawal record once user explicitly clicks Ready.
+    """
+    pending_dep = context.user_data.get("pending_deposit_data")
+    if pending_dep:
+        try:
+            from decimal import Decimal
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.deposit import Deposit
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(pending_dep["user_id"])).first()
+                deposit = Deposit(
+                    deposit_no=pending_dep["txn_id"],
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(pending_dep["user_id"]),
+                    username=pending_dep.get("username"),
+                    account_name=pending_dep["full_name"],
+                    amount=Decimal(str(pending_dep["amount"])),
+                    currency="USD",
+                    payment_method=pending_dep["deposit_method"],
+                    receipt_url=pending_dep.get("receipt_url"),
+                    telegram_file_id=pending_dep.get("telegram_file_id"),
+                    status="PENDING",
+                    notes=pending_dep.get("notes"),
+                    transaction_date=pending_dep["transaction_date"],
+                )
+                db.add(deposit)
+                db.commit()
+                logger.info("User confirmed Ready: Persisted deposit %s to DB", pending_dep["txn_id"])
+        except Exception as err:
+            logger.error("Failed to commit deposit on Ready: %s", err)
+
+    pending_wth = context.user_data.get("pending_withdrawal_data")
+    if pending_wth:
+        try:
+            from decimal import Decimal
+            from app.core.database import SessionLocal
+            from app.models.customer import Customer
+            from app.models.withdrawal import Withdrawal
+
+            with SessionLocal() as db:
+                customer = db.query(Customer).filter(Customer.telegram_user_id == str(pending_wth["user_id"])).first()
+                withdrawal = Withdrawal(
+                    withdraw_no=pending_wth["txn_id"],
+                    customer_id=customer.id if customer else None,
+                    telegram_user_id=str(pending_wth["user_id"]),
+                    username=pending_wth.get("username"),
+                    account_name=pending_wth["full_name"],
+                    amount=Decimal(str(pending_wth["amount"])),
+                    currency="USD",
+                    payment_method=pending_wth["withdraw_method"],
+                    receipt_url=pending_wth.get("receipt_url"),
+                    telegram_file_id=pending_wth.get("telegram_file_id"),
+                    status="PENDING",
+                    notes=pending_wth.get("notes"),
+                    transaction_date=pending_wth["transaction_date"],
+                )
+                db.add(withdrawal)
+                db.commit()
+                logger.info("User confirmed Ready: Persisted withdrawal %s to DB", pending_wth["txn_id"])
+        except Exception as err:
+            logger.error("Failed to commit withdrawal on Ready: %s", err)
+
+
 async def handle_back_main(query, context: ContextTypes.DEFAULT_TYPE):
     """
-    Reset user flow state and return to Telegram main menu keyboard.
+    Commit any pending deposit or withdrawal when user confirms Ready,
+    reset user flow state and return to Telegram main menu keyboard.
     """
     lang = context.user_data.get("lang", "EN")
+    await asyncio.to_thread(_commit_pending_transactions, context)
     context.user_data.clear()
     context.user_data["lang"] = lang
     await query.message.reply_text(
         text=t("welcome", lang),
         reply_markup=build_main_menu(lang),
     )
+
 

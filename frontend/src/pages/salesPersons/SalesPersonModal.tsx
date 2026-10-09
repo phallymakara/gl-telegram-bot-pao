@@ -78,7 +78,7 @@ export default function SalesPersonModal({
                 required
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
-                placeholder="e.g. SP-001"
+                placeholder="Salesperson code"
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
               />
             </div>
@@ -106,7 +106,7 @@ export default function SalesPersonModal({
                 type="text"
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                placeholder="+855 12 345 678"
+                placeholder="Contact phone number"
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
               />
             </div>
@@ -118,7 +118,7 @@ export default function SalesPersonModal({
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                placeholder="sales@company.com"
+                placeholder="Email address"
                 className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>

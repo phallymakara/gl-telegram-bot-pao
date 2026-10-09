@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Package,
   Truck,
-  Repeat,
   Monitor,
   Laptop,
   TrendingUp,
@@ -12,6 +11,7 @@ import {
   ArrowUp,
   RefreshCw,
 } from "lucide-react";
+import Loader from "./Loader";
 import {
   dashboardApi,
   StockMatrixResponseData,
@@ -37,7 +37,7 @@ function cleanBrand(brand: string): string {
  * - Realtime database data fetching (polled every 2s + window focus)
  * - Read-only display cells (no clicking, selection outline, or editing)
  * - 7 Columns (Swiss 6-Oct, 7-Oct, 8-Oct | DB 6-Oct, 7-Oct, 8-Oct | SV 6-Oct)
- * - 5 Rows (Available Stock, Import Stock, Trade In, Physical Sale, Bot Sale)
+ * - 6 Rows (Available Stock, Import Stock, Physical Sell, Bot Sell, Physical Buy, Bot Buy)
  * - 3 Dynamic Bottom Cards:
  *    1) Total Sold Trend (with working range selector & date range picker)
  *    2) Stock Distribution
@@ -174,19 +174,21 @@ export default function StockMatrixTable() {
   // Read cell value directly from realtime column data
   const getCellValue = (
     col: StockMatrixColumnData,
-    rowKey: "available" | "import" | "trade_in" | "physical" | "bot"
+    rowKey: "available" | "import" | "physical_sell" | "bot_sell" | "physical_buy" | "bot_buy"
   ): number => {
     switch (rowKey) {
       case "available":
         return col.available_stock ?? 0;
       case "import":
         return col.import_stock ?? 0;
-      case "trade_in":
-        return col.trade_in ?? 0;
-      case "physical":
+      case "physical_sell":
         return col.physical_sale ?? 0;
-      case "bot":
+      case "bot_sell":
         return col.bot_sale ?? 0;
+      case "physical_buy":
+        return col.physical_buy ?? 0;
+      case "bot_buy":
+        return col.bot_buy ?? 0;
       default:
         return 0;
     }
@@ -229,16 +231,15 @@ export default function StockMatrixTable() {
 
   if (!data || columns.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-12 flex items-center justify-center text-slate-400">
-        <RefreshCw size={22} className="animate-spin mr-2.5 text-indigo-600" />
-        <span className="text-sm font-semibold text-slate-600">Loading Dashboard...</span>
+      <div className="flex-1 w-full h-full min-h-[500px] flex items-center justify-center">
+        <Loader size="md" text="Loading Dashboard..." />
       </div>
     );
   }
 
-  // Row configurations
+  // Row configurations: Available Stock, Import Stock, Physical Sell, Bot Sell, Physical Buy, Bot Buy
   const rowsConfig: {
-    key: "available" | "import" | "trade_in" | "physical" | "bot";
+    key: "available" | "import" | "physical_sell" | "bot_sell" | "physical_buy" | "bot_buy";
     title: string;
     subtitle: string;
     headerBg: string;
@@ -253,7 +254,7 @@ export default function StockMatrixTable() {
         headerBg: "bg-[#ecfdf5]",
         cellBg: "bg-[#f0fdf4]",
         badgeBg: "bg-[#10b981]",
-        icon: <Package size={20} className="stroke-[2.2]" />,
+        icon: <Package size={16} className="stroke-[2.2]" />,
       },
       {
         key: "import",
@@ -262,34 +263,43 @@ export default function StockMatrixTable() {
         headerBg: "bg-[#eff6ff]",
         cellBg: "bg-[#eff6ff]",
         badgeBg: "bg-[#3b82f6]",
-        icon: <Truck size={20} className="stroke-[2.2]" />,
+        icon: <Truck size={16} className="stroke-[2.2]" />,
       },
       {
-        key: "trade_in",
-        title: "Trade In",
-        subtitle: "Exchange value",
+        key: "physical_sell",
+        title: "Physical Sell",
+        subtitle: "In-store sell",
+        headerBg: "bg-[#f0f9ff]",
+        cellBg: "bg-[#f0f9ff]",
+        badgeBg: "bg-[#0284c7]",
+        icon: <Monitor size={16} className="stroke-[2.2]" />,
+      },
+      {
+        key: "bot_sell",
+        title: "Bot Sell",
+        subtitle: "Online / Bot sell",
+        headerBg: "bg-[#f0f9ff]",
+        cellBg: "bg-[#f0f9ff]",
+        badgeBg: "bg-[#0284c7]",
+        icon: <Laptop size={16} className="stroke-[2.2]" />,
+      },
+      {
+        key: "physical_buy",
+        title: "Physical Buy",
+        subtitle: "In-store buy",
         headerBg: "bg-[#ecfeff]",
         cellBg: "bg-[#ecfeff]",
         badgeBg: "bg-[#06b6d4]",
-        icon: <Repeat size={20} className="stroke-[2.2]" />,
+        icon: <Monitor size={16} className="stroke-[2.2]" />,
       },
       {
-        key: "physical",
-        title: "Physical Sale",
-        subtitle: "In-store sales",
-        headerBg: "bg-[#f0f9ff]",
-        cellBg: "bg-[#f0f9ff]",
-        badgeBg: "bg-[#0284c7]",
-        icon: <Monitor size={20} className="stroke-[2.2]" />,
-      },
-      {
-        key: "bot",
-        title: "Bot Sale",
-        subtitle: "Online / Bot sales",
-        headerBg: "bg-[#f0f9ff]",
-        cellBg: "bg-[#f0f9ff]",
-        badgeBg: "bg-[#0284c7]",
-        icon: <Laptop size={20} className="stroke-[2.2]" />,
+        key: "bot_buy",
+        title: "Bot Buy",
+        subtitle: "Online / Bot buy",
+        headerBg: "bg-[#ecfeff]",
+        cellBg: "bg-[#ecfeff]",
+        badgeBg: "bg-[#06b6d4]",
+        icon: <Laptop size={16} className="stroke-[2.2]" />,
       },
     ];
 
@@ -365,28 +375,33 @@ export default function StockMatrixTable() {
     (max, c) => (!max || (c.available_stock || 0) > (max.available_stock || 0) ? c : max),
     null
   );
-  const highestPhysicalCol = columns.reduce<StockMatrixColumnData | null>(
+  const highestPhysicalSellCol = columns.reduce<StockMatrixColumnData | null>(
     (max, c) =>
       !max || Math.abs(c.physical_sale || 0) > Math.abs(max.physical_sale || 0) ? c : max,
     null
   );
-  const highestBotCol = columns.reduce<StockMatrixColumnData | null>(
+  const highestBotSellCol = columns.reduce<StockMatrixColumnData | null>(
     (max, c) =>
       !max || Math.abs(c.bot_sale || 0) > Math.abs(max.bot_sale || 0) ? c : max,
     null
   );
-  const highestTradeCol = columns.reduce<StockMatrixColumnData | null>(
-    (max, c) => (!max || (c.trade_in || 0) > (max.trade_in || 0) ? c : max),
+  const highestPhysicalBuyCol = columns.reduce<StockMatrixColumnData | null>(
+    (max, c) => (!max || (c.physical_buy || 0) > (max.physical_buy || 0) ? c : max),
+    null
+  );
+  const highestBotBuyCol = columns.reduce<StockMatrixColumnData | null>(
+    (max, c) => (!max || (c.bot_buy || 0) > (max.bot_buy || 0) ? c : max),
     null
   );
 
-  const formatSummaryItem = (col: StockMatrixColumnData | null, val: number) => {
-    if (!col || val <= 0) return "-";
-    return `${cleanBrand(col.brand)} (${Math.round(val).toLocaleString()})`;
+  const formatSummaryItem = (col: StockMatrixColumnData | null, val: number, isSell = false) => {
+    if (!col || val === 0) return "-";
+    const absStr = Math.round(Math.abs(val)).toLocaleString();
+    return `${cleanBrand(col.brand)} (${isSell ? `-${absStr}` : absStr})`;
   };
 
   return (
-    <div className="w-full flex-1 p-3 sm:p-5 lg:p-6 bg-white space-y-4 font-sans min-w-0">
+    <div className="w-full flex-1 py-3 px-3.5 sm:px-5 bg-white space-y-4 font-sans min-w-0">
       {/* 1. TOP MATRIX TABLE WITH DYNAMIC RESPONSIVE FULL-WIDTH GRID */}
       <div className="w-full overflow-x-auto pb-1.5">
         <div
@@ -401,7 +416,7 @@ export default function StockMatrixTable() {
             }}
           >
             {/* Empty space above row titles matching height */}
-            <div className="h-[70px]" />
+            <div className="h-[56px]" />
 
             {/* Vertically merged Brand & Date header cards for each column */}
             {columns.map((col) => {
@@ -417,17 +432,17 @@ export default function StockMatrixTable() {
               return (
                 <div
                   key={`header_${col.id}`}
-                  className="h-[70px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
+                  className="h-[56px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
                 >
                   {/* Top half: Brand */}
                   <div
-                    className={`h-[35px] w-full flex items-center justify-center text-xs font-bold tracking-wide ${brandBg}`}
+                    className={`h-[28px] w-full flex items-center justify-center text-xs font-bold tracking-wide ${brandBg}`}
                   >
                     <span>{cleanBrand(col.brand)}</span>
                   </div>
 
                   {/* Bottom half: Date */}
-                  <div className="h-[35px] w-full bg-white flex items-center justify-center text-xs font-semibold text-slate-700">
+                  <div className="h-[28px] w-full bg-white flex items-center justify-center text-xs font-semibold text-slate-700">
                     {formatHeaderDate(col.date_label, col.target_date)}
                   </div>
                 </div>
@@ -445,32 +460,39 @@ export default function StockMatrixTable() {
               }}
             >
               {/* Row Title Card */}
-              <div className={`h-[70px] rounded-md ${row.headerBg} px-3 flex items-center gap-2.5 select-none w-full min-w-0`}>
-                <div className={`w-9 h-9 rounded-md ${row.badgeBg} text-white flex items-center justify-center shrink-0`}>
+              <div className={`h-[56px] rounded-md ${row.headerBg} px-2.5 flex items-center gap-2 select-none w-full min-w-0`}>
+                <div className={`w-7 h-7 rounded-md ${row.badgeBg} text-white flex items-center justify-center shrink-0`}>
                   {row.icon}
                 </div>
                 <div className="min-w-0 overflow-hidden">
-                  <div className="text-sm font-bold text-slate-900 leading-tight truncate">{row.title}</div>
-                  <div className="text-[11px] text-slate-500 font-medium truncate">{row.subtitle}</div>
+                  <div className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">{row.title}</div>
+                  <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">{row.subtitle}</div>
                 </div>
               </div>
 
               {/* Read-only Value Cells */}
               {columns.map((col) => {
                 const val = getCellValue(col, row.key);
-                const isRed = row.key === "physical" || row.key === "bot";
+                const isSell = row.key === "physical_sell" || row.key === "bot_sell";
+                const isRed = isSell;
+
+                let cellDisplay = val.toLocaleString();
+                if (isSell) {
+                  const absVal = Math.abs(val);
+                  cellDisplay = absVal > 0 ? `-${absVal.toLocaleString()}` : "0";
+                }
 
                 return (
                   <div
                     key={`cell_${row.key}_${col.id}`}
-                    className={`h-[70px] rounded-md ${row.cellBg} flex flex-col items-center justify-center select-none cursor-default w-full min-w-0`}
+                    className={`h-[56px] rounded-md ${row.cellBg} flex flex-col items-center justify-center select-none cursor-default w-full min-w-0`}
                   >
                     <div
-                      className={`text-[15px] sm:text-base font-semibold tracking-tight leading-none ${
+                      className={`text-sm sm:text-[15px] font-semibold tracking-tight leading-none ${
                         isRed ? "text-[#ef4444]" : "text-slate-900"
                       }`}
                     >
-                      {val < 0 ? `-${Math.abs(val).toLocaleString()}` : val.toLocaleString()}
+                      {cellDisplay}
                     </div>
                   </div>
                 );
@@ -861,54 +883,80 @@ export default function StockMatrixTable() {
                 </div>
               </div>
 
-              {/* Item 2: Highest Physical Sale */}
+              {/* Item 2: Highest Physical Sell */}
               <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-slate-50 transition">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-[#0284c7] text-white flex items-center justify-center shrink-0">
                     <Monitor size={13} />
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">Highest Physical Sale</span>
+                  <span className="text-xs font-semibold text-slate-700">Highest Physical Sell</span>
                 </div>
                 <div className="flex items-center gap-1 font-bold text-xs text-slate-900">
                   <span>
                     {formatSummaryItem(
-                      highestPhysicalCol,
-                      Math.abs(highestPhysicalCol?.physical_sale || 0)
+                      highestPhysicalSellCol,
+                      highestPhysicalSellCol?.physical_sale || 0,
+                      true
                     )}
                   </span>
                   <ArrowUp size={13} className="text-emerald-500 stroke-[3]" />
                 </div>
               </div>
 
-              {/* Item 3: Highest Bot Sale */}
+              {/* Item 3: Highest Bot Sell */}
               <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-slate-50 transition">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-[#0284c7] text-white flex items-center justify-center shrink-0">
                     <Laptop size={13} />
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">Highest Bot Sale</span>
+                  <span className="text-xs font-semibold text-slate-700">Highest Bot Sell</span>
                 </div>
                 <div className="flex items-center gap-1 font-bold text-xs text-slate-900">
                   <span>
                     {formatSummaryItem(
-                      highestBotCol,
-                      Math.abs(highestBotCol?.bot_sale || 0)
+                      highestBotSellCol,
+                      highestBotSellCol?.bot_sale || 0,
+                      true
                     )}
                   </span>
                   <ArrowUp size={13} className="text-emerald-500 stroke-[3]" />
                 </div>
               </div>
 
-              {/* Item 4: Highest Trade In */}
+              {/* Item 4: Highest Physical Buy */}
               <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-slate-50 transition">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-md bg-[#06b6d4] text-white flex items-center justify-center shrink-0">
-                    <Repeat size={13} />
+                    <Monitor size={13} />
                   </div>
-                  <span className="text-xs font-semibold text-slate-700">Highest Trade In</span>
+                  <span className="text-xs font-semibold text-slate-700">Highest Physical Buy</span>
                 </div>
                 <div className="flex items-center gap-1 font-bold text-xs text-slate-900">
-                  <span>{formatSummaryItem(highestTradeCol, highestTradeCol?.trade_in || 0)}</span>
+                  <span>
+                    {formatSummaryItem(
+                      highestPhysicalBuyCol,
+                      highestPhysicalBuyCol?.physical_buy || 0
+                    )}
+                  </span>
+                  <ArrowUp size={13} className="text-emerald-500 stroke-[3]" />
+                </div>
+              </div>
+
+              {/* Item 5: Highest Bot Buy */}
+              <div className="flex items-center justify-between p-1.5 rounded-md hover:bg-slate-50 transition">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-[#06b6d4] text-white flex items-center justify-center shrink-0">
+                    <Laptop size={13} />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-700">Highest Bot Buy</span>
+                </div>
+                <div className="flex items-center gap-1 font-bold text-xs text-slate-900">
+                  <span>
+                    {formatSummaryItem(
+                      highestBotBuyCol,
+                      highestBotBuyCol?.bot_buy || 0
+                    )}
+                  </span>
                   <ArrowUp size={13} className="text-emerald-500 stroke-[3]" />
                 </div>
               </div>

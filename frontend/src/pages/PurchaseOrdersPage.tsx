@@ -1,5 +1,4 @@
 import {
-  Calendar,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -27,6 +26,9 @@ import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
+import LazyTableFooter from "../components/LazyTableFooter";
+import useLazyRecords from "../hooks/useLazyRecords";
+import Loader, { TableLoader } from "../components/Loader";
 /**
  * @file PurchaseOrdersPage.tsx
  * @description Purchase Orders page component managing local and oversea gold supplier procurement, shipping tracking, stock receipt verification, and returns.
@@ -463,11 +465,11 @@ function ExportPoDropdown({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
       >
-        <Download size={14} className="text-slate-500" />
+        <Download size={13} className="text-slate-500" />
         <span>Export</span>
-        <ChevronDown size={13} className="text-slate-400" />
+        <ChevronDown size={12} className="text-slate-400" />
       </button>
 
       {open && (
@@ -655,7 +657,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             return updated;
           });
         })
-        .catch(() => {});
+        .catch(() => { });
 
       return next;
     });
@@ -938,6 +940,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [receivedDateFilter, setReceivedDateFilter] = useState<string>("");
 
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
+  const [loading, setLoading] = useState(true);
 
   function load() {
     const params = new URLSearchParams();
@@ -948,8 +951,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
     api
       .get<PurchaseOrderData[]>(url)
-      .then(setRows)
-      .catch(() => notify("Failed to load purchase orders"));
+      .then((data) => {
+        setRows(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        notify("Failed to load purchase orders");
+        setLoading(false);
+      });
     api
       .get<DashboardStatsData>("/api/dashboard/stats")
       .then(setStats)
@@ -1261,56 +1270,65 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     return true;
   });
 
+  // Progressive lazy loading (15 records per load)
+  const {
+    visibleRecords,
+    displayCount,
+    isLoadingMore,
+    sentinelRef,
+    handleScroll,
+  } = useLazyRecords(filteredNumericRows, { initialCount: 15, batchSize: 15 });
+
   const label = poType === "LOCAL" ? "Local" : "Oversea";
 
   return (
-    <div className="flex-1 pt-4 px-4 pb-2 sm:pt-4 sm:px-8 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0">
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <Globe size={16} className="text-slate-500 shrink-0" />
+    <div className="flex-1 pt-2 px-3.5 pb-2 sm:pt-2 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-2 min-h-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 flex-shrink-0">
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <Globe size={15} className="text-slate-500 shrink-0" />
             <span>Oversea</span>
           </div>
-          <div className="mt-2.5 flex items-baseline">
+          <div className="mt-2 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
               {toNumber(stats?.gold_in_overseas ?? 0).toFixed(0)}
             </span>
-            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <MapPin size={16} className="text-slate-500 shrink-0" />
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <MapPin size={15} className="text-slate-500 shrink-0" />
             <span>Local</span>
           </div>
-          <div className="mt-2.5 flex items-baseline">
+          <div className="mt-2 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
               {toNumber(stats?.gold_in_local ?? 0).toFixed(0)}
             </span>
-            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <RotateCcw size={16} className="text-slate-500 shrink-0" />
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <RotateCcw size={15} className="text-slate-500 shrink-0" />
             <span>Physical</span>
           </div>
-          <div className="mt-2.5 flex items-baseline">
+          <div className="mt-2 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
               {toNumber(stats?.gold_in_local_physical ?? 0).toFixed(0)}
             </span>
-            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <Truck size={16} className="text-slate-500 shrink-0" />
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <Truck size={15} className="text-slate-500 shrink-0" />
             <span>Incoming PO</span>
           </div>
-          <div className="mt-2.5 flex items-baseline">
+          <div className="mt-2 flex items-baseline">
             <span className="text-2xl font-bold text-slate-800">
               {toNumber(stats?.incoming_po ?? 0).toFixed(0)}
             </span>
@@ -1318,7 +1336,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         </div>
       </div>
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex-shrink-0">
+        <div className="px-3.5 py-2.5 border-b border-slate-100 flex-shrink-0">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-3 sm:gap-4 flex-1">
               <div className="relative w-full sm:w-80 md:w-96 shrink-0">
@@ -1328,7 +1346,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   placeholder="Search PO no, source, notes..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3.5 py-2 text-xs border border-slate-200 rounded-lg bg-slate-50/80 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
+                  className="w-full pl-9 pr-3.5 py-2 text-xs border border-slate-200 rounded-lg bg-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-xs"
                 />
               </div>
 
@@ -1358,9 +1376,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <option value="CANCELLED">Cancelled</option>
                 </select>
 
-                <div className="flex items-center gap-1.5 bg-slate-50/80 border border-slate-200 rounded-lg px-3 py-1.5 shadow-xs shrink-0">
-                  <Calendar size={14} className="text-slate-400 shrink-0" />
-                  <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">Received:</span>
+                <div className="flex items-center gap-1.5 bg-slate-50/80 border border-slate-200 rounded-full px-3 py-1.5 shrink-0">
                   <input
                     type="date"
                     aria-label="Filter by Received Date"
@@ -1386,246 +1402,268 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <ExportPoDropdown rows={filteredNumericRows} notify={notify} />
               <button
                 onClick={openNewPoModal}
-                className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={16} /> New Purchase
+                <Plus size={14} /> New Purchase
               </button>
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 z-10">
-              <tr className="text-left text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                {[
-                  "PO No",
-                  "Type",
-                  "Vendor",
-                  "QTY",
-                  "Spot Price (oz)",
-                  "Premium ( Kg/USD)",
-                  "Unit Price",
-                  "Total Amount",
-                  "Order Date",
-                  "Expected Receive Date",
-                  "Status",
-                  "Actions",
-                ].map((h) => (
-                  <th key={h} className={`px-5 py-2.5 font-semibold text-slate-400 whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredNumericRows.map((r, idx) => (
-                <tr
-                  key={r.id}
-                  className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
-                >
-                  <td className="px-5 py-2.5 font-normal text-slate-800 whitespace-nowrap">{r.po_no}</td>
-                  <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
-                    {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
-                  </td>
-                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
-                  <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)} {(r as any).unit_type || "Kg"}</td>
-                  <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
-                    {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
-                  </td>
-                  <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
-                    {r.premium !== undefined && r.premium !== null ? r.premium.toLocaleString() : "200"}
-                  </td>
-                  <td className="px-5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
-                    {r.quantity > 0 ? (r.total_cost / r.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
-                  </td>
-                  <td className="px-5 py-2.5 font-normal text-slate-700 whitespace-nowrap">
-                    {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                  </td>
-                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
-                  <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.received_date || r.expected_date)}</td>
-                  <td className="px-5 py-2.5 whitespace-nowrap">
-                    <StatusBadge status={titleCase(r.status)} />
-                  </td>
-                  <td className="px-5 py-2 text-center">
-                    <div className="flex items-center justify-center">
-                      {/* Three Dots Menu Dropdown */}
-                      <div className="relative inline-block">
-                        <button
-                          type="button"
-                          onClick={() => setActiveMenuId(activeMenuId === r.id ? null : r.id)}
-                          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
-                          title="Actions"
-                        >
-                          <MoreHorizontal size={15} />
-                        </button>
-                        {activeMenuId === r.id && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-20"
-                              onClick={() => setActiveMenuId(null)}
-                            />
-                            <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100">
-                              <div className="py-0.5 space-y-0.5">
-                                {/* 1. Change Status (Side Popover Submenu) */}
-                                {(() => {
-                                  const isReceiveDisabled = r.status === "RECEIVED" || r.status === "CANCELLED";
-                                  const isSubOpen = showStatusSubMenuId === r.id;
-                                  return (
-                                    <div className="relative">
+        <div
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full flex flex-col"
+        >
+          {loading && rows.length === 0 ? (
+            <div className="flex-1 w-full min-h-[360px] flex flex-col items-center justify-center p-8">
+              <Loader size="md" text="Loading purchase orders..." />
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10">
+                  <tr className="text-left text-xs text-slate-400 font-semibold uppercase tracking-wide border-b border-slate-200 bg-slate-50">
+                    {[
+                      "PO No",
+                      "Type",
+                      "Vendor",
+                      "QTY",
+                      "Spot Price (oz)",
+                      "Premium ( Kg/USD)",
+                      "Unit Price",
+                      "Total Amount",
+                      "Order Date",
+                      "Expected Receive Date",
+                      "Status",
+                      "Actions",
+                    ].map((h) => (
+                      <th key={h} className={`px-5 py-2.5 font-semibold text-slate-400 whitespace-nowrap bg-slate-50 ${h === "Actions" ? "text-center" : ""}`}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredNumericRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={12} className="px-5 py-12 text-center text-sm text-slate-400">
+                        No purchase orders found for the selected source filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleRecords.map((r, idx) => (
+                      <tr
+                        key={r.id}
+                        className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
+                      >
+                        <td className="px-5 py-2.5 font-normal text-slate-800 whitespace-nowrap">{r.po_no}</td>
+                        <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
+                          {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
+                        </td>
+                        <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
+                        <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)} {(r as any).unit_type || "Kg"}</td>
+                        <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
+                          {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
+                        </td>
+                        <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
+                          {r.premium !== undefined && r.premium !== null ? r.premium.toLocaleString() : "200"}
+                        </td>
+                        <td className="px-5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                          {r.quantity > 0 ? (r.total_cost / r.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                        </td>
+                        <td className="px-5 py-2.5 font-normal text-slate-700 whitespace-nowrap">
+                          {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                        </td>
+                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
+                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.received_date || r.expected_date)}</td>
+                        <td className="px-5 py-2.5 whitespace-nowrap">
+                          <StatusBadge status={titleCase(r.status)} />
+                        </td>
+                        <td className="px-5 py-2 text-center">
+                          <div className="flex items-center justify-center">
+                            {/* Three Dots Menu Dropdown */}
+                            <div className="relative inline-block">
+                              <button
+                                type="button"
+                                onClick={() => setActiveMenuId(activeMenuId === r.id ? null : r.id)}
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors cursor-pointer"
+                                title="Actions"
+                              >
+                                <MoreHorizontal size={15} />
+                              </button>
+                              {activeMenuId === r.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-20"
+                                    onClick={() => setActiveMenuId(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100">
+                                    <div className="py-0.5 space-y-0.5">
+                                      {/* 1. Change Status (Side Popover Submenu) */}
+                                      {(() => {
+                                        const isReceiveDisabled = r.status === "RECEIVED" || r.status === "CANCELLED";
+                                        const isSubOpen = showStatusSubMenuId === r.id;
+                                        return (
+                                          <div className="relative">
+                                            <button
+                                              type="button"
+                                              disabled={isReceiveDisabled}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (isReceiveDisabled) return;
+                                                setShowStatusSubMenuId(isSubOpen ? null : r.id);
+                                              }}
+                                              className={`w-full flex items-center justify-between px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
+                                                ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                                : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
+                                                }`}
+                                              title={isReceiveDisabled ? "Status cannot be changed" : "Change Status"}
+                                            >
+                                              <span className="flex items-center gap-2">
+                                                <CheckCircle2 size={14} /> Change Status
+                                              </span>
+                                              <span className="text-[10px] text-slate-400">◀</span>
+                                            </button>
+
+                                            {/* Popover container attached next to Change Status button */}
+                                            {isSubOpen && (
+                                              <div className="absolute right-full top-0 mr-2 w-36 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-40 animate-in fade-in zoom-in duration-150">
+                                                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                                  Status
+                                                </div>
+                                                <div className="space-y-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setShowStatusSubMenuId(null);
+                                                      setActiveMenuId(null);
+                                                      markConfirmed(r);
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "CONFIRMED"
+                                                      ? "bg-blue-100 text-blue-800"
+                                                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                                                      }`}
+                                                  >
+                                                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span> Confirmed
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setShowStatusSubMenuId(null);
+                                                      setActiveMenuId(null);
+                                                      openReceiveModal(r);
+                                                    }}
+                                                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "RECEIVED"
+                                                      ? "bg-emerald-100 text-emerald-800"
+                                                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
+                                                      }`}
+                                                  >
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> Received
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* 2. View Invoice */}
                                       <button
                                         type="button"
-                                        disabled={isReceiveDisabled}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (isReceiveDisabled) return;
-                                          setShowStatusSubMenuId(isSubOpen ? null : r.id);
+                                        onClick={() => {
+                                          setActiveMenuId(null);
+                                          openInvoiceInNewTab(r);
                                         }}
-                                        className={`w-full flex items-center justify-between px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
-                                          ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
-                                          : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
-                                          }`}
-                                        title={isReceiveDisabled ? "Status cannot be changed" : "Change Status"}
+                                        className="w-full flex items-center gap-2 px-3.5 py-2 text-indigo-600 hover:bg-indigo-50 font-semibold transition-colors text-left cursor-pointer"
                                       >
-                                        <span className="flex items-center gap-2">
-                                          <CheckCircle2 size={14} /> Change Status
-                                        </span>
-                                        <span className="text-[10px] text-slate-400">◀</span>
+                                        <FileText size={14} /> View Invoice
                                       </button>
 
-                                      {/* Popover container attached next to Change Status button */}
-                                      {isSubOpen && (
-                                        <div className="absolute right-full top-0 mr-2 w-36 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-40 animate-in fade-in zoom-in duration-150">
-                                          <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                                            Status
-                                          </div>
-                                          <div className="space-y-1">
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setShowStatusSubMenuId(null);
-                                                setActiveMenuId(null);
-                                                markConfirmed(r);
-                                              }}
-                                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "CONFIRMED"
-                                                ? "bg-blue-100 text-blue-800"
-                                                : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
-                                                }`}
-                                            >
-                                              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span> Confirmed
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setShowStatusSubMenuId(null);
-                                                setActiveMenuId(null);
-                                                openReceiveModal(r);
-                                              }}
-                                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "RECEIVED"
-                                                ? "bg-emerald-100 text-emerald-800"
-                                                : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-                                                }`}
-                                            >
-                                              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> Received
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
+                                      {/* 3. Print / Export PDF */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveMenuId(null);
+                                          printInvoiceDirectly(r);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-100/70 font-medium transition-colors text-left cursor-pointer"
+                                      >
+                                        <Printer size={14} /> Print / Export PDF
+                                      </button>
+
+                                      {/* 4. Edit PO */}
+                                      {(() => {
+                                        const isEditDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                        return (
+                                          <button
+                                            type="button"
+                                            disabled={isEditDisabled}
+                                            onClick={() => {
+                                              if (isEditDisabled) return;
+                                              setActiveMenuId(null);
+                                              openEditPoModal(r);
+                                            }}
+                                            className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isEditDisabled
+                                              ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                              : "text-slate-700 hover:bg-slate-100/70 cursor-pointer"
+                                              }`}
+                                            title={isEditDisabled ? "Orders with Received or Confirmed status cannot be edited" : "Edit PO"}
+                                          >
+                                            <Pencil size={14} /> Edit PO
+                                          </button>
+                                        );
+                                      })()}
                                     </div>
-                                  );
-                                })()}
 
-                                {/* 2. View Invoice */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    openInvoiceInNewTab(r);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-indigo-600 hover:bg-indigo-50 font-semibold transition-colors text-left cursor-pointer"
-                                >
-                                  <FileText size={14} /> View Invoice
-                                </button>
-
-                                {/* 3. Print / Export PDF */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveMenuId(null);
-                                    printInvoiceDirectly(r);
-                                  }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-100/70 font-medium transition-colors text-left cursor-pointer"
-                                >
-                                  <Printer size={14} /> Print / Export PDF
-                                </button>
-
-                                {/* 4. Edit PO */}
-                                {(() => {
-                                  const isEditDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
-                                  return (
-                                    <button
-                                      type="button"
-                                      disabled={isEditDisabled}
-                                      onClick={() => {
-                                        if (isEditDisabled) return;
-                                        setActiveMenuId(null);
-                                        openEditPoModal(r);
-                                      }}
-                                      className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isEditDisabled
-                                        ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
-                                        : "text-slate-700 hover:bg-slate-100/70 cursor-pointer"
-                                        }`}
-                                      title={isEditDisabled ? "Orders with Received or Confirmed status cannot be edited" : "Edit PO"}
-                                    >
-                                      <Pencil size={14} /> Edit PO
-                                    </button>
-                                  );
-                                })()}
-                              </div>
-
-                              {/* 5. Cancel Order */}
-                              <div className="pt-1">
-                                {(() => {
-                                  const isCancelDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
-                                  return (
-                                    <button
-                                      type="button"
-                                      disabled={isCancelDisabled}
-                                      onClick={() => {
-                                        if (isCancelDisabled) return;
-                                        setActiveMenuId(null);
-                                        cancel(r);
-                                      }}
-                                      className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isCancelDisabled
-                                        ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
-                                        : "text-rose-600 hover:bg-rose-50 cursor-pointer"
-                                        }`}
-                                      title={isCancelDisabled ? "Orders with Received or Confirmed status cannot be cancelled" : "Cancel Order"}
-                                    >
-                                      <XCircle size={14} /> Cancel Order
-                                    </button>
-                                  );
-                                })()}
-                              </div>
+                                    {/* 5. Cancel Order */}
+                                    <div className="pt-1">
+                                      {(() => {
+                                        const isCancelDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                        return (
+                                          <button
+                                            type="button"
+                                            disabled={isCancelDisabled}
+                                            onClick={() => {
+                                              if (isCancelDisabled) return;
+                                              setActiveMenuId(null);
+                                              cancel(r);
+                                            }}
+                                            className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isCancelDisabled
+                                              ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                              : "text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                              }`}
+                                            title={isCancelDisabled ? "Orders with Received or Confirmed status cannot be cancelled" : "Cancel Order"}
+                                          >
+                                            <XCircle size={14} /> Cancel Order
+                                          </button>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
                             </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredNumericRows.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="px-5 py-8 text-center text-sm text-slate-400">
-                    No purchase orders found for the selected source filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )))}
+                  {isLoadingMore && (
+                    <TableLoader colSpan={12} text="Loading more purchase orders..." position="bottom" size="sm" />
+                  )}
+                </tbody>
+              </table>
+              <div ref={sentinelRef} className="h-2 w-full" />
+            </>
+          )}
         </div>
+
+        {/* Progressive Lazy Records Footer */}
+        <LazyTableFooter
+          currentShown={displayCount}
+          totalRecords={filteredNumericRows.length}
+          isLoadingMore={isLoadingMore}
+        />
       </Card>
 
       {isOpen && (
@@ -1696,9 +1734,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     value={isDbOrSwiss(form.product_type) ? (form.unit_type || "Kg") : "Kg"}
                     onChange={(e) => updateFormField("unit_type", e.target.value)}
                     disabled={!isDbOrSwiss(form.product_type)}
-                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
-                      !isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
-                    }`}
+                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${!isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
+                      }`}
                   >
                     <option value="Kg">Kg</option>
                     {isDbOrSwiss(form.product_type) && <option value="TL">TL</option>}

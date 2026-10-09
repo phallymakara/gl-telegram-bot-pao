@@ -4,6 +4,7 @@
  */
 
 import { getFriendlyErrorMessage } from "../utils/errorMessage";
+import { waitMockDelay, MOCK_DELAYS } from "../config/mockDelay";
 
 // Base URL prefix for API calls (empty string defaults to current host origin)
 const BASE = import.meta.env.VITE_API_URL || "";
@@ -20,6 +21,9 @@ const BASE = import.meta.env.VITE_API_URL || "";
  * @throws Error containing server detail or raw HTTP error message if status is not OK.
  */
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  // Artificial mock delay for visualizing loading animations (easily toggleable in src/config/mockDelay.ts)
+  await waitMockDelay(MOCK_DELAYS.API_FETCH_MS);
+
   // Retrieve bearer token from local storage
   const token = localStorage.getItem("token");
   const headers: Record<string, string> = {};

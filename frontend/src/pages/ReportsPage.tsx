@@ -45,7 +45,7 @@ export default function ReportsPage({ notify }: ReportsPageProps) {
   }
 
   return (
-    <div className="flex-1 p-4 sm:p-8 min-w-0 overflow-y-auto w-full flex flex-col space-y-6">
+    <div className="flex-1 px-3.5 sm:px-5 py-4 min-w-0 overflow-y-auto w-full flex flex-col space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-800">System Reports & Analytics</h2>
@@ -82,7 +82,7 @@ export default function ReportsPage({ notify }: ReportsPageProps) {
           label="Total Gold Sold"
           value={
             <>
-              {totalSellKg.toFixed(1)}{" "}
+              {totalSellKg > 0 ? `-${totalSellKg.toFixed(1)}` : totalSellKg.toFixed(1)}{" "}
               <span className="text-sm font-normal text-slate-400">KG</span>
             </>
           }
@@ -157,7 +157,9 @@ export default function ReportsPage({ notify }: ReportsPageProps) {
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-slate-500">Gold Out (Selling)</span>
-                    <span className="font-semibold text-slate-800">{totalSellKg.toFixed(1)} KG</span>
+                    <span className="font-semibold text-slate-800">
+                      {totalSellKg > 0 ? `-${totalSellKg.toFixed(1)}` : totalSellKg.toFixed(1)} KG
+                    </span>
                   </div>
                   <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                     <div

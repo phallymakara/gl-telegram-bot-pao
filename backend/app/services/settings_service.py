@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, time
 from typing import Tuple
 
+from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.core.database import SessionLocal
 from app.models.system_setting import SystemSetting
 from app.utils.helpers import get_cambodia_now
@@ -15,7 +16,12 @@ from app.utils.helpers import get_cambodia_now
 logger = logging.getLogger(__name__)
 
 DEFAULT_SETTINGS = {
-    "bot": {"bot_token": "", "bot_username": "GoldSystemBot"},
+    "bot": {
+        "bot_token": "",
+        "bot_username": "GoldSystemBot",
+        "sales_telegram_username": SALES_TELEGRAM_USERNAME,
+        "sales_phone_number": SALES_PHONE_NUMBER,
+    },
     "security": {"session_timeout": 30, "password_expiry": 90, "two_factor": False},
     "system": {
         "open_time": "08:00",
@@ -238,4 +244,27 @@ def get_payment_methods_sync(session=None) -> dict:
             "cash": bool(withdrawal.get("cash", True)),
         },
     }
+
+
+def get_sales_contact_sync(session=None) -> Tuple[str, str, str]:
+    """
+    Retrieve sales contact info: (username, phone_number, phone_display).
+    Reads from dynamic database settings with fallback to application config.
+    """
+    settings = get_settings_dict_sync(session)
+    bot_cfg = settings.get("bot", {})
+    username = (bot_cfg.get("sales_telegram_username") or SALES_TELEGRAM_USERNAME).strip().lstrip("@")
+    phone = (bot_cfg.get("sales_phone_number") or SALES_PHONE_NUMBER).strip()
+
+    phone_display = phone
+    if phone.startswith("+855") and len(phone) >= 12:
+        raw = "0" + phone[4:]
+        if len(raw) == 9:
+            phone_display = f"{raw[:3]} {raw[3:6]} {raw[6:]}"
+        elif len(raw) == 10:
+            phone_display = f"{raw[:3]} {raw[3:6]} {raw[6:]}"
+    elif phone.startswith("0") and len(phone) in (9, 10):
+        phone_display = f"{phone[:3]} {phone[3:6]} {phone[6:]}"
+
+    return username, phone, phone_display
 
