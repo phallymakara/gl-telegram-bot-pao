@@ -113,12 +113,24 @@ class StockMatrixLeftTotal(BaseModel):
     category: str = "cream"
 
 
+class StockMatrixPairTotal(BaseModel):
+    brand: str
+    label: str
+    span: int = 2
+    column_ids: list[str] = []
+    first_date: str | None = None
+    second_date: str | None = None
+    total_both_date: float = 0.0
+
+
 class StockMatrixData(BaseModel):
     columns: list[StockMatrixColumn]
     deduction_rows: list[list[float | None]]
     deduction_cells: list[list[StockMatrixCell]] = []
     left_totals: list[StockMatrixLeftTotal]
     summary_deductions: list[float]
+    total_all_stock: float = 0.0
+    pair_totals: list[StockMatrixPairTotal] = []
 
 
 class StockMatrixDeductionCreate(BaseModel):

@@ -5,7 +5,6 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { MOCK_DELAYS } from "../config/mockDelay";
 
 export interface UseLazyRecordsOptions {
   initialCount?: number;
@@ -17,7 +16,7 @@ export function useLazyRecords<T>(
   records: T[],
   options: UseLazyRecordsOptions = {}
 ) {
-  const { initialCount = 15, batchSize = 15, delayMs = MOCK_DELAYS.SCROLL_MORE_MS } = options;
+  const { initialCount = 15, batchSize = 15, delayMs = 0 } = options;
   const [displayCount, setDisplayCount] = useState(initialCount);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -30,6 +29,10 @@ export function useLazyRecords<T>(
 
   const loadMore = useCallback(() => {
     if (isLoadingMore || displayCount >= records.length) return;
+    if (delayMs <= 0) {
+      setDisplayCount((prev) => Math.min(prev + batchSize, records.length));
+      return;
+    }
     setIsLoadingMore(true);
     setTimeout(() => {
       setDisplayCount((prev) => Math.min(prev + batchSize, records.length));

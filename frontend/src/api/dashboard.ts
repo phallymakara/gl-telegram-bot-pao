@@ -122,12 +122,24 @@ export interface StockMatrixLeftTotalData {
   category: "cream" | "orange";
 }
 
+export interface StockMatrixPairTotalData {
+  brand: string;
+  label: string;
+  span: number;
+  column_ids?: string[];
+  first_date?: string | null;
+  second_date?: string | null;
+  total_both_date: number;
+}
+
 export interface StockMatrixResponseData {
   columns: StockMatrixColumnData[];
   deduction_rows: (number | null)[][];
   deduction_cells: StockMatrixCellData[][];
   left_totals: StockMatrixLeftTotalData[];
   summary_deductions: number[];
+  total_all_stock?: number;
+  pair_totals?: StockMatrixPairTotalData[];
 }
 
 export interface SoldTrendPointData {
@@ -182,7 +194,10 @@ export const dashboardApi = {
   /**
    * Fetches the operational brand & date stock inventory matrix.
    */
-  getStockMatrix: () => api.get<StockMatrixResponseData>("/api/dashboard/stock-matrix"),
+  getStockMatrix: (targetDate?: string) =>
+    api.get<StockMatrixResponseData>(
+      `/api/dashboard/stock-matrix${targetDate ? `?target_date=${targetDate}` : ""}`
+    ),
 
   /**
    * Persists a new deduction SELL order or trade-in BUY order in the real database from the matrix.

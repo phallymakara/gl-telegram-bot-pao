@@ -116,4 +116,119 @@ textarea:not(.rounded-none) {
   border-radius: 16px !important;
 }
 
+/* Prevent browser default black focus ring / outline on clicks across all buttons, tabs and interactive elements */
+button,
+[role="button"],
+[role="tab"] {
+  outline: none;
+}
+
+button:focus,
+button:focus-visible,
+button:active,
+[role="button"]:focus,
+[role="button"]:focus-visible,
+[role="button"]:active,
+[role="tab"]:focus,
+[role="tab"]:focus-visible,
+[role="tab"]:active {
+  outline: none !important;
+}
+
+/* ==========================================================================
+   Smooth System-Wide Animations & Transitions
+   - Subtle, natural, GPU-accelerated micro-interactions
+   - Smooth page entrance, modal pop-in, and table row hover
+   - Respects user accessibility / prefers-reduced-motion
+   ========================================================================== */
+
+/* 1. Page View Smooth Entrance */
+main > * {
+  animation: systemPageEntrance 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes systemPageEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 2. Modal Overlay & Dialog Smooth Transitions */
+.fixed.inset-0.z-50 {
+  animation: systemModalBackdropFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.fixed.inset-0.z-50 > div:not(.fixed) {
+  animation: systemModalDialogPop 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes systemModalBackdropFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes systemModalDialogPop {
+  from {
+    opacity: 0;
+    transform: scale(0.975) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 3. Interactive Elements Micro-transitions & Tactile Feedback */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"],
+[role="tab"] {
+  transition: background-color 0.16s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.16s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.16s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.16s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.14s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Gentle press feedback */
+button:active:not(:disabled):not([role="tab"]),
+[role="button"]:active:not(:disabled):not([role="tab"]) {
+  transform: scale(0.985);
+}
+
+/* 4. Table Row Smooth Hover */
+tbody tr {
+  transition: background-color 0.15s ease-out;
+}
+
+/* 5. Dropdown Menus and Context Popovers */
+.animate-in {
+  animation-duration: 0.18s !important;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+/* 6. Accessibility: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 

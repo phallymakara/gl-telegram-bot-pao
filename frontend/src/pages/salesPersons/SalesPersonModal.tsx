@@ -45,7 +45,7 @@ export default function SalesPersonModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-all animate-in fade-in zoom-in-95 duration-150">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
           <div>

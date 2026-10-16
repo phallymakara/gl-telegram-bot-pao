@@ -40,7 +40,7 @@ export default function InvoiceModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-xl border border-slate-100 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="font-semibold text-slate-800 text-base">New Invoice</h3>

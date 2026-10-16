@@ -211,12 +211,14 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => scrollToSection(tab.id)}
-              className={`shrink-0 whitespace-nowrap text-left px-3 py-2 rounded-lg transition-all duration-150 flex items-center gap-2 relative focus:outline-none cursor-pointer ${
+              className={`shrink-0 whitespace-nowrap text-left px-3 py-2 rounded-lg transition-all duration-150 flex items-center gap-2 relative border-0 outline-none focus:outline-none focus-visible:outline-none ring-0 focus:ring-0 focus-visible:ring-0 cursor-pointer select-none ${
                 isActive
                   ? "bg-indigo-50 md:bg-slate-100 text-indigo-700 md:text-slate-900 font-semibold"
                   : "text-slate-600 hover:bg-slate-50/80 hover:text-slate-900"
               }`}
+              style={{ outline: "none", boxShadow: "none" }}
             >
               {isActive && (
                 <span className="hidden md:block absolute left-0 top-2 bottom-2 w-1 rounded-r bg-indigo-600" />

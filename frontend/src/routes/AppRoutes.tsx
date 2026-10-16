@@ -11,16 +11,12 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import ComingSoon from "../components/ComingSoon";
 import { PAGE_TITLE } from "../data/navigation";
 import { PageLoader } from "../components/Loader";
-import { waitMockDelay, MOCK_DELAYS } from "../config/mockDelay";
 
-// Lazy-loaded Page Views with mock delay support (configured in src/config/mockDelay.ts)
+// Lazy-loaded Page Views
 function lazyPage<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
-  return lazy(async () => {
-    await waitMockDelay(MOCK_DELAYS.PAGE_LOAD_MS);
-    return factory();
-  });
+  return lazy(factory);
 }
 
 const DashboardPage = lazyPage(() => import("../pages/DashboardPage"));

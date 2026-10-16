@@ -3,7 +3,7 @@
  * @description Platform Orders page component managing online and Telegram bot orders, filtering by order source/channel, status updating, and invoice modal views.
  */
 
-import { ChevronDown, Download, Eye, FileSpreadsheet, FileText, MoreHorizontal, Package, PackageCheck, Pencil, PhoneCall, Plus, Printer, RotateCcw, Search, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
+import { ChevronDown, Download, Eye, FileSpreadsheet, FileText, Globe, MapPin, MoreHorizontal, PackageCheck, Pencil, PhoneCall, Plus, Printer, RotateCcw, Search, Send, ShoppingCart, Store, Trash2, Truck, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
@@ -341,7 +341,7 @@ function getLocalDateString(): string {
 }
 
 function formatInvoiceDate(d?: string | null): string {
-  if (!d) return "15 . 08 . 2026";
+  if (!d) return "—";
   const clean = d.includes("T") ? d.split("T")[0] : d;
   const parts = clean.split("-");
   if (parts.length === 3) {
@@ -555,7 +555,6 @@ export default function PlatformOrdersPage({
   const [editingOrder, setEditingOrder] = useState<OrderData | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<OrderData | null>(null);
-  const [incomingDate, setIncomingDate] = useState(new Date().toISOString().split("T")[0]);
   const [productList, setProductList] = useState<ProductOption[]>([]);
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
@@ -635,7 +634,7 @@ export default function PlatformOrdersPage({
         setLoading(false);
       });
     api
-      .get<DashboardStatsData>(`/api/dashboard/stats?target_date=${incomingDate}`)
+      .get<DashboardStatsData>("/api/dashboard/stats")
       .then(setStats)
       .catch(() => { });
     productsApi
@@ -669,7 +668,7 @@ export default function PlatformOrdersPage({
     load();
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, [incomingDate]);
+  }, []);
 
   function cancelOrder(o: OrderData) {
     api
@@ -703,11 +702,11 @@ export default function PlatformOrdersPage({
 
   function printPlatformInvoiceDirectly(order: any) {
     const orderDate = formatInvoiceDate(order.order_date || order.slot_date_str || order.created_at);
-    const refNo = "B " + (order.order_no ? order.order_no.replace("SO-2026-", "0088") : "0088");
-    const spotPrice = (order.spot_price || 4376.50).toLocaleString(undefined, { minimumFractionDigits: 2 });
-    const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "+200";
-    const qtyVal = order.quantity || 1.00;
-    const totalCost = (order.total_amount || 140986.00).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    const refNo = order.order_no || "—";
+    const spotPrice = order.spot_price != null ? Number(order.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
+    const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "0";
+    const qtyVal = order.quantity != null ? order.quantity : "—";
+    const totalCost = order.total_amount != null ? Number(order.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
 
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -769,11 +768,11 @@ export default function PlatformOrdersPage({
           <div class="border border-indigo-200 rounded-none p-2.5 bg-indigo-50/20 space-y-1.5 text-xs text-slate-800">
             <div class="flex items-center justify-between border-b border-indigo-100 pb-1">
               <span class="font-semibold text-slate-500">Customer Name:</span>
-              <span class="font-bold text-slate-900 text-xs">${order.customer_name || "Client"}</span>
+              <span class="font-bold text-slate-900 text-xs">${order.customer_name || "—"}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="font-semibold text-slate-500">Channel / Platform:</span>
-              <span class="font-semibold text-indigo-700 text-xs">${order.order_source || "Telegram"}</span>
+              <span class="font-semibold text-indigo-700 text-xs">${order.order_source || "—"}</span>
             </div>
           </div>
 
@@ -826,11 +825,11 @@ export default function PlatformOrdersPage({
 
   function openPlatformInvoiceInNewTab(order: any) {
     const orderDate = formatInvoiceDate(order.order_date || order.slot_date_str || order.created_at);
-    const refNo = "B " + (order.order_no ? order.order_no.replace("SO-2026-", "0088") : "0088");
-    const spotPrice = (order.spot_price || 4376.50).toLocaleString(undefined, { minimumFractionDigits: 2 });
-    const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "+200";
-    const qtyVal = order.quantity || 1.00;
-    const totalCost = (order.total_amount || 140986.00).toLocaleString(undefined, { minimumFractionDigits: 2 });
+    const refNo = order.order_no || "—";
+    const spotPrice = order.spot_price != null ? Number(order.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
+    const premiumVal = order.premium !== undefined && order.premium !== null ? `${order.premium > 0 ? "+" : ""}${order.premium}` : "0";
+    const qtyVal = order.quantity != null ? order.quantity : "—";
+    const totalCost = order.total_amount != null ? Number(order.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -906,11 +905,11 @@ export default function PlatformOrdersPage({
           <div class="border border-indigo-200 rounded-none p-2.5 bg-indigo-50/20 space-y-1.5 text-xs text-slate-800">
             <div class="flex items-center justify-between border-b border-indigo-100 pb-1">
               <span class="font-semibold text-slate-500">Customer Name:</span>
-              <span class="font-bold text-slate-900 text-xs">${order.customer_name || "Client"}</span>
+              <span class="font-bold text-slate-900 text-xs">${order.customer_name || "—"}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="font-semibold text-slate-500">Channel / Platform:</span>
-              <span class="font-semibold text-indigo-700 text-xs">${order.order_source || "Telegram"}</span>
+              <span class="font-semibold text-indigo-700 text-xs">${order.order_source || "—"}</span>
             </div>
           </div>
 
@@ -1103,80 +1102,108 @@ export default function PlatformOrdersPage({
     handleScroll,
   } = useLazyRecords(filteredRows, { initialCount: 15, batchSize: 15 });
 
+  const sellStats = useMemo(() => {
+    if (rows.length > 0) {
+      let oversea = 0;
+      let localPlatform = 0;
+      let localPhysical = 0;
+
+      for (const r of rows) {
+        if (r.status === "CANCELLED") continue;
+        const qty = toNumber(r.quantity);
+        const rawC = (r.channel || "").toUpperCase();
+        const rawR = (r.region || "").toUpperCase();
+
+        if (rawC.includes("OVERSEA") || rawR.includes("OVERSEA")) {
+          oversea += qty;
+        } else if (rawC === "TELEGRAM" || Boolean(r.telegram_user_id)) {
+          localPlatform += qty;
+        } else {
+          localPhysical += qty;
+        }
+      }
+
+      return {
+        oversea,
+        localPlatform,
+        localPhysical,
+        totalSold: oversea + localPlatform + localPhysical,
+      };
+    }
+
+    return {
+      oversea: toNumber(stats?.gold_out_overseas ?? 0),
+      localPlatform: toNumber(stats?.gold_out_platform ?? 0),
+      localPhysical: toNumber(stats?.gold_out_physical ?? 0),
+      totalSold: toNumber(stats?.gold_out_total ?? stats?.total_sell_kg ?? 0),
+    };
+  }, [rows, stats]);
+
   return (
     <div
       className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
       onClick={() => setActiveMenuId(null)}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-            <Package size={16} className="text-slate-500 shrink-0" />
-            <span>Current Physical Stock</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 flex-shrink-0">
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <Globe size={15} className="text-slate-500 shrink-0" />
+            <span>Oversea</span>
           </div>
-          <div className="mt-2.5 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.physical_stock ?? 0).toFixed(1)}</span>
-            <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
+          <div className="mt-2 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {Number.isInteger(sellStats.oversea) ? sellStats.oversea.toFixed(0) : sellStats.oversea.toFixed(1)}
+            </span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2.5">
-            <div className="flex items-center gap-2 text-slate-600 text-sm font-medium">
-              <Truck size={16} className="text-slate-500 shrink-0" />
-              <span>Incoming Gold</span>
-            </div>
-            <input
-              type="date"
-              aria-label="Incoming date filter"
-              value={incomingDate}
-              onChange={(e) => setIncomingDate(e.target.value)}
-              className="px-2.5 py-1 text-xs border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs"
-            />
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <Send size={15} className="text-slate-500 shrink-0" />
+            <span>Local-Platform</span>
           </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                Total Incoming
-              </div>
-              <div className="flex items-baseline">
-                <span className="text-2xl font-bold text-slate-800">{toNumber(stats?.incoming_po ?? 0).toFixed(1)}</span>
-                <span className="ml-1.5 text-sm font-semibold text-slate-400">KG</span>
-              </div>
-            </div>
+          <div className="mt-2 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {Number.isInteger(sellStats.localPlatform) ? sellStats.localPlatform.toFixed(0) : sellStats.localPlatform.toFixed(1)}
+            </span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
+        </div>
 
-          <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-100">
-            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Overseas">Overseas</div>
-              <div className="flex items-baseline">
-                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_overseas ?? 0).toFixed(1)}</span>
-                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-              </div>
-            </div>
-            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Platform">Local-Platform</div>
-              <div className="flex items-baseline">
-                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_platform ?? 0).toFixed(1)}</span>
-                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-              </div>
-            </div>
-            <div className="p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 truncate" title="Local Physical">Local-Physical</div>
-              <div className="flex items-baseline">
-                <span className="text-sm font-bold text-slate-800">{toNumber(stats?.gold_in_local_physical ?? 0).toFixed(1)}</span>
-                <span className="ml-1 text-[10px] font-medium text-slate-400">KG</span>
-              </div>
-            </div>
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <Store size={15} className="text-slate-500 shrink-0" />
+            <span>Local-Physical</span>
+          </div>
+          <div className="mt-2 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {Number.isInteger(sellStats.localPhysical) ? sellStats.localPhysical.toFixed(0) : sellStats.localPhysical.toFixed(1)}
+            </span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
+            <ShoppingCart size={15} className="text-slate-500 shrink-0" />
+            <span>Total Sold</span>
+          </div>
+          <div className="mt-2 flex items-baseline">
+            <span className="text-2xl font-bold text-slate-800">
+              {Number.isInteger(sellStats.totalSold) ? sellStats.totalSold.toFixed(0) : sellStats.totalSold.toFixed(1)}
+            </span>
+            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
           </div>
         </div>
       </div>
 
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden h-full">
         <div className="p-4 flex flex-col sm:flex-row items-center gap-3 border-b border-slate-100 flex-shrink-0">
-          <div className="w-full sm:w-64 max-w-xs shrink-0">
+          <div className="w-full sm:w-80 md:w-96 shrink-0">
             <SearchInput
+              size="sm"
+              className="w-full"
               value={q}
               onChange={setQ}
               placeholder="Search order no, customer..."
@@ -1186,7 +1213,7 @@ export default function PlatformOrdersPage({
             aria-label="Order status filter"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-600 focus:outline-none"
+            className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium focus:outline-none focus:border-indigo-500 shadow-xs cursor-pointer"
           >
             {[
               "Order status",
@@ -1400,7 +1427,7 @@ export default function PlatformOrdersPage({
                                     channel: editChan,
                                     product_type: (r as any).product_type || "DB",
                                     unit_type: (r as any).unit_type || "Kg",
-                                    spot_price: String(r.spot_price || "4376.50"),
+                                    spot_price: r.spot_price != null ? String(r.spot_price) : "",
                                     quantity: String(r.quantity),
                                     premium: String(r.premium),
                                     total_amount: String(r.total_amount || ""),
@@ -1461,7 +1488,7 @@ export default function PlatformOrdersPage({
       </Card>
 
       {returnTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">Return {returnTarget.order_no}</h3>
@@ -1515,10 +1542,18 @@ export default function PlatformOrdersPage({
       )}
 
       {isNewOrderModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-xl overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
-              <h3 className="font-semibold text-slate-800 text-lg">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsNewOrderModalOpen(false);
+              setEditingOrder(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-3xl border border-slate-300 shadow-2xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[85vh]">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">
                 {editingOrder !== null ? `Edit Order (${editingOrder.order_no})` : "New Sell Order"}
               </h3>
               <button
@@ -1534,10 +1569,10 @@ export default function PlatformOrdersPage({
               </button>
             </div>
 
-            <div className="p-6 space-y-4 flex-1 overflow-y-auto max-h-[75vh]">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Channel</label>
-                <div className="flex bg-slate-100 p-1 rounded-lg gap-1 border border-slate-200/60">
+                <div className="flex bg-slate-100 p-1 rounded-full gap-1 border border-slate-200/80 w-full">
                   {(["Oversea", "Local"] as const).map((ch) => {
                     const isSelected =
                       newOrderForm.channel === ch ||
@@ -1548,7 +1583,7 @@ export default function PlatformOrdersPage({
                         key={ch}
                         type="button"
                         onClick={() => setNewOrderForm({ ...newOrderForm, channel: ch })}
-                        className={`flex-1 py-2 px-2 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                        className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-full transition-all cursor-pointer ${
                           isSelected
                             ? "bg-white text-indigo-600 shadow-xs border border-slate-200/80 font-bold"
                             : "text-slate-500 hover:text-slate-800 hover:bg-slate-200/50"
@@ -1677,20 +1712,20 @@ export default function PlatformOrdersPage({
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5 shrink-0">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setIsNewOrderModalOpen(false)}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submitNewSellOrder}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={16} /> Create Sell Order
+                <Plus size={14} /> Create Sell Order
               </button>
             </div>
           </div>
@@ -1699,7 +1734,7 @@ export default function PlatformOrdersPage({
 
       {/* E-INVOICE / SALE SLIP MODAL (BLUE THEME) */}
       {invoiceModalOrder && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
           <div className="bg-white rounded-none border border-indigo-600 shadow-none w-[148mm] max-w-[148mm] overflow-hidden transform scale-100 transition-transform my-6 text-blue-950 font-sans">
 
             {/* Modal Header Bar */}
@@ -1772,11 +1807,11 @@ export default function PlatformOrdersPage({
               <div className="border border-blue-700 rounded-lg p-3 bg-blue-50/40 space-y-2 text-xs text-blue-900">
                 <div className="flex items-center justify-between border-b border-blue-200 pb-1.5">
                   <span className="font-semibold">Customer Name / 客户名:</span>
-                  <span className="font-bold text-slate-900 text-sm">{invoiceModalOrder.customer_name || "ABC"}</span>
+                  <span className="font-bold text-slate-900 text-sm">{invoiceModalOrder.customer_name || "—"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">Phone Number / 电话号码:</span>
-                  <span className="font-mono text-slate-800">+855 12 345 678</span>
+                  <span className="font-mono text-slate-800">{(invoiceModalOrder as any).customer_phone || "—"}</span>
                 </div>
               </div>
 
@@ -1813,17 +1848,17 @@ export default function PlatformOrdersPage({
                         {formatInvoiceDate(invoiceModalOrder.order_date || invoiceModalOrder.slot_date_str || invoiceModalOrder.created_at)}
                       </td>
                       <td className="p-2.5 border-r border-blue-200">
-                        <div><span className="font-bold text-sm">4,376.50</span></div>
+                        <div><span className="font-bold text-sm">{invoiceModalOrder.spot_price != null ? Number(invoiceModalOrder.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"}</span></div>
                         <div className="text-[10px] text-slate-500 italic">(Spot Price)</div>
                       </td>
                       <td className="p-2.5 border-r border-blue-200 font-semibold text-blue-700">
-                        +{invoiceModalOrder.premium || 200}
+                        {invoiceModalOrder.premium !== undefined && invoiceModalOrder.premium !== null ? `${invoiceModalOrder.premium > 0 ? "+" : ""}${invoiceModalOrder.premium}` : "0"}
                       </td>
                       <td className="p-2.5 border-r border-blue-200 font-bold">
-                        {invoiceModalOrder.quantity || 1.00} <span className="text-xs font-normal text-slate-600">(CDB) Kg</span>
+                        {invoiceModalOrder.quantity != null ? invoiceModalOrder.quantity : "—"} <span className="text-xs font-normal text-slate-600">(CDB) Kg</span>
                       </td>
                       <td className="p-2.5 font-black text-sm text-blue-700">
-                        {(invoiceModalOrder.total_amount || 130000).toLocaleString(undefined, { minimumFractionDigits: 2 })} <span className="text-xs font-normal text-slate-700">USD</span>
+                        {invoiceModalOrder.total_amount != null ? Number(invoiceModalOrder.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—"} <span className="text-xs font-normal text-slate-700">USD</span>
                       </td>
                     </tr>
                     <tr className="bg-blue-50/10 h-7 text-slate-400">
@@ -1839,7 +1874,7 @@ export default function PlatformOrdersPage({
                 {/* Notes section */}
                 <div className="p-2.5 border-t border-blue-700 bg-blue-50/30 text-xs text-blue-900">
                   <span className="font-semibold">Other / 其它:</span> &nbsp;
-                  <span className="text-slate-800 italic">Physical gold sale order completed.</span>
+                  <span className="text-slate-800 italic">{(invoiceModalOrder as any).notes || "—"}</span>
                 </div>
               </div>
 

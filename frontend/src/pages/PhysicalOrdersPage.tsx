@@ -304,7 +304,7 @@ export default function PhysicalOrdersPage({
       </Card>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">

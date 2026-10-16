@@ -108,7 +108,7 @@ export default function BotTab({
               value={botUsername}
               onChange={(e) => setBotUsername(e.target.value)}
               placeholder="Bot username"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function BotTab({
             <input
               type={showToken ? "text" : "password"}
               placeholder="Bot token API"
-              className="w-full pl-3 pr-10 py-2 text-sm border border-slate-200 rounded-lg font-mono text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-3 pr-10 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
             <button
               type="button"
@@ -142,7 +142,7 @@ export default function BotTab({
               value={salesTelegramUsername}
               onChange={(e) => setSalesTelegramUsername(e.target.value)}
               placeholder="Telegram username"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         </div>
@@ -158,7 +158,7 @@ export default function BotTab({
               value={salesPhoneNumber}
               onChange={(e) => setSalesPhoneNumber(e.target.value)}
               placeholder="Contact phone number"
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         </div>

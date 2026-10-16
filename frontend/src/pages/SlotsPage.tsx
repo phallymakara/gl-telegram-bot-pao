@@ -188,7 +188,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         notify("Buy table deleted");
         loadSlots();
       })
-      .catch((e: Error) => notify(e.message || "Failed to delete table"));
+      .catch((e: Error) => notify(e.message || "Failed to delete table", "error"));
   }
 
   function openAddBuyRowModal(tableId: number) {
@@ -272,7 +272,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         notify("Row deleted");
         loadSlots();
       })
-      .catch((e: Error) => notify(e.message || "Failed to delete row"));
+      .catch((e: Error) => notify(e.message || "Failed to delete row", "error"));
   }
 
   // Sell Table Handlers
@@ -296,7 +296,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         notify("Table deleted");
         loadSlots();
       })
-      .catch((e: Error) => notify(e.message || "Failed to delete table"));
+      .catch((e: Error) => notify(e.message || "Failed to delete table", "error"));
   }
 
   function openAddSellRowModal(tableId: number) {
@@ -436,7 +436,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         notify("Row deleted");
         loadSlots();
       })
-      .catch((e: Error) => notify(e.message || "Failed to delete row"));
+      .catch((e: Error) => notify(e.message || "Failed to delete row", "error"));
   }
 
 
@@ -858,7 +858,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
       {/* Buy Slot Row Modal */}
       {isBuyModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">
@@ -935,7 +935,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
       {/* Sell Slot Row Modal */}
       {isSellModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">

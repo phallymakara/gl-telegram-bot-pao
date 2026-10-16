@@ -22,7 +22,7 @@ export default function Toast({ toast, type = "success" }: ToastProps) {
   if (!toast) return null;
   const isError = type === "error";
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-3 duration-200">
       <div
         className={
           "text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 max-w-sm " +

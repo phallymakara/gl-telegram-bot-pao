@@ -25,16 +25,16 @@ export default function ProfileTab() {
 
   return (
     <div id="section-profile" className="space-y-6 scroll-mt-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center justify-center text-center gap-2.5 pb-2">
         <div className="relative group shrink-0">
-          <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center text-lg font-bold">
+          <div className="h-20 w-20 rounded-full bg-gradient-to-tr from-indigo-500 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold">
             {initials}
           </div>
           <button
             type="button"
             className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity focus:outline-none cursor-pointer"
           >
-            <Camera size={16} />
+            <Camera size={18} />
           </button>
         </div>
         <div>
@@ -51,7 +51,7 @@ export default function ProfileTab() {
             <input
               key={currentUser?.name}
               defaultValue={currentUser?.name || ""}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         </div>
@@ -62,7 +62,7 @@ export default function ProfileTab() {
             <input
               key={currentUser?.email}
               defaultValue={currentUser?.email || ""}
-              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
         </div>

@@ -180,7 +180,7 @@ export default function Sidebar({
                   key={item.id}
                   onClick={() => handleNavigate(item.id)}
                   className={`w-full flex items-center rounded-lg text-[14px] font-medium transition-colors cursor-pointer relative ${active ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-slate-600 hover:bg-slate-50"
-                    } ${!desktopOpen ? "justify-center px-0 py-3 lg:w-12 lg:h-12 mx-auto" : "gap-3 px-3 py-2.5"
+                    } ${!desktopOpen ? "justify-center px-0 py-2.5 lg:w-11 lg:h-11 mx-auto" : "gap-3 px-3 py-2"
                     }`}
                   title={item.label}
                 >

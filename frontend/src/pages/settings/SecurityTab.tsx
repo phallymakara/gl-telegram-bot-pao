@@ -121,7 +121,7 @@ export default function SecurityTab({
                   setOpenTime(e.target.value);
                   handleScheduleUpdate({ open_time: e.target.value });
                 }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
             <div className="space-y-1.5">
@@ -133,7 +133,7 @@ export default function SecurityTab({
                   setCloseTime(e.target.value);
                   handleScheduleUpdate({ close_time: e.target.value });
                 }}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
           </div>
@@ -145,7 +145,7 @@ export default function SecurityTab({
               value={offStoreMessage}
               onChange={(e) => setOffStoreMessage(e.target.value)}
               onBlur={() => handleScheduleUpdate({ off_store_message: offStoreMessage })}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
             />
             <p className="text-[11px] text-slate-400">Custom message sent to customers outside operating hours. If empty, the default schedule notice is sent.</p>
           </div>

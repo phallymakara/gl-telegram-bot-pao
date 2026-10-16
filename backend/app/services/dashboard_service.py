@@ -14,6 +14,8 @@ from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
 from app.models.purchase_order import PurchaseOrder
+from app.models.slot_row import SlotRow
+from app.models.slot_table import SlotTable
 from app.models.supplier import Supplier
 from app.models.system_setting import SystemSetting
 from app.models.user import User
@@ -40,6 +42,7 @@ from app.schemas.dashboard import (
     StockMatrixCell,
     StockMatrixColumn,
     StockMatrixLeftTotal,
+    StockMatrixPairTotal,
     StockMatrixData,
     StockMatrixDeductionCreate,
     SoldTrendPoint,
@@ -106,11 +109,17 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
         if is_non_stock_gold(getattr(o, "product_type", None), getattr(o, "unit_type", None)):
             continue
         d = get_effective_order_date(o)
-        if d == target_dt_val:
-            txn = (o.transaction_type or "").upper()
-            qty = float(o.quantity or 0)
+        txn = (o.transaction_type or "").upper()
+        if d == today:
             if txn == "SELL":
                 sold_today += 1
+            elif txn == "BUY":
+                buy_today += 1
+
+        is_date_match = (d == target_dt) if target_dt else True
+        if is_date_match:
+            qty = float(o.quantity or 0)
+            if txn == "SELL":
                 region = (getattr(o, "region", None) or "LOCAL").upper()
                 ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
                 if region == "OVERSEAS":
@@ -120,7 +129,6 @@ def calculate_dashboard_stats(db: Session, target_date: str = "") -> DashboardSt
                 else:
                     gold_out_physical += qty
             elif txn == "BUY":
-                buy_today += 1
                 order_buyback += qty
 
     gold_out_total = gold_out_overseas + gold_out_platform + gold_out_physical
@@ -492,66 +500,55 @@ def _normalize_and_sort_matrix_columns(columns_list: list[dict]) -> list[dict]:
 
 def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     """
-    Retrieve matrix column configurations from persistent SystemSetting storage or default 5 columns.
-    Ensures columns are deduplicated and ordered chronologically from current date to next.
+    Retrieve matrix column configurations ensuring the columns match the EXACT dates
+    configured in the active slot rows (starting from anchor date).
     """
-    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
-    if setting and setting.value:
-        try:
-            stored = json.loads(setting.value)
-            if isinstance(stored, list) and len(stored) > 0:
-                raw_list = []
-                for col in stored:
-                    t_date_str = col.get("target_date")
-                    if t_date_str:
-                        try:
-                            t_date = datetime.strptime(t_date_str, "%Y-%m-%d").date()
-                        except ValueError:
-                            t_date = _parse_matrix_date(col.get("date_label", ""))
-                    else:
-                        t_date = _parse_matrix_date(col.get("date_label", ""))
+    # 1. Fetch exact dates defined in active slot tables on or after anchor date
+    slot_dates_query = (
+        db.query(SlotRow.slot_date)
+        .join(SlotTable, SlotRow.slot_table_id == SlotTable.id)
+        .filter(SlotTable.is_active == True, SlotRow.slot_date >= anchor)
+        .distinct()
+        .order_by(SlotRow.slot_date)
+        .all()
+    )
+    active_dates = [r[0] for r in slot_dates_query if r[0] is not None]
 
-                    raw_list.append({
-                        "id": col["id"],
-                        "brand": col["brand"],
-                        "date_label": col.get("date_label") or t_date.strftime("%d/%m"),
-                        "header_color": col.get("header_color", "peach"),
-                        "target_date": t_date.strftime("%Y-%m-%d"),
-                    })
+    # Fallback to anchor and anchor + 1 day if no slot rows are defined yet
+    if not active_dates:
+        active_dates = [anchor, anchor + timedelta(days=1)]
 
-                normalized = _normalize_and_sort_matrix_columns(raw_list)
-
-                # Persist cleaned version if any duplicates were pruned or order adjusted
-                if len(normalized) != len(stored) or [c["id"] for c in normalized] != [c.get("id") for c in stored]:
-                    setting.value = json.dumps(normalized)
-                    db.commit()
-
-                # Convert target_date to date object for internal callers
-                result = []
-                for col in normalized:
-                    result.append({
-                        **col,
-                        "target_date": datetime.strptime(col["target_date"], "%Y-%m-%d").date(),
-                    })
-                return result
-        except Exception:
-            pass
-
-    # Default initial 5 columns starting from anchor date
-    d0 = anchor
-    d1 = anchor + timedelta(days=1)
-    d0_label = d0.strftime("%d/%m")
-    d1_label = d1.strftime("%d/%m")
-    d0_day = d0.strftime("%d")
-    d1_day = d1.strftime("%d")
-
-    return [
-        {"id": f"swiss_{d0_day}", "brand": "swiss", "date_label": d0_label, "header_color": "peach", "target_date": d0},
-        {"id": f"swiss_{d1_day}", "brand": "swiss", "date_label": d1_label, "header_color": "peach", "target_date": d1},
-        {"id": f"db_{d0_day}", "brand": "DB", "date_label": d0_label, "header_color": "orange", "target_date": d0},
-        {"id": f"db_{d1_day}", "brand": "DB", "date_label": d1_label, "header_color": "orange", "target_date": d1},
-        {"id": f"sv_{d0_day}", "brand": "SV", "date_label": d0_label, "header_color": "magenta", "target_date": d0},
+    # Standard brands in order: Swiss, DB, SV
+    brands = [
+        {"name": "swiss", "color": "peach"},
+        {"name": "DB", "color": "orange"},
+        {"name": "SV", "color": "magenta"},
     ]
+
+    result_cols = []
+    for b in brands:
+        for t_date in active_dates:
+            d_str = t_date.strftime("%Y-%m-%d")
+            d_label = f"{t_date.day}-{t_date.strftime('%b')}"
+            result_cols.append({
+                "id": f"{b['name'].lower()}_{d_str}",
+                "brand": b["name"],
+                "date_label": d_label,
+                "header_color": b["color"],
+                "target_date": t_date,
+            })
+
+    # Persist normalized version into SystemSetting for consistency
+    if anchor == date.today():
+        setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
+        if not setting:
+            setting = SystemSetting(key="stock_matrix_columns", value="")
+            db.add(setting)
+        json_cols = [{**c, "target_date": c["target_date"].strftime("%Y-%m-%d")} for c in result_cols]
+        setting.value = json.dumps(json_cols)
+        db.commit()
+
+    return result_cols
 
 
 def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixData:
@@ -710,7 +707,10 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         col_orders.append(matching_sell_orders)
         deductions = [-abs(float(o.quantity or 0)) for o in matching_sell_orders]
         total_deductions = sum(deductions)
-        avail = max(0.0, import_stock + physical_buy_qty + bot_buy_qty - abs(total_deductions))
+        physical_sell_mag = sum(abs(float(o.quantity or 0)) for o in physical_orders)
+        bot_sell_mag = sum(abs(float(o.quantity or 0)) for o in bot_orders)
+        # Formula: avalible_stock = Physical_buy + Bot_buy - ( Physical_sell + bot_sell)
+        avail = round((physical_buy_qty + bot_buy_qty) - (physical_sell_mag + bot_sell_mag), 4)
 
         # Format date label to D-MMM (e.g. 6-Oct) if valid date object
         if isinstance(t_date, (date, datetime)):
@@ -783,12 +783,95 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
 
     summary_deductions = [c.total_deductions for c in computed_columns]
 
+    # Calculate 2-date pair totals per brand: total_both_date = first_date + second_date
+    pair_totals: list[StockMatrixPairTotal] = []
+    brands_seen = []
+    brand_columns_map = {}
+    for col in computed_columns:
+        b_key = col.brand.lower()
+        if b_key not in brand_columns_map:
+            brands_seen.append(b_key)
+            brand_columns_map[b_key] = []
+        brand_columns_map[b_key].append(col)
+
+    for b_key in brands_seen:
+        b_cols = brand_columns_map[b_key]
+        for i in range(0, len(b_cols), 2):
+            colA = b_cols[i]
+            colB = b_cols[i + 1] if i + 1 < len(b_cols) else None
+
+            if colB:
+                dateA_str = colA.target_date or colA.date_label
+                dateB_str = colB.target_date or colB.date_label
+                try:
+                    dA = datetime.strptime(dateA_str, "%Y-%m-%d").date()
+                except Exception:
+                    dA = _parse_matrix_date(dateA_str)
+                try:
+                    dB = datetime.strptime(dateB_str, "%Y-%m-%d").date()
+                except Exception:
+                    dB = _parse_matrix_date(dateB_str)
+
+                dayA = f"{dA.day:02d}"
+                dayB = f"{dB.day:02d}"
+                monthA = f"{dA.month:02d}"
+                monthB = f"{dB.month:02d}"
+
+                if dA.year != dB.year:
+                    range_label = f"{dayA}/{monthA}/{str(dA.year)[-2:]}-{dayB}/{monthB}/{str(dB.year)[-2:]}"
+                elif dA.month != dB.month:
+                    range_label = f"{dayA}/{monthA}-{dayB}/{monthB}"
+                elif dA.day != dB.day:
+                    range_label = f"{dayA}-{dayB}/{monthA}"
+                else:
+                    range_label = f"{dayA}/{monthA}"
+
+                # total_both_date = first_date + second_date
+                tot_val = round(colA.available_stock + colB.available_stock, 4)
+
+                pair_totals.append(
+                    StockMatrixPairTotal(
+                        brand=colA.brand,
+                        label=f"Total {range_label}",
+                        span=2,
+                        column_ids=[colA.id, colB.id],
+                        first_date=colA.target_date,
+                        second_date=colB.target_date,
+                        total_both_date=tot_val,
+                    )
+                )
+            else:
+                tot_val = round(colA.available_stock, 4)
+                try:
+                    dA = datetime.strptime(colA.target_date or colA.date_label, "%Y-%m-%d").date()
+                except Exception:
+                    dA = _parse_matrix_date(colA.target_date or colA.date_label)
+                dayA = f"{dA.day:02d}"
+                monthA = f"{dA.month:02d}"
+
+                pair_totals.append(
+                    StockMatrixPairTotal(
+                        brand=colA.brand,
+                        label=f"Total {dayA}/{monthA}",
+                        span=1,
+                        column_ids=[colA.id],
+                        first_date=colA.target_date,
+                        second_date=None,
+                        total_both_date=tot_val,
+                    )
+                )
+
+    # total all is the sum formula of all dates into one
+    total_all_stock = round(sum(col.available_stock for col in computed_columns), 4)
+
     return StockMatrixData(
         columns=computed_columns,
         deduction_rows=deduction_rows,
         deduction_cells=deduction_cells,
         left_totals=left_totals,
         summary_deductions=summary_deductions,
+        total_all_stock=total_all_stock,
+        pair_totals=pair_totals,
     )
 
 
@@ -985,8 +1068,11 @@ def add_matrix_column(
     """
     Persistently add a column to the stock matrix in SystemSetting.
     """
-    current = get_matrix_columns_config(db, date.today())
+    today = date.today()
+    current = get_matrix_columns_config(db, today)
     target_d = _parse_matrix_date(date_str)
+    if target_d < today:
+        target_d = today
     date_label = target_d.strftime("%d/%m")
     d_day = target_d.strftime("%d")
 

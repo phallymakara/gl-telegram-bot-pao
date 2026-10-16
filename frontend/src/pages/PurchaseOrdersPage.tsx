@@ -283,7 +283,7 @@ function formatDate(d: string | null | undefined): string {
 }
 
 function formatInvoiceDate(d?: string | null): string {
-  if (!d) return "15 . 08 . 2026";
+  if (!d) return "—";
   const clean = d.includes("T") ? d.split("T")[0] : d;
   const parts = clean.split("-");
   if (parts.length === 3) {
@@ -295,14 +295,7 @@ function formatInvoiceDate(d?: string | null): string {
 
 function formatParty(r: PurchaseOrderData): string {
   if (!r.supplier_name) return "—";
-  let name = r.supplier_name;
-  if (name.includes("Refining Corp")) {
-    name = name.replace("Refining Corp", "").trim();
-  }
-  if (name.includes("Customer Buy-back ·")) {
-    name = name.replace("Customer Buy-back ·", "").trim();
-  }
-  return name || "—";
+  return r.supplier_name;
 }
 
 function ExportPoDropdown({
@@ -678,11 +671,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
   function printInvoiceDirectly(po: PurchaseOrderData) {
     const orderDate = formatInvoiceDate(po.order_date || po.expected_date || po.created_at);
-    const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
-    const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
-    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
-    const qtyVal = po.quantity || 1.00;
-    const totalCost = (po.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 });
+    const refNo = po.po_no || "—";
+    const spotPrice = po.spot_price != null ? Number(po.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
+    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "0";
+    const qtyVal = po.quantity != null ? po.quantity : "—";
+    const totalCost = po.total_cost != null ? Number(po.total_cost).toLocaleString(undefined, { minimumFractionDigits: 3 }) : "—";
 
     const iframe = document.createElement("iframe");
     iframe.style.position = "fixed";
@@ -743,12 +736,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
           <div class="border border-red-700 rounded-none p-2.5 bg-red-50/30 space-y-1.5 text-xs text-red-900">
             <div class="flex items-center justify-between border-b border-red-200 pb-1">
-              <span class="font-semibold">Customer Name / 客户名:</span>
-              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "ABC"}</span>
+              <span class="font-semibold">Supplier Name / 客户名:</span>
+              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "—"}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="font-semibold">Phone Number / 电话号码:</span>
-              <span class="font-mono text-slate-800 text-xs">+855 12 345 678</span>
+              <span class="font-mono text-slate-800 text-xs">—</span>
             </div>
           </div>
 
@@ -774,7 +767,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </tbody>
             </table>
             <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
-              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Local gold trade purchase order verified."}</span>
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "—"}</span>
             </div>
           </div>
 
@@ -804,11 +797,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
   function openInvoiceInNewTab(po: PurchaseOrderData) {
     const orderDate = formatInvoiceDate(po.order_date || po.expected_date || po.created_at);
-    const refNo = "A " + (po.po_no ? po.po_no.replace("PO-2026-", "0062") : "0062");
-    const spotPrice = (po.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 });
-    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "+200";
-    const qtyVal = po.quantity || 1.00;
-    const totalCost = (po.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 });
+    const refNo = po.po_no || "—";
+    const spotPrice = po.spot_price != null ? Number(po.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—";
+    const premiumVal = po.premium !== undefined && po.premium !== null ? `${po.premium > 0 ? "+" : ""}${po.premium}` : "0";
+    const qtyVal = po.quantity != null ? po.quantity : "—";
+    const totalCost = po.total_cost != null ? Number(po.total_cost).toLocaleString(undefined, { minimumFractionDigits: 3 }) : "—";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -883,12 +876,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           <!-- Customer Box -->
           <div class="border border-red-700 rounded-none p-2.5 bg-red-50/30 space-y-1.5 text-xs text-red-900">
             <div class="flex items-center justify-between border-b border-red-200 pb-1">
-              <span class="font-semibold">Customer Name / 客户名:</span>
-              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "ABC"}</span>
+              <span class="font-semibold">Supplier Name / 客户名:</span>
+              <span class="font-bold text-slate-900 text-xs">${po.supplier_name || "—"}</span>
             </div>
             <div class="flex items-center justify-between">
               <span class="font-semibold">Phone Number / 电话号码:</span>
-              <span class="font-mono text-slate-800 text-xs">+855 12 345 678</span>
+              <span class="font-mono text-slate-800 text-xs">—</span>
             </div>
           </div>
 
@@ -915,7 +908,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </tbody>
             </table>
             <div class="p-2 border-t border-red-700 bg-red-50/30 text-[11px] text-red-900">
-              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "Local gold trade purchase order verified."}</span>
+              <span class="font-semibold">Other / 其它:</span> &nbsp;<span class="text-slate-800 italic">${po.notes || "—"}</span>
             </div>
           </div>
 
@@ -989,12 +982,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       customer_name: po.supplier_name || "",
       product_type: (po as any).product_type || "",
       unit_type: (po as any).unit_type || "Kg",
-      spot_price: po.spot_price ? String(po.spot_price) : "4376.2",
-      premium: po.premium ? String(po.premium) : "200",
-      amount_kg: String(po.quantity || 1),
-      quantity: String(po.quantity || 1),
-      price: po.total_cost ? String(po.total_cost) : "",
-      unit_cost: String(po.unit_cost || 140786.078),
+      spot_price: po.spot_price != null ? String(po.spot_price) : "",
+      premium: po.premium != null ? String(po.premium) : "",
+      amount_kg: po.quantity != null ? String(po.quantity) : "",
+      quantity: po.quantity != null ? String(po.quantity) : "",
+      price: po.total_cost != null ? String(po.total_cost) : "",
+      unit_cost: po.unit_cost != null ? String(po.unit_cost) : "",
       currency: "USD",
       order_date: po.order_date || new Date().toISOString().split("T")[0],
       expected_date: po.expected_date || "",
@@ -1041,11 +1034,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       return;
     }
 
-    const spotPrice = Number(form.spot_price) || 4376.2;
-    const premium = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 200;
-    const qty = Number(form.amount_kg) || Number(form.quantity) || 1.0;
+    const spotPrice = Number(form.spot_price) || 0;
+    const premium = form.premium !== "" && !isNaN(Number(form.premium)) ? Number(form.premium) : 0;
+    const qty = Number(form.amount_kg) || Number(form.quantity) || 0;
     const factor = matchedProduct && matchedProduct.conversion_factor != null ? matchedProduct.conversion_factor : 32.148;
-    const unitCost = (spotPrice * factor) + premium;
+    const unitCost = spotPrice > 0 ? (spotPrice * factor) + premium : (Number(form.unit_cost) || 0);
     const totalCost = form.price !== "" ? Number(form.price) : (qty * unitCost);
 
     if (editingPoId !== null) {
@@ -1667,11 +1660,16 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       </Card>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-xl overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[90vh]">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false);
+          }}
+        >
+          <div className="bg-white rounded-3xl border border-slate-300 shadow-2xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[85vh]">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
               <div>
-                <h3 className="font-semibold text-slate-800 text-lg">
+                <h3 className="font-semibold text-slate-800 text-base">
                   {editingPoId ? "Edit Purchase Order" : "New Purchase"}
                 </h3>
                 <p className="text-xs font-mono font-semibold text-indigo-600 mt-0.5 flex items-center gap-1">
@@ -1687,13 +1685,13 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <Plus size={20} className="rotate-45" />
               </button>
             </div>
-            <div className="p-6 space-y-4 flex-1 overflow-y-auto max-h-[75vh]">
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+              <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-full border border-slate-200/80 w-full">
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "OVERSEA" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "OVERSEA"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${form.purchase_source === "OVERSEA"
+                    ? "bg-white text-indigo-600 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
@@ -1702,8 +1700,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, purchase_source: "LOCAL" })}
-                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${form.purchase_source === "LOCAL"
-                    ? "bg-white text-indigo-600 shadow-sm"
+                  className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${form.purchase_source === "LOCAL"
+                    ? "bg-white text-indigo-600 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
@@ -1830,23 +1828,23 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 />
               </div>
             </div>
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5 shrink-0">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setForm(emptyForm);
                   setIsOpen(false);
                 }}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={save}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={15} /> Make PO
+                <Plus size={14} /> Make PO
               </button>
             </div>
           </div>
@@ -1854,7 +1852,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       )}
 
       {returnTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-semibold text-slate-800 text-lg">Return {returnTarget.po_no}</h3>
@@ -1907,7 +1905,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
         </div>
       )}
       {receiveTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all">
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <h3 className="font-bold text-slate-800 text-lg">
@@ -2040,7 +2038,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
       {/* E-INVOICE / PURCHASE SLIP MODAL */}
       {invoiceModalPo && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
           <div className="bg-[#fffcf5] rounded-none border border-red-800 shadow-none w-[148mm] max-w-[148mm] overflow-hidden transform scale-100 transition-transform my-6 text-red-950 font-sans">
 
             {/* Modal Header Bar */}
@@ -2097,7 +2095,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     Local
                   </div>
                   <div className="text-xs text-red-900 font-medium space-y-1">
-                    <p>Re. No.: <span className="font-mono font-bold text-red-700 text-sm">A {invoiceModalPo.po_no.replace("PO-2026-", "0062")}</span></p>
+                    <p>Re. No.: <span className="font-mono font-bold text-red-700 text-sm">{invoiceModalPo.po_no || "—"}</span></p>
                     <p>Date: <span className="font-semibold text-slate-900">{invoiceModalPo.order_date || new Date().toISOString().split("T")[0]}</span></p>
                   </div>
                 </div>
@@ -2112,12 +2110,12 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               {/* Customer / Party Info Box */}
               <div className="border border-red-700 rounded-lg p-3 bg-red-50/20 space-y-2 text-xs text-red-900">
                 <div className="flex items-center justify-between border-b border-red-200 pb-1.5">
-                  <span className="font-semibold">Customer Name / 客户名:</span>
-                  <span className="font-bold text-slate-900 text-sm">{invoiceModalPo.supplier_name || "ABC"}</span>
+                  <span className="font-semibold">Supplier Name / 客户名:</span>
+                  <span className="font-bold text-slate-900 text-sm">{invoiceModalPo.supplier_name || "—"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">Phone Number / 电话号码:</span>
-                  <span className="font-mono text-slate-800">+855 12 345 678</span>
+                  <span className="font-mono text-slate-800">—</span>
                 </div>
               </div>
 
@@ -2154,17 +2152,17 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         {formatInvoiceDate(invoiceModalPo.order_date || invoiceModalPo.expected_date || invoiceModalPo.created_at)}
                       </td>
                       <td className="p-2.5 border-r border-red-200">
-                        <div><span className="font-bold text-sm">{(invoiceModalPo.spot_price || 4376.20).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                        <div><span className="font-bold text-sm">{(invoiceModalPo.spot_price != null ? Number(invoiceModalPo.spot_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) : "—")}</span></div>
                         <div className="text-[10px] text-slate-500 italic">(Spot price)</div>
                       </td>
                       <td className="p-2.5 border-r border-red-200 font-semibold text-rose-700">
-                        {invoiceModalPo.premium !== undefined && invoiceModalPo.premium !== null ? `${invoiceModalPo.premium > 0 ? "+" : ""}${invoiceModalPo.premium}` : "+200"}
+                        {invoiceModalPo.premium !== undefined && invoiceModalPo.premium !== null ? `${invoiceModalPo.premium > 0 ? "+" : ""}${invoiceModalPo.premium}` : "0"}
                       </td>
                       <td className="p-2.5 border-r border-red-200 font-bold">
-                        {invoiceModalPo.quantity || 1.00} <span className="text-xs font-normal text-slate-600">(CDB) Kg</span>
+                        {invoiceModalPo.quantity != null ? invoiceModalPo.quantity : "—"} <span className="text-xs font-normal text-slate-600">(CDB) Kg</span>
                       </td>
                       <td className="p-2.5 font-black text-sm text-red-700">
-                        {(invoiceModalPo.total_cost || 140786.078).toLocaleString(undefined, { minimumFractionDigits: 3 })} <span className="text-xs font-normal text-slate-700">USD</span>
+                        {(invoiceModalPo.total_cost != null ? Number(invoiceModalPo.total_cost).toLocaleString(undefined, { minimumFractionDigits: 3 }) : "—")} <span className="text-xs font-normal text-slate-700">USD</span>
                       </td>
                     </tr>
                     <tr className="bg-red-50/10 h-7 text-slate-400">
@@ -2180,7 +2178,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 {/* Notes section */}
                 <div className="p-2.5 border-t border-red-700 bg-red-50/20 text-xs text-red-900">
                   <span className="font-semibold">Other / 其它:</span> &nbsp;
-                  <span className="text-slate-800 italic">{invoiceModalPo.notes || "Local gold trade purchase order verified."}</span>
+                  <span className="text-slate-800 italic">{invoiceModalPo.notes || "—"}</span>
                 </div>
               </div>
 
