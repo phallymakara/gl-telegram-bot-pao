@@ -937,8 +937,10 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         total_deductions = sum(deductions)
         physical_sell_mag = sum(abs(float(o.quantity or 0)) for o in physical_orders)
         bot_sell_mag = sum(abs(float(o.quantity or 0)) for o in bot_orders)
-        # Formula: avalible_stock = Physical_buy + Bot_buy - ( Physical_sell + bot_sell)
-        avail = round((physical_buy_qty + bot_buy_qty) - (physical_sell_mag + bot_sell_mag), 4)
+        # Formula: Available stock = import stock + Stock buy from customer - stock sell to customer
+        stock_buy = physical_buy_qty + bot_buy_qty
+        stock_sell = physical_sell_mag + bot_sell_mag
+        avail = round(import_stock + stock_buy - stock_sell, 4)
 
         # Format date label to D-MMM (e.g. 6-Oct) if valid date object
         if isinstance(t_date, (date, datetime)):

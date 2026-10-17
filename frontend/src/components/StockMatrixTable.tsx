@@ -295,11 +295,19 @@ export default function StockMatrixTable() {
     return () => clearTimeout(timer);
   }, [editColError]);
 
+  // Formula: Available stock = import stock + Stock buy from customer - stock sell to customer
+  const getColAvailableStock = (col: StockMatrixColumnData): number => {
+    const importStock = col.import_stock ?? 0;
+    const stockBuy = (col.physical_buy ?? 0) + (col.bot_buy ?? 0);
+    const stockSell = Math.abs(col.physical_sale ?? 0) + Math.abs(col.bot_sale ?? 0);
+    return Math.round((importStock + stockBuy - stockSell) * 10000) / 10000;
+  };
+
   // Read cell value for a row and column
   const getCellValue = (col: StockMatrixColumnData, row: StockMatrixRowData): number => {
     switch (row.key) {
       case "available":
-        return col.available_stock ?? 0;
+        return getColAvailableStock(col);
       case "import":
         return col.import_stock ?? 0;
       case "physical_sell":
@@ -529,7 +537,8 @@ export default function StockMatrixTable() {
           rangeLabel = `${dayA}/${monthA}`;
         }
 
-        const totalVal = (colA.available_stock || 0) + (colB.available_stock || 0);
+        const totalVal =
+          Math.round((getColAvailableStock(colA) + getColAvailableStock(colB)) * 10000) / 10000;
 
         totalsToRender.push({
           label: `Total ${rangeLabel}`,
@@ -548,7 +557,7 @@ export default function StockMatrixTable() {
           span: 1,
           headerBg: brandColor,
           cellBg: brandColor,
-          value: colA.available_stock || 0,
+          value: getColAvailableStock(colA),
         });
       }
     }
@@ -559,7 +568,7 @@ export default function StockMatrixTable() {
       ? data.total_all_stock
       : columns
           .filter((col) => !(col.brand || "").toLowerCase().includes("sv"))
-          .reduce((acc, col) => acc + (col.available_stock || 0), 0);
+          .reduce((acc, col) => acc + getColAvailableStock(col), 0);
 
   return (
     <div className="w-full flex-1 py-3 px-3.5 sm:px-5 bg-white font-sans min-w-0">
