@@ -132,8 +132,45 @@ export interface StockMatrixPairTotalData {
   total_both_date: number;
 }
 
+export interface StockMatrixRowData {
+  key: string;
+  title: string;
+  subtitle?: string;
+  row_type?: string;
+  header_bg?: string;
+  cell_bg?: string;
+  badge_bg?: string;
+  is_system?: boolean;
+  custom_values?: Record<string, number>;
+}
+
+export interface StockMatrixRowCreateData {
+  title: string;
+  subtitle?: string;
+  row_type?: string;
+  header_bg?: string;
+  cell_bg?: string;
+  badge_bg?: string;
+}
+
+export interface StockMatrixRowUpdateData {
+  title?: string;
+  subtitle?: string;
+  header_bg?: string;
+  cell_bg?: string;
+  badge_bg?: string;
+  custom_values?: Record<string, number>;
+}
+
+export interface StockMatrixCellUpdateData {
+  col_id: string;
+  row_key: string;
+  value: number;
+}
+
 export interface StockMatrixResponseData {
   columns: StockMatrixColumnData[];
+  rows?: StockMatrixRowData[];
   deduction_rows: (number | null)[][];
   deduction_cells: StockMatrixCellData[][];
   left_totals: StockMatrixLeftTotalData[];
@@ -252,10 +289,34 @@ export const dashboardApi = {
     api.delete<StockMatrixResponseData>(`/api/dashboard/stock-matrix/column/${colId}`),
 
   /**
-   * Persistently updates brand or date for a column in the stock matrix.
+   * Persistently updates brand, date, or header color for a column in the stock matrix.
    */
-  updateColumn: (colId: string, data: { brand?: string; date?: string }) =>
+  updateColumn: (colId: string, data: { brand?: string; date?: string; header_color?: string }) =>
     api.put<StockMatrixResponseData>(`/api/dashboard/stock-matrix/column/${colId}`, data),
+
+  /**
+   * Persistently adds a custom row to the stock matrix in the database.
+   */
+  addRow: (data: StockMatrixRowCreateData) =>
+    api.post<StockMatrixResponseData>("/api/dashboard/stock-matrix/row", data),
+
+  /**
+   * Persistently updates a row in the stock matrix.
+   */
+  updateRow: (rowKey: string, data: StockMatrixRowUpdateData) =>
+    api.put<StockMatrixResponseData>(`/api/dashboard/stock-matrix/row/${rowKey}`, data),
+
+  /**
+   * Persistently deletes a row from the stock matrix.
+   */
+  deleteRow: (rowKey: string) =>
+    api.delete<StockMatrixResponseData>(`/api/dashboard/stock-matrix/row/${rowKey}`),
+
+  /**
+   * Updates an individual cell value in the matrix.
+   */
+  updateCell: (data: StockMatrixCellUpdateData) =>
+    api.put<StockMatrixResponseData>("/api/dashboard/stock-matrix/cell", data),
 };
 
 

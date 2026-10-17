@@ -175,6 +175,8 @@ def delete_table(table_id: int, db: Session = Depends(get_db)):
 
     db.delete(table)
     db.commit()
+    from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+    sync_db_matrix_columns_with_slots(db)
 
 
 @router.post("/{table_id}/rows", response_model=SlotRowResponse, status_code=status.HTTP_201_CREATED)
@@ -224,6 +226,8 @@ def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(row)
+    from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+    sync_db_matrix_columns_with_slots(db)
     return row
 
 
@@ -272,6 +276,8 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
 
     db.commit()
     db.refresh(row)
+    from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+    sync_db_matrix_columns_with_slots(db)
     return row
 
 
@@ -363,4 +369,6 @@ def delete_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
         db.delete(r)
 
     db.commit()
+    from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+    sync_db_matrix_columns_with_slots(db)
 

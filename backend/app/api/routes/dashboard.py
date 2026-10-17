@@ -17,6 +17,9 @@ from app.schemas.dashboard import (
     StockMatrixImportUpdate,
     StockMatrixColumnCreate,
     StockMatrixColumnUpdate,
+    StockMatrixRowCreate,
+    StockMatrixRowUpdate,
+    StockMatrixCellUpdate,
     SoldTrendResponse,
 )
 from app.services.dashboard_service import (
@@ -32,6 +35,10 @@ from app.services.dashboard_service import (
     add_matrix_column,
     delete_matrix_column,
     update_matrix_column,
+    add_matrix_row,
+    update_matrix_row,
+    delete_matrix_row,
+    update_matrix_cell,
 )
 
 router = APIRouter()
@@ -172,7 +179,7 @@ def remove_matrix_column(col_id: str, db: Session = Depends(get_db)):
 @router.put("/stock-matrix/column/{col_id}", response_model=StockMatrixData)
 def edit_matrix_column(col_id: str, body: StockMatrixColumnUpdate, db: Session = Depends(get_db)):
     """
-    Persistently update brand or date for a column in the stock matrix.
+    Persistently update brand, date, or header color for a column in the stock matrix.
     """
     try:
         return update_matrix_column(
@@ -180,6 +187,73 @@ def edit_matrix_column(col_id: str, body: StockMatrixColumnUpdate, db: Session =
             col_id=col_id,
             brand=body.brand,
             date_str=body.date,
+            header_color=body.header_color,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/stock-matrix/row", response_model=StockMatrixData, status_code=status.HTTP_201_CREATED)
+def create_matrix_row(body: StockMatrixRowCreate, db: Session = Depends(get_db)):
+    """
+    Persistently add a custom row to the stock matrix in the database.
+    """
+    try:
+        return add_matrix_row(
+            db=db,
+            title=body.title,
+            subtitle=body.subtitle or "",
+            row_type=body.row_type or "custom",
+            header_bg=body.header_bg,
+            cell_bg=body.cell_bg,
+            badge_bg=body.badge_bg,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/stock-matrix/row/{row_key}", response_model=StockMatrixData)
+def edit_matrix_row(row_key: str, body: StockMatrixRowUpdate, db: Session = Depends(get_db)):
+    """
+    Persistently update row properties or custom column values in the stock matrix.
+    """
+    try:
+        return update_matrix_row(
+            db=db,
+            row_key=row_key,
+            title=body.title,
+            subtitle=body.subtitle,
+            header_bg=body.header_bg,
+            cell_bg=body.cell_bg,
+            badge_bg=body.badge_bg,
+            custom_values=body.custom_values,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.delete("/stock-matrix/row/{row_key}", response_model=StockMatrixData)
+def remove_matrix_row(row_key: str, db: Session = Depends(get_db)):
+    """
+    Persistently delete a row from the stock matrix in the database.
+    """
+    try:
+        return delete_matrix_row(db=db, row_key=row_key)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.put("/stock-matrix/cell", response_model=StockMatrixData)
+def edit_matrix_cell(body: StockMatrixCellUpdate, db: Session = Depends(get_db)):
+    """
+    Update an individual cell value in the matrix.
+    """
+    try:
+        return update_matrix_cell(
+            db=db,
+            col_id=body.col_id,
+            row_key=body.row_key,
+            value=body.value,
         )
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

@@ -96,6 +96,8 @@ def clean_db():
             ))
 
         db.commit()
+        from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+        sync_db_matrix_columns_with_slots(db)
         print("Database wiped cleanly!")
         print("  - 0 orders")
         print("  - 0 purchase orders")

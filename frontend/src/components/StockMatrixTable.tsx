@@ -4,12 +4,19 @@ import {
   Truck,
   Monitor,
   Laptop,
+  Plus,
+  Trash2,
+  Pencil,
+  Lock,
+  Layers,
+  X,
 } from "lucide-react";
 import Loader from "./Loader";
 import {
   dashboardApi,
   StockMatrixResponseData,
   StockMatrixColumnData,
+  StockMatrixRowData,
 } from "../api/dashboard";
 
 /**
@@ -39,18 +46,114 @@ function getBrandBgClass(brand: string): string {
 }
 
 /**
+ * Default fallback matrix rows if backend rows are not loaded yet.
+ */
+const DEFAULT_ROWS: StockMatrixRowData[] = [
+  {
+    key: "available",
+    title: "Available Stock",
+    subtitle: "Ready to sell",
+    header_bg: "bg-[#ecfdf5]",
+    cell_bg: "bg-[#f0fdf4]",
+    badge_bg: "bg-[#10b981]",
+    is_system: true,
+  },
+  {
+    key: "import",
+    title: "Import Stock",
+    subtitle: "Incoming goods",
+    header_bg: "bg-[#eff6ff]",
+    cell_bg: "bg-[#eff6ff]",
+    badge_bg: "bg-[#3b82f6]",
+    is_system: true,
+  },
+  {
+    key: "physical_sell",
+    title: "Physical Sell",
+    subtitle: "In-store sell",
+    header_bg: "bg-[#f0f9ff]",
+    cell_bg: "bg-[#f0f9ff]",
+    badge_bg: "bg-[#0284c7]",
+    is_system: true,
+  },
+  {
+    key: "bot_sell",
+    title: "Bot Sell",
+    subtitle: "Online / Bot sell",
+    header_bg: "bg-[#f0f9ff]",
+    cell_bg: "bg-[#f0f9ff]",
+    badge_bg: "bg-[#0284c7]",
+    is_system: true,
+  },
+  {
+    key: "physical_buy",
+    title: "Physical Buy",
+    subtitle: "In-store buy",
+    header_bg: "bg-[#ecfeff]",
+    cell_bg: "bg-[#ecfeff]",
+    badge_bg: "bg-[#06b6d4]",
+    is_system: true,
+  },
+  {
+    key: "bot_buy",
+    title: "Bot Buy",
+    subtitle: "Online / Bot buy",
+    header_bg: "bg-[#ecfeff]",
+    cell_bg: "bg-[#ecfeff]",
+    badge_bg: "bg-[#06b6d4]",
+    is_system: true,
+  },
+];
+
+/**
+ * Get icon for row based on its key.
+ */
+function getRowIcon(rowKey: string) {
+  switch (rowKey) {
+    case "available":
+      return <Package size={16} className="stroke-[2.2]" />;
+    case "import":
+      return <Truck size={16} className="stroke-[2.2]" />;
+    case "physical_sell":
+      return <Monitor size={16} className="stroke-[2.2]" />;
+    case "bot_sell":
+      return <Laptop size={16} className="stroke-[2.2]" />;
+    case "physical_buy":
+      return <Monitor size={16} className="stroke-[2.2]" />;
+    case "bot_buy":
+      return <Laptop size={16} className="stroke-[2.2]" />;
+    default:
+      return <Layers size={16} className="stroke-[2.2]" />;
+  }
+}
+
+/**
  * Main Inventory Dashboard Matrix:
  * - Realtime database data fetching (polled every 2s + window focus)
- * - Read-only display cells
+ * - Dynamic Column CRUD with database validation that DB brand columns must not be less than user-created slots
+ * - Dynamic Row CRUD (Add row, Edit title/subtitle, Delete custom rows)
+ * - Direct Cell Value Editing (Update import stock, buy/sell orders, or custom row quantities)
  * - Brand & Settlement Date Columns
- * - Operational Data Rows (Available Stock, Import Stock, Physical Sell, Bot Sell, Physical Buy, Bot Buy)
  * - Calculated Total Row below combining two columns into one
  */
 export default function StockMatrixTable() {
   const [data, setData] = useState<StockMatrixResponseData | null>(null);
   const [columns, setColumns] = useState<StockMatrixColumnData[]>([]);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // Get local ISO date string (YYYY-MM-DD)
+  // Column CRUD Modal states
+  const [isAddColModalOpen, setIsAddColModalOpen] = useState(false);
+  const [newColBrand, setNewColBrand] = useState("DB");
+  const [newColError, setNewColError] = useState<string | null>(null);
+
+  const [editingCol, setEditingCol] = useState<StockMatrixColumnData | null>(null);
+  const [editColBrand, setEditColBrand] = useState("");
+  const [editColDate, setEditColDate] = useState("");
+  const [editColError, setEditColError] = useState<string | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Local ISO date string (YYYY-MM-DD)
   const getTodayStr = () => {
     const now = new Date();
     const y = now.getFullYear();
@@ -61,23 +164,18 @@ export default function StockMatrixTable() {
 
   const todayStr = getTodayStr();
 
-  // Flexible, timezone-safe date parser supporting ISO, D-MMM, DD/MM, and DD/MM/YYYY
+  // Timezone-safe date parser
   const parseLocalDate = (dStr: string): Date => {
     if (!dStr) {
       const now = new Date();
       now.setHours(0, 0, 0, 0);
       return now;
     }
-
     const clean = dStr.trim();
-
-    // 1. ISO format: "2026-10-16" or "2026-10-16T..."
     const isoMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (isoMatch) {
       return new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]), 0, 0, 0, 0);
     }
-
-    // 2. Dash format with month name: "16-Oct", "16-Oct-2026", "6-Oct"
     const dMmmMatch = clean.match(/^(\d{1,2})-([A-Za-z]{3,})(?:-(\d{2,4}))?/);
     if (dMmmMatch) {
       const day = Number(dMmmMatch[1]);
@@ -89,8 +187,6 @@ export default function StockMatrixTable() {
       if (year < 100) year += 2000;
       return new Date(year, month, day, 0, 0, 0, 0);
     }
-
-    // 3. Slash format: "16/10" or "16/10/2026"
     const slashMatch = clean.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
     if (slashMatch) {
       const day = Number(slashMatch[1]);
@@ -99,14 +195,11 @@ export default function StockMatrixTable() {
       if (year < 100) year += 2000;
       return new Date(year, month, day, 0, 0, 0, 0);
     }
-
-    // 4. Native parse fallback
     const parsed = new Date(clean);
     if (!isNaN(parsed.getTime())) {
       parsed.setHours(0, 0, 0, 0);
       return parsed;
     }
-
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     return now;
@@ -123,7 +216,6 @@ export default function StockMatrixTable() {
         return 99;
       };
 
-      // Exclude back dates (dates strictly before anchor date, which defaults to today)
       const anchorDate = anchorDateStr ? parseLocalDate(anchorDateStr) : new Date();
       anchorDate.setHours(0, 0, 0, 0);
 
@@ -154,7 +246,7 @@ export default function StockMatrixTable() {
     []
   );
 
-  // Realtime matrix data fetcher checking current date and next date
+  // Realtime matrix data fetcher
   const loadData = useCallback(() => {
     dashboardApi
       .getStockMatrix(todayStr)
@@ -162,7 +254,9 @@ export default function StockMatrixTable() {
         setData(res);
         setColumns(sortColumnsChronologically(res.columns, todayStr));
       })
-      .catch((err) => console.error("Failed to load stock matrix", err));
+      .catch((err) => {
+        console.error("Failed to load stock matrix", err);
+      });
   }, [sortColumnsChronologically, todayStr]);
 
   useEffect(() => {
@@ -176,12 +270,34 @@ export default function StockMatrixTable() {
     };
   }, [loadData]);
 
-  // Read cell value directly from realtime column data
-  const getCellValue = (
-    col: StockMatrixColumnData,
-    rowKey: "available" | "import" | "physical_sell" | "bot_sell" | "physical_buy" | "bot_buy"
-  ): number => {
-    switch (rowKey) {
+  // Auto-dismiss error messages after 30 seconds
+  useEffect(() => {
+    if (!globalError) return;
+    const timer = setTimeout(() => {
+      setGlobalError(null);
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [globalError]);
+
+  useEffect(() => {
+    if (!newColError) return;
+    const timer = setTimeout(() => {
+      setNewColError(null);
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [newColError]);
+
+  useEffect(() => {
+    if (!editColError) return;
+    const timer = setTimeout(() => {
+      setEditColError(null);
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [editColError]);
+
+  // Read cell value for a row and column
+  const getCellValue = (col: StockMatrixColumnData, row: StockMatrixRowData): number => {
+    switch (row.key) {
       case "available":
         return col.available_stock ?? 0;
       case "import":
@@ -195,11 +311,11 @@ export default function StockMatrixTable() {
       case "bot_buy":
         return col.bot_buy ?? 0;
       default:
-        return 0;
+        return row.custom_values?.[col.id] ?? 0;
     }
   };
 
-  // Format header date label to D-MMM flexibly
+  // Format header date label to D-MMM
   const formatHeaderDate = (label: string, targetDate?: string) => {
     if (targetDate) {
       const d = parseLocalDate(targetDate);
@@ -214,6 +330,149 @@ export default function StockMatrixTable() {
     return label;
   };
 
+  // Active matrix rows from backend or fallback to base
+  const rowsToRender: StockMatrixRowData[] =
+    data?.rows && data.rows.length > 0 ? data.rows : DEFAULT_ROWS;
+
+  // --- COLUMN ACTIONS ---
+
+  /**
+   * Calculate the next auto-extended date string (YYYY-MM-DD) for a given brand/type
+   * based on the latest existing column date for that brand.
+   * If columns exist for that brand, it auto-extends to (latest date + 1 day).
+   * If no columns exist yet or all are in the past, it defaults to today.
+   */
+  const getNextExtendedDateForBrand = useCallback(
+    (brandName: string): string => {
+      const bLower = (brandName || "").trim().toLowerCase();
+      const brandCols = columns.filter((c) => {
+        const cBrand = (c.brand || "").trim().toLowerCase();
+        return cBrand === bLower;
+      });
+
+      if (brandCols.length === 0) {
+        return todayStr;
+      }
+
+      let maxDate = parseLocalDate(todayStr);
+      let foundAny = false;
+
+      for (const col of brandCols) {
+        const dStr = col.target_date || col.date_label;
+        if (dStr) {
+          const parsed = parseLocalDate(dStr);
+          if (!foundAny || parsed > maxDate) {
+            maxDate = parsed;
+            foundAny = true;
+          }
+        }
+      }
+
+      const todayDate = parseLocalDate(todayStr);
+      const baseDate = maxDate >= todayDate ? maxDate : todayDate;
+
+      // Extend by +1 day from the base latest date
+      const nextDate = new Date(baseDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+
+      const y = nextDate.getFullYear();
+      const m = String(nextDate.getMonth() + 1).padStart(2, "0");
+      const d = String(nextDate.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    },
+    [columns, todayStr]
+  );
+
+  const handleOpenAddColModal = (presetBrand?: string) => {
+    const brand = presetBrand || "DB";
+    setNewColBrand(brand);
+    setNewColError(null);
+    setIsAddColModalOpen(true);
+  };
+
+  const handleBrandChange = (brand: string) => {
+    setNewColBrand(brand);
+    setNewColError(null);
+  };
+
+  const handleExtendEditColDate = () => {
+    const base = parseLocalDate(editColDate || todayStr);
+    base.setDate(base.getDate() + 1);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, "0");
+    const d = String(base.getDate()).padStart(2, "0");
+    setEditColDate(`${y}-${m}-${d}`);
+  };
+
+  const handleCreateColumn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetDate = getNextExtendedDateForBrand(newColBrand);
+    if (!targetDate || !targetDate.trim()) {
+      setNewColError("Unable to calculate next extended date.");
+      return;
+    }
+    setIsSubmitting(true);
+    setNewColError(null);
+    try {
+      const updated = await dashboardApi.addColumn({
+        brand: newColBrand.trim(),
+        date: targetDate.trim(),
+      });
+      setData(updated);
+      setColumns(sortColumnsChronologically(updated.columns, todayStr));
+      setIsAddColModalOpen(false);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "Failed to add column";
+      setNewColError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditColModal = (col: StockMatrixColumnData) => {
+    setEditingCol(col);
+    setEditColBrand(col.brand);
+    setEditColDate(col.target_date || todayStr);
+    setEditColError(null);
+  };
+
+  const handleUpdateColumn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCol) return;
+    setIsSubmitting(true);
+    setEditColError(null);
+    try {
+      const updated = await dashboardApi.updateColumn(editingCol.id, {
+        brand: editColBrand.trim(),
+        date: editColDate.trim(),
+      });
+      setData(updated);
+      setColumns(sortColumnsChronologically(updated.columns, todayStr));
+      setEditingCol(null);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "Failed to update column";
+      setEditColError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteColumn = async (col: StockMatrixColumnData) => {
+    const confirmPrompt = `Delete ${cleanBrand(col.brand)} column for ${formatHeaderDate(col.date_label, col.target_date)}?`;
+
+    if (!window.confirm(confirmPrompt)) return;
+
+    try {
+      const updated = await dashboardApi.deleteColumn(col.id);
+      setData(updated);
+      setColumns(sortColumnsChronologically(updated.columns, todayStr));
+      setGlobalError(null);
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "Failed to delete column";
+      setGlobalError(msg);
+    }
+  };
+
   if (!data || columns.length === 0) {
     return (
       <div className="flex-1 w-full h-full min-h-[500px] flex items-center justify-center">
@@ -222,131 +481,76 @@ export default function StockMatrixTable() {
     );
   }
 
-  // Base 6 Row configurations
-  const rowsConfig: {
-    key: "available" | "import" | "physical_sell" | "bot_sell" | "physical_buy" | "bot_buy";
-    title: string;
-    subtitle: string;
-    headerBg: string;
-    cellBg: string;
-    badgeBg: string;
-    icon: React.ReactNode;
-  }[] = [
-    {
-      key: "available",
-      title: "Available Stock",
-      subtitle: "Ready to sell",
-      headerBg: "bg-[#ecfdf5]",
-      cellBg: "bg-[#f0fdf4]",
-      badgeBg: "bg-[#10b981]",
-      icon: <Package size={16} className="stroke-[2.2]" />,
-    },
-    {
-      key: "import",
-      title: "Import Stock",
-      subtitle: "Incoming goods",
-      headerBg: "bg-[#eff6ff]",
-      cellBg: "bg-[#eff6ff]",
-      badgeBg: "bg-[#3b82f6]",
-      icon: <Truck size={16} className="stroke-[2.2]" />,
-    },
-    {
-      key: "physical_sell",
-      title: "Physical Sell",
-      subtitle: "In-store sell",
-      headerBg: "bg-[#f0f9ff]",
-      cellBg: "bg-[#f0f9ff]",
-      badgeBg: "bg-[#0284c7]",
-      icon: <Monitor size={16} className="stroke-[2.2]" />,
-    },
-    {
-      key: "bot_sell",
-      title: "Bot Sell",
-      subtitle: "Online / Bot sell",
-      headerBg: "bg-[#f0f9ff]",
-      cellBg: "bg-[#f0f9ff]",
-      badgeBg: "bg-[#0284c7]",
-      icon: <Laptop size={16} className="stroke-[2.2]" />,
-    },
-    {
-      key: "physical_buy",
-      title: "Physical Buy",
-      subtitle: "In-store buy",
-      headerBg: "bg-[#ecfeff]",
-      cellBg: "bg-[#ecfeff]",
-      badgeBg: "bg-[#06b6d4]",
-      icon: <Monitor size={16} className="stroke-[2.2]" />,
-    },
-    {
-      key: "bot_buy",
-      title: "Bot Buy",
-      subtitle: "Online / Bot buy",
-      headerBg: "bg-[#ecfeff]",
-      cellBg: "bg-[#ecfeff]",
-      badgeBg: "bg-[#06b6d4]",
-      icon: <Laptop size={16} className="stroke-[2.2]" />,
-    },
-  ];
+  // Group columns strictly by brand/type in the exact order they appear in the matrix grid
+  // This guarantees each total card is positioned directly under its own type and NEVER crosses types
+  const brandGroups: { brand: string; cols: StockMatrixColumnData[] }[] = [];
+  for (const col of columns) {
+    const bKey = (col.brand || "").trim().toLowerCase();
+    const lastGroup = brandGroups[brandGroups.length - 1];
+    if (lastGroup && (lastGroup.brand || "").trim().toLowerCase() === bKey) {
+      lastGroup.cols.push(col);
+    } else {
+      brandGroups.push({ brand: col.brand, cols: [col] });
+    }
+  }
 
-  // Build 2-column paired totals dynamically using each brand's own color
-  const columnPairs: {
+  const totalsToRender: {
     label: string;
-    cols: StockMatrixColumnData[];
     span: number;
     headerBg: string;
     cellBg: string;
     value: number;
   }[] = [];
 
-  for (let i = 0; i < columns.length; i += 2) {
-    const colA = columns[i];
-    const colB = columns[i + 1];
-    const brandColor = getBrandBgClass(colA.brand);
+  for (const group of brandGroups) {
+    const brandColor = getBrandBgClass(group.brand);
+    for (let i = 0; i < group.cols.length; i += 2) {
+      const colA = group.cols[i];
+      const colB = group.cols[i + 1];
 
-    if (colB) {
-      const dA = parseLocalDate(colA.target_date || colA.date_label);
-      const dB = parseLocalDate(colB.target_date || colB.date_label);
-      const dayA = String(dA.getDate()).padStart(2, "0");
-      const dayB = String(dB.getDate()).padStart(2, "0");
-      const monthA = String(dA.getMonth() + 1).padStart(2, "0");
-      const monthB = String(dB.getMonth() + 1).padStart(2, "0");
-      const yearA = dA.getFullYear();
-      const yearB = dB.getFullYear();
+      if (colB) {
+        const dA = parseLocalDate(colA.target_date || colA.date_label);
+        const dB = parseLocalDate(colB.target_date || colB.date_label);
+        const dayA = String(dA.getDate()).padStart(2, "0");
+        const dayB = String(dB.getDate()).padStart(2, "0");
+        const monthA = String(dA.getMonth() + 1).padStart(2, "0");
+        const monthB = String(dB.getMonth() + 1).padStart(2, "0");
+        const yearA = dA.getFullYear();
+        const yearB = dB.getFullYear();
 
-      let rangeLabel = "";
-      if (yearA !== yearB) {
-        rangeLabel = `${dayA}/${monthA}/${String(yearA).slice(-2)}-${dayB}/${monthB}/${String(yearB).slice(-2)}`;
-      } else if (monthA !== monthB) {
-        rangeLabel = `${dayA}/${monthA}-${dayB}/${monthB}`;
-      } else if (dayA !== dayB) {
-        rangeLabel = `${dayA}-${dayB}/${monthA}`;
+        let rangeLabel = "";
+        if (yearA !== yearB) {
+          rangeLabel = `${dayA}/${monthA}/${String(yearA).slice(-2)}-${dayB}/${monthB}/${String(yearB).slice(-2)}`;
+        } else if (monthA !== monthB) {
+          rangeLabel = `${dayA}/${monthA}-${dayB}/${monthB}`;
+        } else if (dayA !== dayB) {
+          rangeLabel = `${dayA}-${dayB}/${monthA}`;
+        } else {
+          rangeLabel = `${dayA}/${monthA}`;
+        }
+
+        const totalVal = (colA.available_stock || 0) + (colB.available_stock || 0);
+
+        totalsToRender.push({
+          label: `Total ${rangeLabel}`,
+          span: 2,
+          headerBg: brandColor,
+          cellBg: brandColor,
+          value: totalVal,
+        });
       } else {
-        rangeLabel = `${dayA}/${monthA}`;
+        const dA = parseLocalDate(colA.target_date || colA.date_label);
+        const dayA = String(dA.getDate()).padStart(2, "0");
+        const monthA = String(dA.getMonth() + 1).padStart(2, "0");
+
+        totalsToRender.push({
+          label: `Total ${dayA}/${monthA}`,
+          span: 1,
+          headerBg: brandColor,
+          cellBg: brandColor,
+          value: colA.available_stock || 0,
+        });
       }
-
-      const totalVal = (colA.available_stock || 0) + (colB.available_stock || 0);
-
-      columnPairs.push({
-        label: `Total ${rangeLabel}`,
-        cols: [colA, colB],
-        span: 2,
-        headerBg: brandColor,
-        cellBg: brandColor,
-        value: totalVal,
-      });
-    } else {
-      const dA = parseLocalDate(colA.target_date || colA.date_label);
-      const dayA = String(dA.getDate()).padStart(2, "0");
-      const monthA = String(dA.getMonth() + 1).padStart(2, "0");
-
-      columnPairs.push({
-        label: `Total ${dayA}/${monthA}`,
-        cols: [colA],
-        span: 1,
-        headerBg: brandColor,
-        cellBg: brandColor,
-        value: colA.available_stock || 0,
-      });
     }
   }
 
@@ -355,30 +559,43 @@ export default function StockMatrixTable() {
       ? data.total_all_stock
       : columns.reduce((acc, col) => acc + (col.available_stock || 0), 0);
 
-  // Use backend computed pair_totals (total_both_date = first_date + second_date)
-  const pairTotalsToRender =
-    data?.pair_totals && data.pair_totals.length > 0
-      ? data.pair_totals.map((pt) => {
-          const brandColor = getBrandBgClass(pt.brand);
-          return {
-            label: pt.label,
-            span: pt.span || 2,
-            headerBg: brandColor,
-            cellBg: brandColor,
-            value: pt.total_both_date,
-          };
-        })
-      : columnPairs;
-
   return (
     <div className="w-full flex-1 py-3 px-3.5 sm:px-5 bg-white font-sans min-w-0">
+      {/* ERROR MESSAGE (NO CONTAINER, NO FILLED BOX) */}
+      {globalError && (
+        <div className="pb-2 flex items-center justify-between text-xs text-red-600 font-medium select-none">
+          <span>{globalError}</span>
+          <button
+            type="button"
+            onClick={() => setGlobalError(null)}
+            className="p-0.5 text-slate-400 hover:text-red-600 transition"
+            title="Dismiss error"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* MATRIX TABLE TOOLBAR */}
+      <div className="flex items-center justify-end pb-2.5">
+        <button
+          type="button"
+          onClick={() => handleOpenAddColModal()}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 border border-slate-900 rounded-md transition select-none"
+          title="Add brand and date column to the matrix"
+        >
+          <Plus size={13} className="stroke-[2.5]" />
+          <span>Add Column</span>
+        </button>
+      </div>
+
       {/* MATRIX TABLE WITH DYNAMIC RESPONSIVE FULL-WIDTH GRID */}
       <div className="w-full overflow-x-auto pb-4">
         <div
           className="w-full space-y-1.5"
           style={{ minWidth: `${Math.max(680, 160 + (columns.length || 7) * 85)}px` }}
         >
-          {/* MERGED COLUMN HEADERS (BRAND + DATE MERGED VERTICALLY) */}
+          {/* MERGED COLUMN HEADERS (BRAND + DATE MERGED VERTICALLY WITH ACTIONS) */}
           <div
             className="grid gap-1.5 items-center w-full"
             style={{
@@ -386,35 +603,74 @@ export default function StockMatrixTable() {
             }}
           >
             {/* Empty space above row titles matching height */}
-            <div className="h-[56px]" />
+            <div className="h-[56px] flex items-end pb-1 px-1">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                Operation / Date
+              </span>
+            </div>
 
             {/* Vertically merged Brand & Date header cards for each column */}
             {columns.map((col) => {
               const brandBg = `${getBrandBgClass(col.brand)} text-slate-900`;
+              const isDb = col.brand.toLowerCase() === "db";
 
               return (
                 <div
                   key={`header_${col.id}`}
-                  className="h-[56px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
+                  className="group relative h-[56px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
                 >
-                  {/* Top half: Brand */}
+                  {/* Top half: Brand with Edit & Delete actions */}
                   <div
-                    className={`h-[28px] w-full flex items-center justify-center text-xs font-bold tracking-wide ${brandBg}`}
+                    className={`h-[28px] w-full flex items-center justify-between px-1.5 text-xs font-bold tracking-wide ${brandBg}`}
                   >
-                    <span>{cleanBrand(col.brand)}</span>
+                    <span className="truncate flex-1 text-center pl-3">
+                      {cleanBrand(col.brand)}
+                    </span>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditColModal(col);
+                        }}
+                        className="p-0.5 hover:bg-black/10 rounded text-slate-800 transition"
+                        title="Edit Column"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteColumn(col);
+                        }}
+                        className="p-0.5 hover:bg-black/10 rounded text-slate-800 transition"
+                        title="Delete Column"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Bottom half: Date */}
-                  <div className="h-[28px] w-full bg-white flex items-center justify-center text-xs font-semibold text-slate-700">
-                    {formatHeaderDate(col.date_label, col.target_date)}
+                  <div className="h-[28px] w-full bg-white flex items-center justify-center text-xs font-semibold text-slate-700 relative">
+                    <span>{formatHeaderDate(col.date_label, col.target_date)}</span>
+                    {isDb && (
+                      <span
+                        className="absolute right-1 text-amber-500 opacity-60 group-hover:opacity-100"
+                        title="Active Trading Slot"
+                      >
+                        <Lock size={10} />
+                      </span>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* 6 BASE OPERATIONAL DATA ROWS */}
-          {rowsConfig.map((row) => (
+          {/* DYNAMIC OPERATIONAL DATA ROWS */}
+          {rowsToRender.map((row) => (
             <div
               key={row.key}
               className="grid gap-1.5 items-center w-full"
@@ -422,20 +678,36 @@ export default function StockMatrixTable() {
                 gridTemplateColumns: `minmax(140px, 180px) repeat(${Math.max(1, columns.length)}, minmax(85px, 1fr))`,
               }}
             >
-              {/* Row Title Card */}
-              <div className={`h-[56px] rounded-md ${row.headerBg} px-2.5 flex items-center gap-2 select-none w-full min-w-0`}>
-                <div className={`w-7 h-7 rounded-md ${row.badgeBg} text-white flex items-center justify-center shrink-0`}>
-                  {row.icon}
-                </div>
-                <div className="min-w-0 overflow-hidden">
-                  <div className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">{row.title}</div>
-                  <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">{row.subtitle}</div>
+              {/* Row Title Card (Read-only) */}
+              <div
+                className={`h-[56px] rounded-md ${
+                  row.header_bg || "bg-slate-50"
+                } px-2.5 flex items-center select-none w-full min-w-0`}
+              >
+                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
+                  <div
+                    className={`w-7 h-7 rounded-md ${
+                      row.badge_bg || "bg-slate-600"
+                    } text-white flex items-center justify-center shrink-0`}
+                  >
+                    {getRowIcon(row.key)}
+                  </div>
+                  <div className="min-w-0 overflow-hidden">
+                    <div className="text-xs sm:text-sm font-bold text-slate-900 leading-tight truncate">
+                      {row.title}
+                    </div>
+                    {row.subtitle && (
+                      <div className="text-[10px] sm:text-[11px] text-slate-500 font-medium truncate">
+                        {row.subtitle}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Read-only Value Cells */}
+              {/* Value Cells (Read-only) */}
               {columns.map((col) => {
-                const val = getCellValue(col, row.key);
+                const val = getCellValue(col, row);
                 const isSell = row.key === "physical_sell" || row.key === "bot_sell";
                 const isRed = isSell;
 
@@ -448,7 +720,9 @@ export default function StockMatrixTable() {
                 return (
                   <div
                     key={`cell_${row.key}_${col.id}`}
-                    className={`h-[56px] rounded-md ${row.cellBg} flex flex-col items-center justify-center select-none cursor-default w-full min-w-0`}
+                    className={`h-[56px] rounded-md ${
+                      row.cell_bg || "bg-slate-50"
+                    } flex flex-col items-center justify-center select-none w-full min-w-0 cursor-default`}
                   >
                     <div
                       className={`text-sm sm:text-[15px] font-semibold tracking-tight leading-none ${
@@ -484,8 +758,8 @@ export default function StockMatrixTable() {
               </div>
             </div>
 
-            {/* Paired 2-Column Total Cells (Using Each Brand's Own Color) */}
-            {pairTotalsToRender.map((pair, idx) => (
+            {/* Brand/Type Summary Total Cells */}
+            {totalsToRender.map((pair, idx) => (
               <div
                 key={`pair_card_${idx}`}
                 className="h-[56px] rounded-md overflow-hidden bg-white border border-[#e2e8f0] flex flex-col justify-between shadow-none select-none w-full min-w-0"
@@ -510,6 +784,135 @@ export default function StockMatrixTable() {
           </div>
         </div>
       </div>
+
+      {/* --- MODAL: ADD COLUMN --- */}
+      {isAddColModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-none">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">Add Matrix Column</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddColModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleCreateColumn} className="pt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Brand</label>
+                <select
+                  value={newColBrand}
+                  onChange={(e) => handleBrandChange(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-slate-500"
+                >
+                  <option value="DB">DB</option>
+                  <option value="Swiss">Swiss</option>
+                  <option value="SV">SV</option>
+                </select>
+              </div>
+
+              {newColError && <p className="text-xs text-red-500 mt-1">{newColError}</p>}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddColModalOpen(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition disabled:opacity-50"
+                >
+                  {isSubmitting ? "Adding..." : "Add Column"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- MODAL: EDIT COLUMN --- */}
+      {editingCol && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-none">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-900">Edit Column</h3>
+              <button
+                type="button"
+                onClick={() => setEditingCol(null)}
+                className="text-slate-400 hover:text-slate-700 transition"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateColumn} className="pt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Brand</label>
+                <select
+                  value={editColBrand}
+                  onChange={(e) => setEditColBrand(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-slate-500"
+                >
+                  <option value="DB">DB</option>
+                  <option value="Swiss">Swiss</option>
+                  <option value="SV">SV</option>
+                </select>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-slate-700">
+                    Target Date
+                  </label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={editColDate}
+                    min={todayStr}
+                    onChange={(e) => setEditColDate(e.target.value)}
+                    className={`flex-1 min-w-0 px-2.5 py-1.5 text-xs border rounded-md focus:outline-none ${
+                      editColError ? "border-red-500" : "border-slate-300 focus:border-slate-500"
+                    }`}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={handleExtendEditColDate}
+                    className="shrink-0 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition select-none flex items-center gap-1"
+                    title="Extend date by +1 day"
+                  >
+                    <Plus size={12} className="stroke-[2.5]" />
+                    <span>+1 Day</span>
+                  </button>
+                </div>
+                {editColError && <p className="text-xs text-red-500 mt-1">{editColError}</p>}
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingCol(null)}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition disabled:opacity-50"
+                >
+                  {isSubmitting ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
     </div>
   );
 }

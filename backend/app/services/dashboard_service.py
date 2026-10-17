@@ -43,6 +43,7 @@ from app.schemas.dashboard import (
     StockMatrixColumn,
     StockMatrixLeftTotal,
     StockMatrixPairTotal,
+    StockMatrixRow,
     StockMatrixData,
     StockMatrixDeductionCreate,
     SoldTrendPoint,
@@ -498,12 +499,8 @@ def _normalize_and_sort_matrix_columns(columns_list: list[dict]) -> list[dict]:
     return deduped
 
 
-def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
-    """
-    Retrieve matrix column configurations ensuring the columns match the EXACT dates
-    configured in the active slot rows (starting from anchor date).
-    """
-    # 1. Fetch exact dates defined in active slot tables on or after anchor date
+def get_active_slot_dates(db: Session, anchor: date) -> list[date]:
+    """Retrieve distinct dates from active slot tables on or after anchor date."""
     slot_dates_query = (
         db.query(SlotRow.slot_date)
         .join(SlotTable, SlotRow.slot_table_id == SlotTable.id)
@@ -512,43 +509,269 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
         .order_by(SlotRow.slot_date)
         .all()
     )
-    active_dates = [r[0] for r in slot_dates_query if r[0] is not None]
+    return [r[0] for r in slot_dates_query if r[0] is not None]
 
-    # Fallback to anchor and anchor + 1 day if no slot rows are defined yet
+
+def validate_db_columns_not_less_than_slots(db: Session, columns_list: list[dict]) -> None:
+    """
+    Validate that DB columns are not less than the active slots that user created.
+    1. Count of DB columns must not be less than active user-created slots.
+    2. All active user-created slot dates must be present in DB columns.
+    """
+    today = date.today()
+    active_slot_dates = get_active_slot_dates(db, today)
+    if not active_slot_dates:
+        return
+
+    db_cols = [c for c in columns_list if (c.get("brand") or "").strip().lower() == "db"]
+    db_col_dates = set()
+    for c in db_cols:
+        t_d = c.get("target_date")
+        if isinstance(t_d, (date, datetime)):
+            db_col_dates.add(t_d if isinstance(t_d, date) else t_d.date())
+        elif isinstance(t_d, str):
+            try:
+                db_col_dates.add(datetime.strptime(t_d.strip()[:10], "%Y-%m-%d").date())
+            except ValueError:
+                pass
+
+    if len(db_cols) < len(active_slot_dates):
+        raise ValueError(
+            "This column cannot be deleted because it is required for active trading slots."
+        )
+
+    missing_dates = [d.strftime("%Y-%m-%d") for d in active_slot_dates if d not in db_col_dates]
+    if missing_dates:
+        raise ValueError(
+            "This column cannot be deleted because it is required for active trading slots."
+        )
+
+
+def get_matrix_rows_config(db: Session) -> list[dict]:
+    """
+    Retrieve matrix row configurations from SystemSetting or initialize defaults.
+    """
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+    if setting and setting.value:
+        try:
+            stored = json.loads(setting.value)
+            if isinstance(stored, list) and len(stored) > 0:
+                return stored
+        except Exception:
+            pass
+
+    default_rows = [
+        {
+            "key": "available",
+            "title": "Available Stock",
+            "subtitle": "Ready to sell",
+            "row_type": "system",
+            "header_bg": "bg-[#ecfdf5]",
+            "cell_bg": "bg-[#f0fdf4]",
+            "badge_bg": "bg-[#10b981]",
+            "is_system": True,
+            "custom_values": {},
+        },
+        {
+            "key": "import",
+            "title": "Import Stock",
+            "subtitle": "Incoming goods",
+            "row_type": "import",
+            "header_bg": "bg-[#eff6ff]",
+            "cell_bg": "bg-[#eff6ff]",
+            "badge_bg": "bg-[#3b82f6]",
+            "is_system": True,
+            "custom_values": {},
+        },
+        {
+            "key": "physical_sell",
+            "title": "Physical Sell",
+            "subtitle": "In-store sell",
+            "row_type": "sell",
+            "header_bg": "bg-[#f0f9ff]",
+            "cell_bg": "bg-[#f0f9ff]",
+            "badge_bg": "bg-[#0284c7]",
+            "is_system": True,
+            "custom_values": {},
+        },
+        {
+            "key": "bot_sell",
+            "title": "Bot Sell",
+            "subtitle": "Online / Bot sell",
+            "row_type": "sell",
+            "header_bg": "bg-[#f0f9ff]",
+            "cell_bg": "bg-[#f0f9ff]",
+            "badge_bg": "bg-[#0284c7]",
+            "is_system": True,
+            "custom_values": {},
+        },
+        {
+            "key": "physical_buy",
+            "title": "Physical Buy",
+            "subtitle": "In-store buy",
+            "row_type": "buy",
+            "header_bg": "bg-[#ecfeff]",
+            "cell_bg": "bg-[#ecfeff]",
+            "badge_bg": "bg-[#06b6d4]",
+            "is_system": True,
+            "custom_values": {},
+        },
+        {
+            "key": "bot_buy",
+            "title": "Bot Buy",
+            "subtitle": "Online / Bot buy",
+            "row_type": "buy",
+            "header_bg": "bg-[#ecfeff]",
+            "cell_bg": "bg-[#ecfeff]",
+            "badge_bg": "bg-[#06b6d4]",
+            "is_system": True,
+            "custom_values": {},
+        },
+    ]
+
+    if not setting:
+        setting = SystemSetting(key="stock_matrix_rows", value=json.dumps(default_rows))
+        db.add(setting)
+    else:
+        setting.value = json.dumps(default_rows)
+    db.commit()
+    return default_rows
+
+
+def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
+    """
+    Retrieve matrix column configurations from SystemSetting.
+    Ensures DB columns are NEVER less than the active slots that user created.
+    If no columns stored in SystemSetting, initializes with default Swiss, DB, SV columns.
+    """
+    active_dates = get_active_slot_dates(db, anchor)
     if not active_dates:
         active_dates = [anchor, anchor + timedelta(days=1)]
 
-    # Standard brands in order: Swiss, DB, SV
-    brands = [
-        {"name": "swiss", "color": "peach"},
-        {"name": "DB", "color": "orange"},
-        {"name": "SV", "color": "magenta"},
-    ]
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
+    stored_cols: list[dict] = []
+    if setting and setting.value:
+        try:
+            parsed = json.loads(setting.value)
+            if isinstance(parsed, list) and len(parsed) > 0:
+                stored_cols = parsed
+        except Exception:
+            stored_cols = []
 
-    result_cols = []
-    for b in brands:
-        for t_date in active_dates:
-            d_str = t_date.strftime("%Y-%m-%d")
-            d_label = f"{t_date.day}-{t_date.strftime('%b')}"
-            result_cols.append({
-                "id": f"{b['name'].lower()}_{d_str}",
-                "brand": b["name"],
-                "date_label": d_label,
-                "header_color": b["color"],
-                "target_date": t_date,
-            })
-
-    # Persist normalized version into SystemSetting for consistency
-    if anchor == date.today():
-        setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
+    if not stored_cols:
+        brands = [
+            {"name": "swiss", "color": "peach"},
+            {"name": "DB", "color": "orange"},
+            {"name": "SV", "color": "magenta"},
+        ]
+        stored_cols = []
+        for b in brands:
+            for t_date in active_dates:
+                d_str = t_date.strftime("%Y-%m-%d")
+                d_label = f"{t_date.day}-{t_date.strftime('%b')}"
+                stored_cols.append({
+                    "id": f"{b['name'].lower()}_{d_str}",
+                    "brand": b["name"],
+                    "date_label": d_label,
+                    "header_color": b["color"],
+                    "target_date": d_str,
+                })
         if not setting:
-            setting = SystemSetting(key="stock_matrix_columns", value="")
+            setting = SystemSetting(key="stock_matrix_columns", value=json.dumps(stored_cols))
             db.add(setting)
-        json_cols = [{**c, "target_date": c["target_date"].strftime("%Y-%m-%d")} for c in result_cols]
-        setting.value = json.dumps(json_cols)
+        else:
+            setting.value = json.dumps(stored_cols)
         db.commit()
 
-    return result_cols
+    # For brand DB: automatically sync with active slot dates (auto-add and auto-delete)
+    active_date_set = set(active_dates)
+    filtered_cols = []
+    needs_save = False
+
+    for c in stored_cols:
+        b = (c.get("brand") or "").strip().lower()
+        if b == "db":
+            t_d = c.get("target_date")
+            d_obj = None
+            if isinstance(t_d, str):
+                try:
+                    d_obj = datetime.strptime(t_d.strip()[:10], "%Y-%m-%d").date()
+                except ValueError:
+                    pass
+            elif isinstance(t_d, (date, datetime)):
+                d_obj = t_d if isinstance(t_d, date) else t_d.date()
+
+            # If this DB column's date is not in active user slots, auto-delete it!
+            if d_obj and d_obj not in active_date_set:
+                needs_save = True
+                continue
+        filtered_cols.append(c)
+
+    stored_cols = filtered_cols
+
+    # Collect existing DB column dates
+    db_col_dates = set()
+    for c in stored_cols:
+        if (c.get("brand") or "").strip().lower() == "db":
+            t_d = c.get("target_date")
+            if isinstance(t_d, str):
+                try:
+                    db_col_dates.add(datetime.strptime(t_d.strip()[:10], "%Y-%m-%d").date())
+                except ValueError:
+                    pass
+            elif isinstance(t_d, (date, datetime)):
+                db_col_dates.add(t_d if isinstance(t_d, date) else t_d.date())
+
+    # Auto-add DB columns for any active slot dates that do not exist yet
+    for t_date in active_dates:
+        if t_date not in db_col_dates:
+            d_str = t_date.strftime("%Y-%m-%d")
+            d_label = f"{t_date.day}-{t_date.strftime('%b')}"
+            stored_cols.append({
+                "id": f"db_{d_str}",
+                "brand": "DB",
+                "date_label": d_label,
+                "header_color": "orange",
+                "target_date": d_str,
+            })
+            needs_save = True
+
+    normalized = _normalize_and_sort_matrix_columns(stored_cols)
+    if needs_save:
+        if not setting:
+            setting = SystemSetting(key="stock_matrix_columns", value=json.dumps(normalized))
+            db.add(setting)
+        else:
+            setting.value = json.dumps(normalized)
+        db.commit()
+
+    result = []
+    for c in normalized:
+        t_d = c.get("target_date")
+        if isinstance(t_d, str):
+            dt_obj = _parse_matrix_date(t_d)
+        elif isinstance(t_d, (date, datetime)):
+            dt_obj = t_d if isinstance(t_d, date) else t_d.date()
+        else:
+            dt_obj = date.today()
+        result.append({
+            **c,
+            "target_date": dt_obj,
+        })
+
+    return result
+
+
+def sync_db_matrix_columns_with_slots(db: Session, anchor: date | None = None) -> list[dict]:
+    """
+    Synchronize DB brand matrix columns in SystemSetting with user-created active slot dates.
+    - Automatically adds DB columns for newly added slot dates.
+    - Automatically deletes DB columns for deleted slot dates.
+    """
+    if anchor is None:
+        anchor = date.today()
+    return get_matrix_columns_config(db, anchor)
+
 
 
 def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixData:
@@ -566,6 +789,11 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         anchor = date.today()
 
     columns_config = get_matrix_columns_config(db, anchor)
+    # Strictly exclude past dates from calculation
+    columns_config = [
+        c for c in columns_config
+        if not c.get("target_date") or c.get("target_date") >= anchor
+    ]
 
     all_pos = db.query(PurchaseOrder).filter(
         PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
@@ -864,8 +1092,25 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
     # total all is the sum formula of all dates into one
     total_all_stock = round(sum(col.available_stock for col in computed_columns), 4)
 
+    rows_config = get_matrix_rows_config(db)
+    rows_out = [
+        StockMatrixRow(
+            key=r["key"],
+            title=r["title"],
+            subtitle=r.get("subtitle", ""),
+            row_type=r.get("row_type", "custom"),
+            header_bg=r.get("header_bg", "bg-[#f8fafc]"),
+            cell_bg=r.get("cell_bg", "bg-[#f8fafc]"),
+            badge_bg=r.get("badge_bg", "bg-[#64748b]"),
+            is_system=r.get("is_system", False),
+            custom_values=r.get("custom_values", {}),
+        )
+        for r in rows_config
+    ]
+
     return StockMatrixData(
         columns=computed_columns,
+        rows=rows_out,
         deduction_rows=deduction_rows,
         deduction_cells=deduction_cells,
         left_totals=left_totals,
@@ -1073,7 +1318,8 @@ def add_matrix_column(
     target_d = _parse_matrix_date(date_str)
     if target_d < today:
         target_d = today
-    date_label = target_d.strftime("%d/%m")
+    target_d_str = target_d.strftime("%Y-%m-%d")
+    date_label = f"{target_d.day}-{target_d.strftime('%b')}"
     d_day = target_d.strftime("%d")
 
     brand_clean = brand.strip()
@@ -1087,7 +1333,6 @@ def add_matrix_column(
             header_color = "peach"
 
     stored_list = []
-    existing_brand_dates = set()
     for c in current:
         t_d = c["target_date"]
         t_d_str = t_d.strftime("%Y-%m-%d") if isinstance(t_d, (date, datetime)) else str(t_d)
@@ -1098,20 +1343,6 @@ def add_matrix_column(
             "header_color": c["header_color"],
             "target_date": t_d_str,
         })
-        if c["brand"].lower() == brand_l:
-            try:
-                dt_obj = datetime.strptime(t_d_str, "%Y-%m-%d").date()
-                existing_brand_dates.add(dt_obj)
-            except ValueError:
-                pass
-
-    # Ensure no duplicate date for this brand: advance by 1 day until an unused date is found
-    while target_d in existing_brand_dates:
-        target_d += timedelta(days=1)
-
-    target_d_str = target_d.strftime("%Y-%m-%d")
-    date_label = target_d.strftime("%d/%m")
-    d_day = target_d.strftime("%d")
 
     new_id = f"{brand_l}_{d_day}_{uuid4().hex[:4]}"
     new_col = {
@@ -1121,10 +1352,8 @@ def add_matrix_column(
         "header_color": header_color,
         "target_date": target_d_str,
     }
-
     stored_list.append(new_col)
 
-    # Normalize, deduplicate, and sort chronologically from current date to next
     normalized = _normalize_and_sort_matrix_columns(stored_list)
 
     setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
@@ -1141,8 +1370,13 @@ def add_matrix_column(
 def delete_matrix_column(db: Session, col_id: str) -> StockMatrixData:
     """
     Persistently remove a column from the stock matrix in SystemSetting.
+    Enforces validation: DB columns must not be less than the active slots created by user.
     """
     current = get_matrix_columns_config(db, date.today())
+    target_col = next((c for c in current if c["id"] == col_id), None)
+    if not target_col:
+        raise ValueError(f"Column '{col_id}' not found in stock matrix.")
+
     stored_list = []
     for c in current:
         if c["id"] == col_id:
@@ -1156,6 +1390,10 @@ def delete_matrix_column(db: Session, col_id: str) -> StockMatrixData:
             "header_color": c["header_color"],
             "target_date": t_d_str,
         })
+
+    # Validate that DB columns are not less than the slots created by user
+    if (target_col.get("brand") or "").strip().lower() == "db":
+        validate_db_columns_not_less_than_slots(db, stored_list)
 
     normalized = _normalize_and_sort_matrix_columns(stored_list)
 
@@ -1175,12 +1413,17 @@ def update_matrix_column(
     col_id: str,
     brand: str | None = None,
     date_str: str | None = None,
+    header_color: str | None = None,
 ) -> StockMatrixData:
     """
-    Persistently update brand or date for a column in SystemSetting.
-    Ensures columns remain sorted chronologically and deduplicated.
+    Persistently update brand, date, or header color for a column in SystemSetting.
+    Enforces validation: DB columns must not be less than the active slots created by user.
     """
     current = get_matrix_columns_config(db, date.today())
+    target_col = next((c for c in current if c["id"] == col_id), None)
+    if not target_col:
+        raise ValueError(f"Column '{col_id}' not found in stock matrix.")
+
     stored_list = []
     for c in current:
         t_d = c["target_date"]
@@ -1193,21 +1436,28 @@ def update_matrix_column(
             "target_date": t_d_str,
         }
         if c["id"] == col_id:
-            if brand is not None:
+            if brand is not None and brand.strip():
                 brand_clean = brand.strip()
                 col_dict["brand"] = brand_clean
                 brand_l = brand_clean.lower()
-                if "db" in brand_l:
-                    col_dict["header_color"] = "orange"
-                elif "sv" in brand_l:
-                    col_dict["header_color"] = "magenta"
-                else:
-                    col_dict["header_color"] = "peach"
-            if date_str is not None:
+                if not header_color:
+                    if "db" in brand_l:
+                        col_dict["header_color"] = "orange"
+                    elif "sv" in brand_l:
+                        col_dict["header_color"] = "magenta"
+                    else:
+                        col_dict["header_color"] = "peach"
+            if header_color:
+                col_dict["header_color"] = header_color
+            if date_str is not None and date_str.strip():
                 new_d = _parse_matrix_date(date_str)
                 col_dict["target_date"] = new_d.strftime("%Y-%m-%d")
-                col_dict["date_label"] = new_d.strftime("%d/%m")
+                col_dict["date_label"] = f"{new_d.day}-{new_d.strftime('%b')}"
         stored_list.append(col_dict)
+
+    # Validate that DB columns are not less than the slots created by user
+    if (target_col.get("brand") or "").strip().lower() == "db" or (brand and brand.strip().lower() == "db"):
+        validate_db_columns_not_less_than_slots(db, stored_list)
 
     normalized = _normalize_and_sort_matrix_columns(stored_list)
 
@@ -1218,6 +1468,178 @@ def update_matrix_column(
     else:
         setting.value = json.dumps(normalized)
     db.commit()
+
+    return calculate_stock_matrix(db)
+
+
+def add_matrix_row(
+    db: Session,
+    title: str,
+    subtitle: str = "",
+    row_type: str = "custom",
+    header_bg: str | None = None,
+    cell_bg: str | None = None,
+    badge_bg: str | None = None,
+) -> StockMatrixData:
+    """
+    Persistently add a custom row to the stock matrix in SystemSetting.
+    """
+    rows = get_matrix_rows_config(db)
+    clean_title = title.strip()
+    if not clean_title:
+        raise ValueError("Row title cannot be empty.")
+
+    new_key = f"row_{uuid4().hex[:6]}"
+    new_row = {
+        "key": new_key,
+        "title": clean_title,
+        "subtitle": (subtitle or "").strip(),
+        "row_type": row_type or "custom",
+        "header_bg": header_bg or "bg-[#f8fafc]",
+        "cell_bg": cell_bg or "bg-[#f8fafc]",
+        "badge_bg": badge_bg or "bg-[#64748b]",
+        "is_system": False,
+        "custom_values": {},
+    }
+    rows.append(new_row)
+
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+    if not setting:
+        setting = SystemSetting(key="stock_matrix_rows", value=json.dumps(rows))
+        db.add(setting)
+    else:
+        setting.value = json.dumps(rows)
+    db.commit()
+
+    return calculate_stock_matrix(db)
+
+
+def update_matrix_row(
+    db: Session,
+    row_key: str,
+    title: str | None = None,
+    subtitle: str | None = None,
+    header_bg: str | None = None,
+    cell_bg: str | None = None,
+    badge_bg: str | None = None,
+    custom_values: dict[str, float] | None = None,
+) -> StockMatrixData:
+    """
+    Persistently update row title, subtitle, color styling, or custom values in SystemSetting.
+    """
+    rows = get_matrix_rows_config(db)
+    target_row = next((r for r in rows if r["key"] == row_key), None)
+    if not target_row:
+        raise ValueError(f"Row '{row_key}' not found in stock matrix.")
+
+    if title is not None and title.strip():
+        target_row["title"] = title.strip()
+    if subtitle is not None:
+        target_row["subtitle"] = subtitle.strip()
+    if header_bg:
+        target_row["header_bg"] = header_bg
+    if cell_bg:
+        target_row["cell_bg"] = cell_bg
+    if badge_bg:
+        target_row["badge_bg"] = badge_bg
+    if custom_values is not None:
+        target_row.setdefault("custom_values", {}).update(custom_values)
+
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+    if setting:
+        setting.value = json.dumps(rows)
+        db.commit()
+
+    return calculate_stock_matrix(db)
+
+
+def delete_matrix_row(db: Session, row_key: str) -> StockMatrixData:
+    """
+    Persistently delete a row from the stock matrix in SystemSetting.
+    """
+    if row_key == "available":
+        raise ValueError("Cannot delete 'Available Stock' row as it is required for matrix balance.")
+
+    rows = get_matrix_rows_config(db)
+    filtered = [r for r in rows if r["key"] != row_key]
+    if len(filtered) == len(rows):
+        raise ValueError(f"Row '{row_key}' not found in stock matrix.")
+
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+    if setting:
+        setting.value = json.dumps(filtered)
+        db.commit()
+
+    return calculate_stock_matrix(db)
+
+
+def update_matrix_cell(
+    db: Session,
+    col_id: str,
+    row_key: str,
+    value: float,
+) -> StockMatrixData:
+    """
+    Update a cell value in the matrix.
+    Routes appropriately:
+    - 'import' -> updates or creates PurchaseOrder import
+    - 'physical_sell' / 'bot_sell' -> creates/updates SELL deduction order
+    - 'physical_buy' / 'bot_buy' -> creates/updates BUY order
+    - custom rows -> stores value in row's custom_values for that col_id
+    """
+    current_cols = get_matrix_columns_config(db, date.today())
+    target_col = next((c for c in current_cols if c["id"] == col_id), None)
+    if not target_col:
+        raise ValueError(f"Column '{col_id}' not found in stock matrix.")
+
+    brand = target_col["brand"]
+    t_d = target_col["target_date"]
+    t_date_str = t_d.strftime("%Y-%m-%d") if isinstance(t_d, (date, datetime)) else str(t_d)
+
+    if row_key == "import":
+        update_stock_matrix_import(db, brand, t_date_str, value)
+    elif row_key in ("physical_sell", "bot_sell"):
+        channel = "PLATFORM" if row_key == "bot_sell" else "WALK_IN"
+        create_stock_matrix_deduction(
+            db,
+            StockMatrixDeductionCreate(
+                brand=brand,
+                date=t_date_str,
+                quantity=abs(value),
+                channel=channel,
+                transaction_type="SELL",
+                customer_name="Matrix Physical Sell" if channel == "WALK_IN" else "Matrix Bot Sell",
+            ),
+        )
+    elif row_key in ("physical_buy", "bot_buy"):
+        channel = "PLATFORM" if row_key == "bot_buy" else "WALK_IN"
+        create_stock_matrix_deduction(
+            db,
+            StockMatrixDeductionCreate(
+                brand=brand,
+                date=t_date_str,
+                quantity=abs(value),
+                channel=channel,
+                transaction_type="BUY",
+                customer_name="Matrix Trade-In",
+            ),
+        )
+    else:
+        # Custom row or other configured row
+        rows = get_matrix_rows_config(db)
+        found = False
+        for r in rows:
+            if r["key"] == row_key:
+                found = True
+                r.setdefault("custom_values", {})[col_id] = float(value)
+                break
+        if not found:
+            raise ValueError(f"Row '{row_key}' not found in stock matrix.")
+
+        setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+        if setting:
+            setting.value = json.dumps(rows)
+            db.commit()
 
     return calculate_stock_matrix(db)
 

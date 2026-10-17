@@ -123,8 +123,21 @@ class StockMatrixPairTotal(BaseModel):
     total_both_date: float = 0.0
 
 
+class StockMatrixRow(BaseModel):
+    key: str
+    title: str
+    subtitle: str = ""
+    row_type: str = "custom"
+    header_bg: str = "bg-[#f8fafc]"
+    cell_bg: str = "bg-[#f8fafc]"
+    badge_bg: str = "bg-[#64748b]"
+    is_system: bool = False
+    custom_values: dict[str, float] = {}
+
+
 class StockMatrixData(BaseModel):
     columns: list[StockMatrixColumn]
+    rows: list[StockMatrixRow] = []
     deduction_rows: list[list[float | None]]
     deduction_cells: list[list[StockMatrixCell]] = []
     left_totals: list[StockMatrixLeftTotal]
@@ -162,6 +175,31 @@ class StockMatrixColumnCreate(BaseModel):
 class StockMatrixColumnUpdate(BaseModel):
     brand: str | None = None
     date: str | None = None
+    header_color: str | None = None
+
+
+class StockMatrixRowCreate(BaseModel):
+    title: str
+    subtitle: str | None = ""
+    row_type: str | None = "custom"
+    header_bg: str | None = None
+    cell_bg: str | None = None
+    badge_bg: str | None = None
+
+
+class StockMatrixRowUpdate(BaseModel):
+    title: str | None = None
+    subtitle: str | None = None
+    header_bg: str | None = None
+    cell_bg: str | None = None
+    badge_bg: str | None = None
+    custom_values: dict[str, float] | None = None
+
+
+class StockMatrixCellUpdate(BaseModel):
+    col_id: str
+    row_key: str
+    value: float
 
 
 class SoldTrendPoint(BaseModel):
