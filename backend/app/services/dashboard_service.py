@@ -1089,8 +1089,15 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                     )
                 )
 
-    # total all is the sum formula of all dates into one
-    total_all_stock = round(sum(col.available_stock for col in computed_columns), 4)
+    # Total all stock: only count Swiss and DB (SV is strictly excluded)
+    total_all_stock = round(
+        sum(
+            col.available_stock
+            for col in computed_columns
+            if "sv" not in (col.brand or "").strip().lower()
+        ),
+        4,
+    )
 
     rows_config = get_matrix_rows_config(db)
     rows_out = [

@@ -557,7 +557,9 @@ export default function StockMatrixTable() {
   const grandTotalAllStock =
     typeof data?.total_all_stock === "number"
       ? data.total_all_stock
-      : columns.reduce((acc, col) => acc + (col.available_stock || 0), 0);
+      : columns
+          .filter((col) => !(col.brand || "").toLowerCase().includes("sv"))
+          .reduce((acc, col) => acc + (col.available_stock || 0), 0);
 
   return (
     <div className="w-full flex-1 py-3 px-3.5 sm:px-5 bg-white font-sans min-w-0">
