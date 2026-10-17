@@ -28,34 +28,64 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   }
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
-  // Perform fetch request
-  const res = await fetch(`${BASE}${path}`, {
-    ...options,
-    headers: { ...headers, ...(options?.headers as Record<string, string>) },
-  });
-
-  // Process non-2xx response errors
-  if (!res.ok) {
-    const text = await res.text();
-    let message = text || `Request failed`;
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed && parsed.detail) {
-        message = getFriendlyErrorMessage(parsed, `Request failed`);
-      } else {
-        message = getFriendlyErrorMessage(message, `Request failed`);
-      }
-    } catch {
-      message = getFriendlyErrorMessage(text || `Status ${res.status}`, `Request failed`);
-    }
-    throw new Error(message);
+  // Add 60-second request timeout to prevent infinite hanging spinners
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let signal = options?.signal;
+  if (!signal) {
+    const controller = new AbortController();
+    signal = controller.signal;
+    timeoutId = setTimeout(() => controller.abort(), 60000);
   }
 
-  // Handle 204 No Content response status
-  if (res.status === 204) return undefined as T;
+  try {
+    // Perform fetch request
+    const res = await fetch(`${BASE}${path}`, {
+      ...options,
+      signal,
+      headers: { ...headers, ...(options?.headers as Record<string, string>) },
+    });
 
-  // Parse and return standard JSON response payload
-  return res.json();
+    // Process non-2xx response errors
+    if (!res.ok) {
+      const text = await res.text();
+      let message = text || `Request failed`;
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.detail) {
+          message = getFriendlyErrorMessage(parsed, `Request failed`);
+        } else {
+          message = getFriendlyErrorMessage(message, `Request failed`);
+        }
+      } catch {
+        message = getFriendlyErrorMessage(text || `Status ${res.status}`, `Request failed`);
+      }
+      throw new Error(message);
+    }
+
+    // Handle 204 No Content response status
+    if (res.status === 204) return undefined as T;
+
+    // Parse and return standard JSON response payload
+    return res.json();
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error("Request timed out. Please check your network connection or try a smaller file.");
+    }
+    throw err;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Resolves an uploaded media file URL against the API BASE URL if needed.
+ */
+export function toMediaUrl(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("blob:") || url.startsWith("data:")) {
+    return url;
+  }
+  return `${BASE}${url}`;
 }
 
 /**

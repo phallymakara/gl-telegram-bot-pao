@@ -3,6 +3,7 @@ System Settings API routes.
 Provides endpoints for retrieving and updating global bot, security, and trading system operational parameters.
 """
 
+import asyncio
 import os
 import uuid
 from pathlib import Path
@@ -156,6 +157,7 @@ def _process_image_upload(content: bytes, filename: str) -> str:
 
     unique_name = f"poster_{uuid.uuid4().hex[:10]}{ext}"
     dest_path = UPLOADS_POSTERS_DIR / unique_name
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(dest_path, "wb") as f:
         f.write(content)
@@ -164,12 +166,14 @@ def _process_image_upload(content: bytes, filename: str) -> str:
         with Image.open(dest_path) as img:
             if img.width > 1920 or img.height > 1920:
                 img.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
-                if ext in [".jpg", ".jpeg"]:
-                    img.save(dest_path, "JPEG", quality=85, optimize=True)
-                elif ext == ".png":
-                    img.save(dest_path, "PNG", optimize=True)
-                elif ext == ".webp":
-                    img.save(dest_path, "WEBP", quality=85)
+            if ext in [".jpg", ".jpeg"]:
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img.save(dest_path, "JPEG", quality=85, optimize=True)
+            elif ext == ".png":
+                img.save(dest_path, "PNG", optimize=True)
+            elif ext == ".webp":
+                img.save(dest_path, "WEBP", quality=85)
     except Exception:
         pass
 
@@ -198,7 +202,7 @@ async def upload_poster(
     for item in items_to_process:
         content = await item.read()
         if content:
-            url = _process_image_upload(content, item.filename or "poster.jpg")
+            url = await asyncio.to_thread(_process_image_upload, content, item.filename or "poster.jpg")
             saved_urls.append(url)
 
     first_url = saved_urls[0] if saved_urls else ""
@@ -272,6 +276,7 @@ def _process_bank_qr_upload(content: bytes, filename: str) -> str:
 
     unique_name = f"bank_qr_{uuid.uuid4().hex[:10]}{ext}"
     dest_path = UPLOADS_BANK_QR_DIR / unique_name
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(dest_path, "wb") as f:
         f.write(content)
@@ -280,12 +285,14 @@ def _process_bank_qr_upload(content: bytes, filename: str) -> str:
         with Image.open(dest_path) as img:
             if img.width > 1920 or img.height > 1920:
                 img.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
-                if ext in [".jpg", ".jpeg"]:
-                    img.save(dest_path, "JPEG", quality=85, optimize=True)
-                elif ext == ".png":
-                    img.save(dest_path, "PNG", optimize=True)
-                elif ext == ".webp":
-                    img.save(dest_path, "WEBP", quality=85)
+            if ext in [".jpg", ".jpeg"]:
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img.save(dest_path, "JPEG", quality=85, optimize=True)
+            elif ext == ".png":
+                img.save(dest_path, "PNG", optimize=True)
+            elif ext == ".webp":
+                img.save(dest_path, "WEBP", quality=85)
     except Exception:
         pass
 
@@ -314,7 +321,7 @@ async def upload_bank_qr(
     for item in items_to_process:
         content = await item.read()
         if content:
-            url = _process_bank_qr_upload(content, item.filename or "bank_qr.jpg")
+            url = await asyncio.to_thread(_process_bank_qr_upload, content, item.filename or "bank_qr.jpg")
             saved_urls.append(url)
 
     first_url = saved_urls[0] if saved_urls else ""

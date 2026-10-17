@@ -371,40 +371,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     setEditingSellRowId(null);
   }
 
-  function updateRowInSellTable(tableId: number, rowId: number, patch: Partial<SlotRowItem>) {
-    if (patch.start_date) {
-      if (patch.start_date < todayStr) {
-        notify("Slot date cannot be in the past", "error");
-        return;
-      }
-      const targetTable = sellTables.find((t) => t.id === tableId);
-      if (targetTable?.rows.some((r) => r.id !== rowId && r.start_date === patch.start_date)) {
-        notify("A slot for this date already exists in this table", "error");
-        return;
-      }
-    }
-
-    setSellTables((prev) =>
-      prev.map((t) =>
-        t.id === tableId
-          ? {
-            ...t,
-            rows: sortSlotRows(t.rows.map((r) => (r.id === rowId ? { ...r, ...patch } : r))),
-          }
-          : t
-      )
-    );
-
-    if (patch.start_date || patch.premium !== undefined) {
-      api
-        .put(`/api/slots/${tableId}/rows/${rowId}`, {
-          slot_date: patch.start_date || todayStr,
-          premium: patch.premium !== undefined && patch.premium !== "" ? Number(patch.premium) : 300,
-        })
-        .then(() => { })
-        .catch(() => { });
-    }
-  }
 
   function updateTableStock(tableId: number, stockVal: string) {
     const tbl = sellTables.find((t) => t.id === tableId);
@@ -596,27 +562,12 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         key={r.id}
                         className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                       >
-                        <td className="px-4 py-2 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
+                        <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
-                          <input
-                            type="date"
-                            min={todayStr}
-                            value={r.start_date}
-                            onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: e.target.value, premium: r.premium })}
-                            className="text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
-                          />
+                          <span>{r.start_date}</span>
                         </td>
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-slate-400 font-normal">$</span>
-                            <input
-                              type="text"
-                              value={r.premium}
-                              onChange={(e) => updateRowInSellTable(tbl.id, r.id, { start_date: r.start_date, premium: e.target.value })}
-                              placeholder="300.00"
-                              className="w-20 text-xs border border-slate-200 rounded-md px-2 py-1 bg-white text-slate-900 font-semibold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
-                            />
-                          </div>
+                          ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
                         </td>
                         {/* Merged STOCK column spanning all table rows */}
                         {idx === 0 && (

@@ -5,7 +5,7 @@
 
 import { useRef, useState } from "react";
 import { Plus, QrCode, Trash2, Upload } from "lucide-react";
-import { api } from "../../api";
+import { api, toMediaUrl } from "../../api";
 import Toggle from "../../components/Toggle";
 
 export interface BankQrItemData {
@@ -167,7 +167,7 @@ export default function BankQrTab({
                 >
                   <div className="flex items-center gap-4 min-w-0">
                     <img
-                      src={item.url}
+                      src={toMediaUrl(item.url)}
                       alt={`Bank QR ${idx + 1}`}
                       className="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-lg border border-slate-200 bg-white p-1 shrink-0"
                     />

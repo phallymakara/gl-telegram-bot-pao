@@ -5,7 +5,7 @@
 
 import { useRef, useState } from "react";
 import { Image as ImageIcon, Plus, Trash2, Upload } from "lucide-react";
-import { api } from "../../api";
+import { api, toMediaUrl } from "../../api";
 
 interface SecurityTabProps {
   twoFA?: boolean;
@@ -205,7 +205,7 @@ export default function SecurityTab({
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <img
-                        src={url}
+                        src={toMediaUrl(url)}
                         alt={`Poster ${idx + 1}`}
                         className="w-28 h-28 sm:w-32 sm:h-32 object-contain rounded-lg border border-slate-200 bg-white p-1 shrink-0"
                       />
