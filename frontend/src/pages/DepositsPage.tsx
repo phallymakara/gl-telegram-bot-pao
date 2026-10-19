@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
-  Eye,
+  MoreHorizontal,
 } from "lucide-react";
 import { getFriendlyErrorMessage } from "../utils/errorMessage";
 import Card from "../components/Card";
@@ -495,10 +495,10 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                           <button
                             type="button"
                             onClick={() => handleOpenDepositDetail(d)}
-                            className="p-1 rounded-md text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors flex items-center justify-center"
+                            className="w-7 h-7 rounded-full border border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
                             title="Review Deposit"
                           >
-                            <Eye size={13} />
+                            <MoreHorizontal size={14} />
                           </button>
                         </div>
                       </td>
@@ -636,10 +636,10 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                           <button
                             type="button"
                             onClick={() => handleOpenWithdrawalDetail(w)}
-                            className="p-1 rounded-md text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-colors flex items-center justify-center"
+                            className="w-7 h-7 rounded-full border border-slate-200 hover:border-slate-300 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
                             title="Review Withdrawal"
                           >
-                            <Eye size={13} />
+                            <MoreHorizontal size={14} />
                           </button>
                         </div>
                       </td>
