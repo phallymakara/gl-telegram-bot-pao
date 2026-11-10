@@ -6,10 +6,11 @@
 import { useRef, useState } from "react";
 import { Image as ImageIcon, Plus, Trash2, Upload } from "lucide-react";
 import { api, toMediaUrl } from "../../api";
+import Toggle from "../../components/Toggle";
 
 interface SecurityTabProps {
-  twoFA?: boolean;
-  setTwoFA?: (val: boolean) => void;
+  twoFA: boolean;
+  setTwoFA: (val: boolean) => void;
   openTime: string;
   setOpenTime: (val: string) => void;
   closeTime: string;
@@ -20,10 +21,10 @@ interface SecurityTabProps {
   setOffStoreImageUrl?: (val: string) => void;
   offStoreImageUrls: string[];
   setOffStoreImageUrls: React.Dispatch<React.SetStateAction<string[]>>;
-  sessionTimeout?: number;
-  setSessionTimeout?: (val: number) => void;
-  passwordExpiry?: number;
-  setPasswordExpiry?: (val: number) => void;
+  sessionTimeout: number;
+  setSessionTimeout: (val: number) => void;
+  passwordExpiry: number;
+  setPasswordExpiry: (val: number) => void;
   saveSettings?: () => void;
   notify: (msg: string) => void;
 }
@@ -32,6 +33,8 @@ interface SecurityTabProps {
  * Security & Operating hours settings tab component.
  */
 export default function SecurityTab({
+  twoFA,
+  setTwoFA,
   openTime,
   setOpenTime,
   closeTime,
@@ -40,18 +43,71 @@ export default function SecurityTab({
   setOffStoreMessage,
   offStoreImageUrls,
   setOffStoreImageUrls,
+  sessionTimeout,
+  setSessionTimeout,
+  passwordExpiry,
+  setPasswordExpiry,
   notify,
 }: SecurityTabProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [sessionTimeoutError, setSessionTimeoutError] = useState("");
+  const [passwordExpiryError, setPasswordExpiryError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  function handleScheduleUpdate(patch: { open_time?: string; close_time?: string; off_store_message?: string }) {
+  function saveSecuritySettings(next?: { session_timeout?: number; password_expiry?: number; two_factor?: boolean }, showSuccessToast = true) {
+    const timeoutVal = next?.session_timeout ?? sessionTimeout;
+    const expiryVal = next?.password_expiry ?? passwordExpiry;
+    const twoFactorVal = next?.two_factor ?? twoFA;
+
+    let hasError = false;
+    if (!Number.isFinite(timeoutVal) || timeoutVal < 1) {
+      setSessionTimeoutError("Session timeout must be at least 1 minute.");
+      hasError = true;
+    } else {
+      setSessionTimeoutError("");
+    }
+    if (!Number.isFinite(expiryVal) || expiryVal < 1) {
+      setPasswordExpiryError("Password expiry must be at least 1 day.");
+      hasError = true;
+    } else {
+      setPasswordExpiryError("");
+    }
+    if (hasError) return;
+
+    api
+      .put("/api/settings/security", {
+        session_timeout: Math.floor(timeoutVal),
+        password_expiry: Math.floor(expiryVal),
+        two_factor: twoFactorVal,
+      })
+      .then(() => {
+        if (showSuccessToast) {
+          notify("Security settings saved");
+        }
+      })
+      .catch((err: any) => {
+        if (next?.two_factor !== undefined) {
+          setTwoFA(!twoFactorVal);
+        }
+        notify(err.message || "Failed to save security settings");
+      });
+  }
+
+  function handleScheduleUpdate(
+    patch: { open_time?: string; close_time?: string; off_store_message?: string },
+    showSuccessToast = false
+  ) {
     api
       .put("/api/settings/schedule", {
         open_time: patch.open_time ?? openTime,
         close_time: patch.close_time ?? closeTime,
         off_store_message: patch.off_store_message ?? offStoreMessage,
+      })
+      .then(() => {
+        if (showSuccessToast) {
+          notify("Operating hours & schedule saved");
+        }
       })
       .catch(() => {
         notify("Failed to save schedule");
@@ -105,7 +161,86 @@ export default function SecurityTab({
   }
 
   return (
-    <div id="section-system" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
+    <>
+      <div id="section-security" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
+        <div className="p-6 md:p-8 pb-0">
+          <h3 className="text-base font-bold text-slate-900">Security & Authentication</h3>
+          <p className="text-xs text-slate-400 mt-1">Configure session timeout, password expiry, and two-factor authentication.</p>
+        </div>
+        <div className="p-6 md:p-8 space-y-6">
+          <div className="flex items-center justify-between py-2 border-b border-slate-100">
+            <div>
+              <div className="font-semibold text-slate-800 text-sm">Two-Factor Authentication (2FA)</div>
+              <div className="text-xs text-slate-400 mt-0.5">Require verification on admin logins.</div>
+            </div>
+            <Toggle
+              on={twoFA}
+              onClick={() => {
+                const next = !twoFA;
+                setTwoFA(next);
+                saveSecuritySettings({ two_factor: next }, true);
+              }}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Session Timeout (Minutes)</label>
+              <input
+                type="number"
+                min={1}
+                value={sessionTimeout}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setSessionTimeout(val);
+                  if (sessionTimeoutError && val >= 1) setSessionTimeoutError("");
+                }}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
+                  sessionTimeoutError
+                    ? "border-red-500 focus:ring-red-500/20 focus:border-red-500"
+                    : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                }`}
+              />
+              {sessionTimeoutError && (
+                <p className="text-xs text-red-600">{sessionTimeoutError}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password Expiry (Days)</label>
+              <input
+                type="number"
+                min={1}
+                value={passwordExpiry}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPasswordExpiry(val);
+                  if (passwordExpiryError && val >= 1) setPasswordExpiryError("");
+                }}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
+                  passwordExpiryError
+                    ? "border-red-500 focus:ring-red-500/20 focus:border-red-500"
+                    : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                }`}
+              />
+              {passwordExpiryError && (
+                <p className="text-xs text-red-600">{passwordExpiryError}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => saveSecuritySettings()}
+              className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors cursor-pointer"
+            >
+              Save Security Settings
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="section-system" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
         <div className="p-6 md:p-8 pb-0">
           <h3 className="text-base font-bold text-slate-900">Operating Hours & Schedule</h3>
           <p className="text-xs text-slate-400 mt-1">Configure trading hours for automatic order acceptance.</p>
@@ -231,7 +366,18 @@ export default function SecurityTab({
               </div>
             )}
           </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => handleScheduleUpdate({}, true)}
+              className="px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors cursor-pointer"
+            >
+              Save Schedule Settings
+            </button>
+          </div>
         </div>
       </div>
+    </>
   );
 }

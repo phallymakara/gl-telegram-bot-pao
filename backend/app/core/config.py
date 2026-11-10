@@ -33,32 +33,47 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is not set in environment")
 
-# PostgreSQL Database URL configuration
-POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres")
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
-POSTGRES_HOST = os.getenv("POSTGRES_HOST", os.getenv("POSTGRES_SERVER", "localhost"))
+# PostgreSQL Database URL configuration (loaded strictly from environment)
+POSTGRES_USER = os.getenv("POSTGRES_USER", "")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "")
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", os.getenv("POSTGRES_SERVER", ""))
 POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
-POSTGRES_DB = os.getenv("POSTGRES_DB", "gold_bot_db")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "")
 
-DEFAULT_DB_URL = f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
-DATABASE_URL = os.getenv("DATABASE_URL") or DEFAULT_DB_URL
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    if not all([POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST, POSTGRES_DB]):
+        raise RuntimeError(
+            "DATABASE_URL or POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_HOST/POSTGRES_DB must be set in environment"
+        )
+    DATABASE_URL = (
+        f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+    )
+
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Secret Key configuration for JWT authorization token signing
-SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret")
+SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY is not set in environment")
 
 # JWT Token Signing Parameters
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
-# Default Business Parameters
+# Environment-Configured Business & Contact Defaults
 DEFAULT_GROUP_NAME = os.getenv("DEFAULT_GROUP_NAME", "Telegram Bot")
-DEFAULT_SPOT_PRICE = "4376.20"
+DEFAULT_SPOT_PRICE = os.getenv("DEFAULT_SPOT_PRICE", "0")
+DEFAULT_PREMIUM = os.getenv("DEFAULT_PREMIUM", "0")
 
-# Sales Contact Information (Application Constants)
-SALES_TELEGRAM_USERNAME = "phallymakara"
-SALES_PHONE_NUMBER = "+85589804659"
-SALES_PHONE_DISPLAY = "089 804 659"
+BOT_USERNAME = os.getenv("BOT_USERNAME", "")
+SALES_TELEGRAM_USERNAME = os.getenv("SALES_TELEGRAM_USERNAME", "")
+SALES_PHONE_NUMBER = os.getenv("SALES_PHONE_NUMBER", "")
+SALES_PHONE_DISPLAY = os.getenv("SALES_PHONE_DISPLAY", "")
+
+# Bootstrap Super Admin configuration (used only for explicit seeding/bootstrap scripts)
+DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Super Admin")
+DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "")
+DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "")
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")

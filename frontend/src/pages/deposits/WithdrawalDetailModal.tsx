@@ -6,6 +6,7 @@
 
 import React, { useState } from "react";
 import { X, ExternalLink, Copy, Check } from "lucide-react";
+import DraggableModalBox from "../../components/DraggableModalBox";
 import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { WithdrawalItem, withdrawalsApi, toMediaUrl } from "../../api";
 import { useAuth } from "../../context/AuthContext";
@@ -90,13 +91,16 @@ export default function WithdrawalDetailModal({
   const activeAttachment = receiptUrl.trim() || currentWithdrawal.receipt_url;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/40 flex items-center justify-center p-3 sm:p-4">
-      <div
-        className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 w-full max-w-4xl h-[85vh] min-h-[580px] max-h-[92vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-transparent flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <DraggableModalBox
+        resetKey={currentWithdrawal.id}
+        className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-4xl h-[85vh] min-h-[580px] max-h-[85vh] flex flex-col overflow-hidden"
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-base sm:text-lg font-medium text-slate-800 truncate">
               Withdrawal: {currentWithdrawal.withdraw_no}
@@ -302,7 +306,7 @@ export default function WithdrawalDetailModal({
             </button>
           )}
         </div>
-      </div>
+      </DraggableModalBox>
     </div>
   );
 }

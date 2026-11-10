@@ -52,6 +52,9 @@ export { default as ReportsPage } from "./ReportsPage";
 // User Management (Route: "user-management")
 export { default as UsersPage } from "./UsersPage";
 
+// Super Admin Activity & Audit Logs (Route: "audit-logs")
+export { default as AuditLogsPage } from "./AuditLogsPage";
+
 // Alert Center & Promotions (Route: "low-stock-alerts", "discount-promotions")
 export { default as AlertsPage } from "./AlertsPage";
 

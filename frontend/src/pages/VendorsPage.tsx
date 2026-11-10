@@ -4,7 +4,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, CheckCircle2, Store } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { VendorData, vendorsApi } from "../api";
 import VendorTable from "./vendors/VendorTable";
@@ -158,16 +157,13 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
 
   return (
     <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 flex-shrink-0">
         <StatCard
-          icon={Store}
           label="Total Gold Vendors"
           value={vendors.length}
-          sub="Registered supplier partners"
-          tint="bg-indigo-50 text-indigo-600"
+          valueClassName="text-lg font-bold text-slate-800"
         />
         <StatCard
-          icon={Building2}
           label="Oversea Refiners"
           value={
             vendors.filter(
@@ -176,15 +172,12 @@ export default function VendorsPage({ notify }: VendorsPageProps) {
                 v.supplier_type.toLowerCase().includes("swiss")
             ).length
           }
-          sub="Global refinery partners"
-          tint="bg-blue-50 text-blue-600"
+          valueClassName="text-lg font-bold text-indigo-600"
         />
         <StatCard
-          icon={CheckCircle2}
           label="Active Suppliers"
           value={vendors.filter((v) => v.is_active !== false).length}
-          sub="Verified procurement sources"
-          tint="bg-emerald-50 text-emerald-600"
+          valueClassName="text-lg font-bold text-emerald-600"
         />
       </div>
 

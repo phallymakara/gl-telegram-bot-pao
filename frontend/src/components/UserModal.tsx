@@ -3,16 +3,13 @@
  * @description Modal dialog for creating and editing platform users with granular sidebar module access permissions.
  */
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   X,
   User,
   Mail,
   Lock,
   ShieldCheck,
-  CheckSquare,
-  Square,
-  Sparkles,
   Layers,
   Eye,
   EyeOff,
@@ -20,6 +17,7 @@ import {
 import { getFriendlyErrorMessage } from "../utils/errorMessage";
 import { UserData, usersApi } from "../api/users";
 import { ALL_MODULES, ModuleDefinition } from "../data/navigation";
+import DraggableModalBox from "./DraggableModalBox";
 
 interface UserModalProps {
   isOpen: boolean;
@@ -207,22 +205,23 @@ export default function UserModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 flex items-center justify-center p-3 sm:p-4">
-      <div
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
-        onClick={(e) => e.stopPropagation()}
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-transparent flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <DraggableModalBox
+        resetKey={userToEdit?.id ?? "new"}
+        className="bg-white rounded-3xl shadow-none border border-slate-300 w-full max-w-2xl h-[92vh] max-h-[94vh] flex flex-col overflow-hidden"
       >
         {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-              <User size={20} />
-            </div>
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/60">
+          <div className="flex items-center gap-2.5">
+            <User size={18} className="text-indigo-600 shrink-0" />
             <div>
-              <h2 className="text-lg font-bold text-slate-900">
+              <h3 className="font-semibold text-slate-800 text-base">
                 {isEditing ? `Edit User: ${userToEdit?.name}` : "Create New User"}
-              </h2>
-              <p className="text-xs text-slate-500">
+              </h3>
+              <p className="text-xs text-slate-400">
                 {isEditing
                   ? "Update user profile details and sidebar module authorization"
                   : "Add a new system user and configure which sidebar modules they can access"}
@@ -231,336 +230,331 @@ export default function UserModal({
           </div>
           <button
             type="button"
+            aria-label="Close dialog"
             onClick={onClose}
-            className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {formError && (
-            <p className="text-xs text-rose-600 font-medium">{formError}</p>
-          )}
+        {/* Modal Body & Footer */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-4 space-y-4 flex-1 overflow-y-auto min-h-0">
+            {formError && (
+              <p className="text-xs text-rose-600 font-medium">{formError}</p>
+            )}
 
-          {/* Core Information Grid */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <ShieldCheck size={14} className="text-indigo-500" /> User Information
-            </h3>
+            {/* Core Information Grid */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-indigo-500" /> User Information
+              </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Full Name <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      required
+                      value={name}
+                      onChange={(e) => {
+                        setName(e.target.value);
+                        if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                      }}
+                      placeholder="Full name"
+                      className={`w-full pl-9 pr-3 py-2.5 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                        fieldErrors.name
+                          ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                          : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      }`}
+                    />
+                  </div>
+                  {fieldErrors.name && (
+                    <p className="text-xs text-rose-600 mt-1">{fieldErrors.name}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    Username <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="text"
                     required
-                    value={name}
+                    disabled={isEditing}
+                    value={username}
                     onChange={(e) => {
-                      setName(e.target.value);
-                      if (fieldErrors.name) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                      setUsername(e.target.value.replace(/\s+/g, ""));
+                      if (fieldErrors.username) setFieldErrors((prev) => ({ ...prev, username: undefined }));
                     }}
-                    placeholder="Full name"
-                    className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
-                      fieldErrors.name
+                    placeholder="Username"
+                    className={`w-full px-3 py-2.5 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                      isEditing
+                        ? "text-slate-500 border-slate-200 cursor-not-allowed"
+                        : fieldErrors.username
                         ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
                         : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
                     }`}
                   />
+                  {fieldErrors.username && (
+                    <p className="text-xs text-rose-600 mt-1">{fieldErrors.username}</p>
+                  )}
                 </div>
-                {fieldErrors.name && (
-                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.name}</p>
-                )}
-              </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Username <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  disabled={isEditing}
-                  value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value.replace(/\s+/g, ""));
-                    if (fieldErrors.username) setFieldErrors((prev) => ({ ...prev, username: undefined }));
-                  }}
-                  placeholder="Username"
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-mono ${
-                    isEditing
-                      ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
-                      : fieldErrors.username
-                      ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
-                      : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  }`}
-                />
-                {fieldErrors.username && (
-                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.username}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Email Address <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
-                    }}
-                    placeholder="Email address"
-                    className={`w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
-                      fieldErrors.email
-                        ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
-                        : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    }`}
-                  />
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    Email Address <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                      }}
+                      placeholder="Email address"
+                      className={`w-full pl-9 pr-3 py-2.5 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                        fieldErrors.email
+                          ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                          : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      }`}
+                    />
+                  </div>
+                  {fieldErrors.email && (
+                    <p className="text-xs text-rose-600 mt-1">{fieldErrors.email}</p>
+                  )}
                 </div>
-                {fieldErrors.email && (
-                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.email}</p>
-                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    {isEditing ? "New Password (optional)" : "Password"}{" "}
+                    {!isEditing && <span className="text-rose-500">*</span>}
+                  </label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+                      }}
+                      placeholder={isEditing ? "Leave blank to keep current" : "Minimum 6 characters"}
+                      className={`w-full pl-9 pr-10 py-2.5 text-sm border rounded-lg bg-white focus:outline-none focus:ring-2 ${
+                        fieldErrors.password
+                          ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
+                          : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {fieldErrors.password && (
+                    <p className="text-xs text-rose-600 mt-1">{fieldErrors.password}</p>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  {isEditing ? "New Password (optional)" : "Password"}{" "}
-                  {!isEditing && <span className="text-rose-500">*</span>}
-                </label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }));
-                    }}
-                    placeholder={isEditing ? "Leave blank to keep current" : "Minimum 6 characters"}
-                    className={`w-full pl-9 pr-10 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${
-                      fieldErrors.password
-                        ? "border-rose-400 focus:ring-rose-500/20 focus:border-rose-500"
-                        : "border-slate-200 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    }`}
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Role</label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option value="Staff">Staff (Operations)</option>
+                    <option value="Manager">Manager (Supervisory)</option>
+                    <option value="Admin">Admin (Administrator)</option>
+                    <option value="Super Admin">Super Admin (Full System Access)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Account Status</label>
+                  <div className="flex items-center gap-3 pt-2">
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isActive}
+                        onChange={(e) => setIsActive(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                    </label>
+                    <span className={`text-sm font-medium ${isActive ? "text-emerald-700" : "text-slate-500"}`}>
+                      {isActive ? "Active Account" : "Inactive / Suspended"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Module Access Permissions Section */}
+            <div className="space-y-3 pt-3 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Layers size={14} className="text-indigo-500" /> Sidebar Module Access Permissions
+                  </h3>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex items-center gap-1.5 self-start sm:self-auto">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none p-1 cursor-pointer"
+                    onClick={selectAll}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-indigo-600 hover:border-indigo-300 font-medium transition-colors cursor-pointer"
                   >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deselectAll}
+                    className="text-xs px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:border-slate-300 font-medium transition-colors cursor-pointer"
+                  >
+                    Clear All
                   </button>
                 </div>
-                {fieldErrors.password && (
-                  <p className="text-xs text-rose-600 mt-1">{fieldErrors.password}</p>
-                )}
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Role</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              {/* Presets Bar */}
+              <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => applyPreset("admin")}
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium cursor-pointer"
                 >
-                  <option value="Staff">Staff (Operations)</option>
-                  <option value="Manager">Manager (Supervisory)</option>
-                  <option value="Admin">Admin (Administrator)</option>
-                  <option value="Super Admin">Super Admin (Full System Access)</option>
-                </select>
+                  Full Access
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("sales")}
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium cursor-pointer"
+                >
+                  Sales & Delivery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("inventory")}
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium cursor-pointer"
+                >
+                  Inventory & Buying
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("finance")}
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium cursor-pointer"
+                >
+                  Finance & Deposits
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("viewer")}
+                  className="text-[11px] px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium cursor-pointer"
+                >
+                  Viewer / Cashier
+                </button>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Account Status</label>
-                <div className="flex items-center gap-3 pt-1.5">
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isActive}
-                      onChange={(e) => setIsActive(e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                  </label>
-                  <span className={`text-sm font-medium ${isActive ? "text-emerald-700" : "text-slate-500"}`}>
-                    {isActive ? "Active Account" : "Inactive / Suspended"}
+              {role === "Super Admin" && (
+                <div className="py-1.5 text-slate-600 text-xs flex items-center gap-2">
+                  <ShieldCheck size={15} className="shrink-0 text-violet-600" />
+                  <span>
+                    <span className="font-semibold text-violet-700">Super Admin Privilege:</span> Super Admins always possess unrestricted access to all modules, including system-level configuration and auditing.
                   </span>
                 </div>
-              </div>
-            </div>
-          </div>
+              )}
 
-          {/* Module Access Permissions Section */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                  <Layers size={14} className="text-indigo-500" /> Sidebar Module Access Permissions
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Check which pages will appear in the sidebar for this user ({allowedModules.length} selected)
-                </p>
-              </div>
+              {/* Categories & Checkboxes */}
+              <div className="space-y-3 pt-1">
+                {Object.entries(categories).map(([catName, modules]) => {
+                  const isCatAllSelected = modules.every((m) => allowedModules.includes(m.id));
 
-              {/* Quick Actions */}
-              <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={selectAll}
-                  className="text-xs px-2.5 py-1 rounded bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-medium transition-colors"
-                >
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  onClick={deselectAll}
-                  className="text-xs px-2.5 py-1 rounded bg-slate-100 text-slate-600 hover:bg-slate-200 font-medium transition-colors"
-                >
-                  Clear All
-                </button>
-              </div>
-            </div>
+                  return (
+                    <div key={catName} className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                        <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                          {catName}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(modules)}
+                          className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 cursor-pointer"
+                        >
+                          {isCatAllSelected ? "Deselect Group" : "Select Group"}
+                        </button>
+                      </div>
 
-            {/* Presets Bar */}
-            <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-slate-50 border border-slate-100">
-              <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 px-1">
-                <Sparkles size={13} className="text-amber-500" /> Quick Presets:
-              </span>
-              <button
-                type="button"
-                onClick={() => applyPreset("admin")}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium shadow-2xs"
-              >
-                Full Access
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("sales")}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium shadow-2xs"
-              >
-                Sales & Delivery
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("inventory")}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium shadow-2xs"
-              >
-                Inventory & Buying
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("finance")}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium shadow-2xs"
-              >
-                Finance & Deposits
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset("viewer")}
-                className="text-[11px] px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-indigo-300 font-medium shadow-2xs"
-              >
-                Viewer / Cashier
-              </button>
-            </div>
-
-            {role === "Super Admin" && (
-              <div className="p-3 rounded-xl bg-violet-50 border border-violet-200 text-violet-800 text-xs flex items-center gap-2">
-                <ShieldCheck size={16} className="shrink-0 text-violet-600" />
-                <span>
-                  <strong>Super Admin Privilege:</strong> Super Admins always possess unrestricted access to all modules, including system-level configuration and auditing.
-                </span>
-              </div>
-            )}
-
-            {/* Categories & Checkboxes */}
-            <div className="space-y-4 pt-1">
-              {Object.entries(categories).map(([catName, modules]) => {
-                const isCatAllSelected = modules.every((m) => allowedModules.includes(m.id));
-                const isCatPartial =
-                  !isCatAllSelected && modules.some((m) => allowedModules.includes(m.id));
-
-                return (
-                  <div key={catName} className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                        {catName}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => toggleCategory(modules)}
-                        className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800"
-                      >
-                        {isCatAllSelected ? "Deselect Group" : "Select Group"}
-                      </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {modules.map((mod) => {
+                          const isChecked = allowedModules.includes(mod.id);
+                          return (
+                            <label
+                              key={mod.id}
+                              className={`flex items-start gap-2.5 p-2 rounded-lg border bg-white cursor-pointer transition-colors ${
+                                isChecked
+                                  ? "border-indigo-400 text-slate-900"
+                                  : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleModule(mod.id)}
+                                className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                              />
+                              <div className="leading-snug">
+                                <span className="text-xs font-medium block">{mod.label}</span>
+                                {mod.description && (
+                                  <span className="text-[11px] text-slate-400 block leading-tight">
+                                    {mod.description}
+                                  </span>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {modules.map((mod) => {
-                        const isChecked = allowedModules.includes(mod.id);
-                        return (
-                          <label
-                            key={mod.id}
-                            className={`flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-all ${
-                              isChecked
-                                ? "bg-indigo-50/50 border-indigo-200 text-slate-900"
-                                : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleModule(mod.id)}
-                              className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
-                            />
-                            <div className="leading-snug">
-                              <span className="text-xs font-semibold block">{mod.label}</span>
-                              {mod.description && (
-                                <span className="text-[11px] text-slate-400 block leading-tight">
-                                  {mod.description}
-                                </span>
-                              )}
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white py-2">
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 font-semibold transition-colors focus:outline-none cursor-pointer"
             >
               {submitting ? "Saving..." : isEditing ? "Update User" : "Create User"}
             </button>
           </div>
         </form>
-      </div>
+      </DraggableModalBox>
     </div>
   );
 }

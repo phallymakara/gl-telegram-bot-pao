@@ -20,13 +20,15 @@ class SlotRowResponse(BaseModel):
 
 class SlotTableCreate(BaseModel):
     table_name: str
-    stock: Decimal = 0
+    stock: Decimal = Decimal(0)
+    buy_limit: Decimal | None = None
 
 
 class SlotTableResponse(BaseModel):
     id: int
     table_name: str
     stock: Decimal
+    buy_limit: Decimal | None = Decimal(0)
     is_active: bool
     display_order: int
     rows: list[SlotRowResponse] = []

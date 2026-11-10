@@ -19,10 +19,10 @@ from app.bot.keyboards import (
     build_contact_sales_keyboard,
     build_main_menu,
 )
-from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.services.settings_service import get_sales_contact_sync, is_within_operating_hours_sync
 from app.bot.notice_service import send_off_store_notice
 from app.bot.order_flow import (
+    _parse_numeric_input,
     handle_confirm_order,
     handle_custom_quantity_prompt,
     handle_custom_quantity_text_input,
@@ -125,6 +125,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get("awaiting_custom_qty"):
         await handle_custom_quantity_text_input(update, context)
         return
+
+    # Handle direct quantity entry if user selected a slot and types a number
+    if context.user_data.get("selected_slot") and not context.user_data.get("quantity"):
+        raw_msg = update.message.text if (update.message and update.message.text) else ""
+        if _parse_numeric_input(raw_msg) is not None:
+            await handle_custom_quantity_text_input(update, context)
+            return
 
     # Handle deposit amount text input
     if context.user_data.get("awaiting_deposit_amount"):
@@ -276,9 +283,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == CONTACT_SALES:
         lang = context.user_data.get("lang", "EN")
         sales_user, sales_phone, sales_display = get_sales_contact_sync()
+        safe_username = sales_user.replace("_", "\\_") if sales_user else ""
         msg = t("contact_sales_title", lang).format(
             phone=sales_display or sales_phone,
-            username=sales_user,
+            username=safe_username,
         )
         await query.message.reply_text(
             text=msg,
@@ -289,8 +297,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == CALL_SALES_PHONE:
         lang = context.user_data.get("lang", "EN")
         sales_user, sales_phone, sales_display = get_sales_contact_sync()
+        if not sales_phone:
+            await query.message.reply_text(
+                text=t("contact_sales_title", lang).format(
+                    phone="-",
+                    username=sales_user.replace("_", "\\_") if sales_user else "-",
+                ),
+                parse_mode="Markdown",
+                reply_markup=build_back_main_keyboard(lang),
+            )
+            return
         await query.message.reply_contact(
-            phone_number=sales_phone or SALES_PHONE_NUMBER,
+            phone_number=sales_phone,
             first_name=sales_user or "Sales Support",
             last_name="(Sales Agent)",
             reply_markup=build_back_main_keyboard(lang),

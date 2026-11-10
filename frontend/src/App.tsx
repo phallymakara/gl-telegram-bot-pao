@@ -35,7 +35,7 @@ function AppContent() {
   return (
     <div
       className="h-screen max-h-screen bg-slate-50 flex text-slate-800 overflow-hidden"
-      style={{ fontFamily: "Inter, system-ui, sans-serif" }}
+      style={{ fontFamily: "Inter, 'Kantumruy Pro', system-ui, sans-serif" }}
     >
       <Sidebar
         mobileOpen={mobileOpen}

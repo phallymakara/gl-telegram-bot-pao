@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.api.schemas import DailyInventoryCreate, DailyInventoryResponse
 from app.models.daily_inventory import DailyInventory
 from app.models.order import Order
@@ -37,7 +38,7 @@ class VaultAdjustmentResponse(BaseModel):
 
 
 @router.post("/vault-adjustment", response_model=VaultAdjustmentResponse)
-def create_vault_adjustment(body: VaultAdjustmentRequest):
+def create_vault_adjustment(body: VaultAdjustmentRequest, db: Session = Depends(get_db)):
     """
     Directly correct the physical vault total. This is deliberately separate from editing a slot
     table's STOCK box: that box only reallocates existing gold between price tiers, while this
@@ -46,6 +47,15 @@ def create_vault_adjustment(body: VaultAdjustmentRequest):
     if not body.reason.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A reason is required")
     new_total = adjust_vault_stock_sync(float(body.delta), body.reason.strip())
+    log_activity(
+        db,
+        action="VAULT_STOCK_ADJUSTED",
+        category="STOCK",
+        description=f"Adjusted vault stock by {float(body.delta):+g} ({body.reason.strip()}) -> New balance: {new_total}",
+        entity_type="VaultStock",
+        entity_id="vault",
+        details={"delta": float(body.delta), "reason": body.reason.strip(), "new_vault_stock": new_total},
+    )
     return VaultAdjustmentResponse(new_vault_stock=new_total)
 
 
@@ -181,6 +191,15 @@ def create_inventory(body: DailyInventoryCreate, db: Session = Depends(get_db)):
     db.add(row)
     db.commit()
     db.refresh(row)
+    log_activity(
+        db,
+        action="INVENTORY_CREATED",
+        category="STOCK",
+        description=f"Added manual stock adjustment entry for {row.inventory_date} ({row.stock_kg} kg)",
+        entity_type="DailyInventory",
+        entity_id=row.id,
+        details={"inventory_date": str(row.inventory_date), "stock_kg": float(row.stock_kg)},
+    )
     return row
 
 
@@ -210,6 +229,15 @@ def update_inventory(row_id: int, body: DailyInventoryCreate, db: Session = Depe
     row.stock_kg = body.stock_kg
     db.commit()
     db.refresh(row)
+    log_activity(
+        db,
+        action="INVENTORY_UPDATED",
+        category="STOCK",
+        description=f"Updated manual stock entry #{row.id} ({row.inventory_date}: {row.stock_kg} kg)",
+        entity_type="DailyInventory",
+        entity_id=row.id,
+        details={"inventory_date": str(row.inventory_date), "stock_kg": float(row.stock_kg)},
+    )
     return row
 
 
@@ -222,6 +250,15 @@ def delete_inventory(row_id: int, db: Session = Depends(get_db)):
     row = db.query(DailyInventory).filter(DailyInventory.id == row_id).first()
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inventory row not found")
+    inv_date = str(row.inventory_date)
     db.delete(row)
     db.commit()
+    log_activity(
+        db,
+        action="INVENTORY_DELETED",
+        category="STOCK",
+        description=f"Deleted manual stock entry #{row_id} ({inv_date})",
+        entity_type="DailyInventory",
+        entity_id=row_id,
+    )
 

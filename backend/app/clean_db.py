@@ -11,6 +11,13 @@ from decimal import Decimal
 
 from sqlalchemy import delete
 
+from app.core.config import (
+    DEFAULT_ADMIN_EMAIL,
+    DEFAULT_ADMIN_NAME,
+    DEFAULT_ADMIN_PASSWORD,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_GROUP_NAME,
+)
 from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
 from app.models.alert import Alert
@@ -81,19 +88,20 @@ def clean_db():
         # Section 4: Ensure default group entity exists if not present
         group = db.query(TelegramGroup).filter(TelegramGroup.telegram_group_id == "-1000000000001").first()
         if not group:
-            db.add(TelegramGroup(telegram_group_id="-1000000000001", group_name="Telegram Bot", is_active=True))
+            db.add(TelegramGroup(telegram_group_id="-1000000000001", group_name=DEFAULT_GROUP_NAME, is_active=True))
 
-        # Section 5: Ensure super admin user exists
-        admin = db.query(User).filter(User.username == "admin").first()
-        if not admin:
-            db.add(User(
-                name="Admin User",
-                username="admin",
-                email="admin@goldsystem.com",
-                password_hash=hash_password("admin123"),
-                role="SUPER_ADMIN",
-                is_active=True,
-            ))
+        # Section 5: Ensure super admin user exists from environment config
+        if DEFAULT_ADMIN_USERNAME and DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD:
+            admin = db.query(User).filter(User.username == DEFAULT_ADMIN_USERNAME).first()
+            if not admin:
+                db.add(User(
+                    name=DEFAULT_ADMIN_NAME,
+                    username=DEFAULT_ADMIN_USERNAME,
+                    email=DEFAULT_ADMIN_EMAIL,
+                    password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
+                    role="SUPER_ADMIN",
+                    is_active=True,
+                ))
 
         db.commit()
         from app.services.dashboard_service import sync_db_matrix_columns_with_slots

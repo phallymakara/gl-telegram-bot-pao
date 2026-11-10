@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.models.product import Product
+from app.services.activity_log_service import log_activity
 
 router = APIRouter()
 
@@ -95,6 +96,15 @@ def create_product(body: ProductCreate, db: Session = Depends(get_db)):
     db.add(product)
     db.commit()
     db.refresh(product)
+    log_activity(
+        db,
+        action="PRODUCT_CREATED",
+        category="MASTER_DATA",
+        description=f"Created product '{product.name}' ({product.product_code})",
+        entity_type="Product",
+        entity_id=product.id,
+        details={"product_code": product.product_code, "purity": product.purity},
+    )
     return product
 
 
@@ -126,6 +136,15 @@ def update_product(product_id: int, body: ProductUpdate, db: Session = Depends(g
 
     db.commit()
     db.refresh(product)
+    log_activity(
+        db,
+        action="PRODUCT_UPDATED",
+        category="MASTER_DATA",
+        description=f"Updated product '{product.name}' ({product.product_code})",
+        entity_type="Product",
+        entity_id=product.id,
+        details={"is_active": product.is_active},
+    )
     return product
 
 
@@ -137,5 +156,15 @@ def delete_product(product_id: int, db: Session = Depends(get_db)):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+    name = product.name
+    code = product.product_code
     db.delete(product)
     db.commit()
+    log_activity(
+        db,
+        action="PRODUCT_DELETED",
+        category="MASTER_DATA",
+        description=f"Deleted product '{name}' ({code})",
+        entity_type="Product",
+        entity_id=product_id,
+    )

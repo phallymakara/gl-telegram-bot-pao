@@ -51,6 +51,7 @@ export const NAV_ITEMS: NavItem[] = [
     ]
   },
   { id: "user-management", label: "User Management", icon: User },
+  { id: "audit-logs", label: "Activity Logs", icon: Shield },
   {
     id: "alert-center", label: "Alert Center", icon: Bell, children: [
       { id: "low-stock-alerts", label: "Low Stock Alert", icon: Package },

@@ -35,6 +35,7 @@ const GoodsReceiptPage = lazyPage(() => import("../pages/GoodsReceiptPage"));
 const InvoicePage = lazyPage(() => import("../pages/InvoicePage"));
 const ReportsPage = lazyPage(() => import("../pages/ReportsPage"));
 const UsersPage = lazyPage(() => import("../pages/UsersPage"));
+const AuditLogsPage = lazyPage(() => import("../pages/AuditLogsPage"));
 const AlertsPage = lazyPage(() => import("../pages/AlertsPage"));
 const SettingsPage = lazyPage(() => import("../pages/SettingsPage"));
 import { ToastType } from "../components/Toast";
@@ -75,7 +76,7 @@ export default function AppRoutes({ notify }: AppRoutesProps) {
         path="/dashboard"
         element={
           <ProtectedRoute module="dashboard">
-            <DashboardPage />
+            <DashboardPage notify={notify} />
           </ProtectedRoute>
         }
       />
@@ -315,9 +316,7 @@ export default function AppRoutes({ notify }: AppRoutesProps) {
         path="/audit-logs"
         element={
           <ProtectedRoute module="audit-logs">
-            <StandardPageWrapper>
-              <ComingSoon label={PAGE_TITLE["audit-logs"]} icon={Shield} />
-            </StandardPageWrapper>
+            <AuditLogsPage notify={notify} />
           </ProtectedRoute>
         }
       />

@@ -21,6 +21,7 @@ from app.schemas.withdrawal import (
     WithdrawalStatsResponse,
 )
 from app.utils.generators import generate_withdraw_no
+from app.services.activity_log_service import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,15 @@ def create_withdrawal(body: WithdrawalCreate, db: Session = Depends(get_db)):
     db.add(withdrawal)
     db.commit()
     db.refresh(withdrawal)
+    log_activity(
+        db,
+        action="WITHDRAWAL_CREATED",
+        category="FINANCE",
+        description=f"Created withdrawal {withdrawal.withdraw_no} for ${withdrawal.amount} ({withdrawal.payment_method})",
+        entity_type="Withdrawal",
+        entity_id=withdrawal.withdraw_no,
+        details={"amount": float(withdrawal.amount), "currency": withdrawal.currency, "payment_method": withdrawal.payment_method},
+    )
     return withdrawal
 
 
@@ -180,6 +190,16 @@ def review_withdrawal(
     db.commit()
     db.refresh(withdrawal)
     logger.info("Withdrawal %s reviewed: status=%s by %s", withdrawal.withdraw_no, withdrawal.status, withdrawal.reviewed_by)
+    action_name = "WITHDRAWAL_APPROVED" if new_status == "APPROVED" else ("WITHDRAWAL_REJECTED" if new_status == "REJECTED" else "WITHDRAWAL_UPDATED")
+    log_activity(
+        db,
+        action=action_name,
+        category="FINANCE",
+        description=f"Withdrawal {withdrawal.withdraw_no} marked {new_status} (${withdrawal.amount})",
+        entity_type="Withdrawal",
+        entity_id=withdrawal.withdraw_no,
+        details={"status": new_status, "amount": float(withdrawal.amount), "reviewed_by": withdrawal.reviewed_by},
+    )
     return withdrawal
 
 
@@ -191,5 +211,14 @@ def delete_withdrawal(withdrawal_id: int, db: Session = Depends(get_db)):
     withdrawal = db.query(Withdrawal).filter(Withdrawal.id == withdrawal_id).first()
     if not withdrawal:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Withdrawal not found")
+    withdraw_no = withdrawal.withdraw_no
     db.delete(withdrawal)
     db.commit()
+    log_activity(
+        db,
+        action="WITHDRAWAL_DELETED",
+        category="FINANCE",
+        description=f"Deleted withdrawal {withdraw_no}",
+        entity_type="Withdrawal",
+        entity_id=withdraw_no,
+    )

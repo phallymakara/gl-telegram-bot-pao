@@ -282,13 +282,13 @@ export default function SalesPersonTable({
                     key={sp.id}
                     className="hover:bg-slate-100 transition-colors"
                   >
-                    <td className="px-4 py-3 font-mono font-semibold text-indigo-600 whitespace-nowrap">
+                    <td className="px-4 py-3 font-mono font-normal text-indigo-600 whitespace-nowrap">
                       {sp.code || `SP-${String(sp.id).padStart(3, "0")}`}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
+                    <td className="px-4 py-3 font-normal text-slate-800 whitespace-nowrap">
                       {sp.name}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-medium">
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-normal">
                       {sp.phone || "—"}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">

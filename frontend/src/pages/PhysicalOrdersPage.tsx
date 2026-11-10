@@ -15,6 +15,7 @@ import StatCard from "../components/StatCard";
 import LazyTableFooter from "../components/LazyTableFooter";
 import useLazyRecords from "../hooks/useLazyRecords";
 import { TableLoader } from "../components/Loader";
+import DraggableModalBox from "../components/DraggableModalBox";
 /**
  * @file PhysicalOrdersPage.tsx
  * @description Physical Gold Orders page component for recording over-the-counter and physical store transactions.
@@ -304,22 +305,30 @@ export default function PhysicalOrdersPage({
       </Card>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsOpen(false);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={isOpen}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">
                 Create Physical Order
               </h3>
               <button
                 type="button"
                 aria-label="Close dialog"
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={20} className="rotate-45" />
+                <Plus size={18} className="rotate-45" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
                   Customer Name *
@@ -383,8 +392,9 @@ export default function PhysicalOrdersPage({
                 />
               </div>
             </div>
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
+                type="button"
                 onClick={() => {
                   setForm({
                     customer_name: "",
@@ -395,18 +405,19 @@ export default function PhysicalOrdersPage({
                   });
                   setIsOpen(false);
                 }}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={save}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={15} /> Save Order
+                <Plus size={14} /> Save Order
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
     </div>

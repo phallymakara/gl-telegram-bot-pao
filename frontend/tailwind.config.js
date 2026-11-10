@@ -7,7 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        kantoumrouy: ['"Kantumruy Pro"', 'sans-serif'],
+        sans: ['Inter', '"Kantumruy Pro"', 'system-ui', 'sans-serif'],
+        serif: ['Inter', '"Kantumruy Pro"', 'system-ui', 'sans-serif'],
+        mono: ['Inter', '"Kantumruy Pro"', 'system-ui', 'sans-serif'],
+        kantoumrouy: ['Inter', '"Kantumruy Pro"', 'system-ui', 'sans-serif'],
       },
     },
   },

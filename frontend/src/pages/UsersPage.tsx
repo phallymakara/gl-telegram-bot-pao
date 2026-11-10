@@ -4,10 +4,9 @@
  * removing accounts, and configuring granular sidebar module permissions.
  */
 
-import React, { useState, useEffect } from "react";
-import { Users, User, Shield, Plus, Pencil, Trash2, Key, CheckCircle, Layers } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Pencil, Trash2, Key, CheckCircle, Layers } from "lucide-react";
 import Card from "../components/Card";
-import StatCard from "../components/StatCard";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
 import IconBtn from "../components/IconBtn";
@@ -120,20 +119,18 @@ export default function UsersPage({ notify }: UsersPageProps) {
   } = useLazyRecords(filtered, { initialCount: 15, batchSize: 15 });
 
   const roleTint: Record<string, string> = {
-    "Super Admin": "bg-violet-50 text-violet-700 border-violet-100",
-    SUPER_ADMIN: "bg-violet-50 text-violet-700 border-violet-100",
-    Admin: "bg-blue-50 text-blue-700 border-blue-100",
-    Manager: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    Staff: "bg-slate-100 text-slate-700 border-slate-200",
+    "Super Admin": "text-violet-700",
+    SUPER_ADMIN: "text-violet-700",
+    Admin: "text-blue-700",
+    Manager: "text-emerald-700",
+    Staff: "text-slate-600",
   };
-
-  const activeUsers = users.filter((u) => u.is_active).length;
 
   const renderModuleBadge = (u: UserData) => {
     const isSuper = u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.allowed_modules?.includes("*");
     if (isSuper) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-700">
           <CheckCircle size={12} /> All Modules
         </span>
       );
@@ -141,14 +138,14 @@ export default function UsersPage({ notify }: UsersPageProps) {
     const count = u.allowed_modules?.length || 0;
     if (count === 0) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-600 border border-rose-200">
+        <span className="inline-flex items-center gap-1 text-xs font-normal text-rose-600">
           No Access
         </span>
       );
     }
     return (
       <div className="flex items-center gap-1.5" title={u.allowed_modules?.join(", ")}>
-        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+        <span className="inline-flex items-center gap-1 text-xs font-normal text-indigo-700">
           <Layers size={11} /> {count} / {ALL_MODULES.length} Modules
         </span>
       </div>
@@ -156,14 +153,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
   };
 
   return (
-    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      {/* Top Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-shrink-0">
-        <StatCard icon={Users} label="Total Users" value={users.length} sub="System Accounts" tint="bg-indigo-50 text-indigo-600" />
-        <StatCard icon={User} label="Active Users" value={activeUsers} sub="Operational" tint="bg-emerald-50 text-emerald-600" />
-        <StatCard icon={Shield} label="Roles Configured" value={Array.from(new Set(users.map((u) => u.role))).length} sub="Super Admin, Admin, Staff" tint="bg-violet-50 text-violet-600" />
-      </div>
-
+    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col min-h-0">
       {/* Main Table Card */}
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Action and Search Toolbar */}
@@ -212,7 +202,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
 
             <button
               onClick={handleCreateOpen}
-              className="flex items-center gap-1.5 text-xs px-3.5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium whitespace-nowrap shadow-sm transition-all cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-3.5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium whitespace-nowrap transition-all cursor-pointer"
             >
               <Plus size={14} /> Add User
             </button>
@@ -253,7 +243,7 @@ export default function UsersPage({ notify }: UsersPageProps) {
                     <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold shrink-0">
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-normal shrink-0">
                           {u.name
                             .split(" ")
                             .map((n) => n[0])
@@ -262,21 +252,21 @@ export default function UsersPage({ notify }: UsersPageProps) {
                             .toUpperCase()}
                         </div>
                         <div className="leading-tight">
-                          <span className="font-semibold text-slate-800 block">{u.name}</span>
+                          <span className="font-normal text-slate-800 block">{u.name}</span>
                           {currentUser?.id === u.id && (
-                            <span className="text-[10px] text-indigo-600 font-medium">(You)</span>
+                            <span className="text-[10px] text-indigo-600 font-normal">(You)</span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap font-mono text-xs">
+                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap font-normal text-xs">
                       {u.username}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap">{u.email}</td>
+                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap font-normal">{u.email}</td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
-                          roleTint[u.role] || "bg-slate-100 text-slate-600 border-slate-200"
+                        className={`text-xs font-normal ${
+                          roleTint[u.role] || "text-slate-600"
                         }`}
                       >
                         {u.role}

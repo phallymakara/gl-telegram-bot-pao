@@ -372,10 +372,10 @@ export default function CustomerTable({
               <tbody className="divide-y divide-slate-100">
                 {visibleRecords.map((c, i) => (
                   <tr key={c.id} className="hover:bg-slate-100 transition-colors">
-                    <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 font-mono text-xs font-normal text-slate-800 whitespace-nowrap">
                       {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
                     </td>
-                    <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                       {c.name}
                     </td>
                     <td className="py-2 px-3 text-slate-600 whitespace-nowrap">

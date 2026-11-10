@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.schemas.dashboard import (
     DashboardStats,
     RevenuePoint,
@@ -107,6 +108,15 @@ def add_matrix_deduction(body: StockMatrixDeductionCreate, db: Session = Depends
     """
     try:
         order = create_stock_matrix_deduction(db, body)
+        log_activity(
+            db,
+            action="MATRIX_DEDUCTION_CREATED",
+            category="STOCK",
+            description=f"Added stock matrix deduction for Order {order.order_no} (Qty: {order.quantity})",
+            entity_type="Order",
+            entity_id=order.order_no,
+            details={"brand": getattr(body, "brand", None), "date": getattr(body, "date", None), "quantity": float(order.quantity)},
+        )
         return {"success": True, "order_id": order.id, "order_no": order.order_no}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -119,6 +129,15 @@ def edit_matrix_deduction(order_id: int, body: StockMatrixDeductionUpdate, db: S
     """
     try:
         order = update_stock_matrix_deduction(db, order_id, body.quantity)
+        log_activity(
+            db,
+            action="MATRIX_DEDUCTION_UPDATED",
+            category="STOCK",
+            description=f"Updated stock matrix deduction Order {order.order_no} to Qty {body.quantity}",
+            entity_type="Order",
+            entity_id=order.order_no,
+            details={"quantity": body.quantity},
+        )
         return {"success": True, "order_id": order.id, "order_no": order.order_no}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -131,6 +150,14 @@ def remove_matrix_deduction(order_id: int, db: Session = Depends(get_db)):
     """
     try:
         delete_stock_matrix_deduction(db, order_id)
+        log_activity(
+            db,
+            action="MATRIX_DEDUCTION_DELETED",
+            category="STOCK",
+            description=f"Deleted stock matrix deduction Order #{order_id}",
+            entity_type="Order",
+            entity_id=order_id,
+        )
         return None
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -143,6 +170,15 @@ def edit_matrix_import(body: StockMatrixImportUpdate, db: Session = Depends(get_
     """
     try:
         po = update_stock_matrix_import(db, body.brand, body.date, body.quantity)
+        log_activity(
+            db,
+            action="MATRIX_IMPORT_STOCK_UPDATED",
+            category="STOCK",
+            description=f"Updated stock matrix import stock for {body.brand} ({body.date}) to {body.quantity}",
+            entity_type="PurchaseOrder",
+            entity_id=po.po_no,
+            details={"brand": body.brand, "date": body.date, "quantity": body.quantity},
+        )
         return {"success": True, "po_id": po.id, "po_no": po.po_no}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -249,12 +285,22 @@ def edit_matrix_cell(body: StockMatrixCellUpdate, db: Session = Depends(get_db))
     Update an individual cell value in the matrix.
     """
     try:
-        return update_matrix_cell(
+        result = update_matrix_cell(
             db=db,
             col_id=body.col_id,
             row_key=body.row_key,
             value=body.value,
         )
+        log_activity(
+            db,
+            action="MATRIX_CELL_UPDATED",
+            category="STOCK",
+            description=f"Updated stock matrix cell ({body.row_key} / {body.col_id}) to {body.value}",
+            entity_type="StockMatrix",
+            entity_id=f"{body.col_id}:{body.row_key}",
+            details={"col_id": body.col_id, "row_key": body.row_key, "value": body.value},
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

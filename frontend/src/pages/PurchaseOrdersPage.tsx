@@ -29,6 +29,7 @@ import StatusBadge from "../components/StatusBadge";
 import LazyTableFooter from "../components/LazyTableFooter";
 import useLazyRecords from "../hooks/useLazyRecords";
 import Loader, { TableLoader } from "../components/Loader";
+import DraggableModalBox from "../components/DraggableModalBox";
 /**
  * @file PurchaseOrdersPage.tsx
  * @description Purchase Orders page component managing local and oversea gold supplier procurement, shipping tracking, stock receipt verification, and returns.
@@ -1666,7 +1667,10 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             if (e.target === e.currentTarget) setIsOpen(false);
           }}
         >
-          <div className="bg-white rounded-3xl border border-slate-300 shadow-2xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform flex flex-col max-h-[85vh]">
+          <DraggableModalBox
+            resetKey={editingPoId ?? isOpen}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+          >
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
               <div>
                 <h3 className="font-semibold text-slate-800 text-base">
@@ -1847,25 +1851,33 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <Plus size={14} /> Make PO
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 
       {returnTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">Return {returnTarget.po_no}</h3>
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReturnTarget(null);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={returnTarget.id}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">Return {returnTarget.po_no}</h3>
               <button
                 type="button"
                 aria-label="Close dialog"
                 onClick={() => setReturnTarget(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
               >
-                <Plus size={20} className="rotate-45" />
+                <Plus size={18} className="rotate-45" />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
               <div>
                 <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
                   Return Quantity (KG) * — max {toNumber(returnTarget.quantity).toFixed(3)}
@@ -1887,28 +1899,38 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 />
               </div>
             </div>
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
+                type="button"
                 onClick={() => setReturnTarget(null)}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={submitReturn}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold shadow-sm transition-colors focus:outline-none"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <RotateCcw size={15} /> Confirm Return
+                <RotateCcw size={14} /> Confirm Return
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
       {receiveTarget && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-transform">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-bold text-slate-800 text-lg">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setReceiveTarget(null);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={receiveTarget.id}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">
                 Receive Goods
               </h3>
               <button
@@ -1921,7 +1943,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-slate-400 block font-medium">PO Quantity</span>
@@ -2016,30 +2038,38 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setReceiveTarget(null)}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submitReceiveGoods}
-                className="flex items-center gap-2 text-sm px-5 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <PackageCheck size={16} /> Receive
+                <PackageCheck size={14} /> Receive
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 
       {/* E-INVOICE / PURCHASE SLIP MODAL */}
       {invoiceModalPo && (
-        <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-50 p-4 transition-all overflow-y-auto">
-          <div className="bg-[#fffcf5] rounded-none border border-red-800 shadow-none w-[148mm] max-w-[148mm] overflow-hidden transform scale-100 transition-transform my-6 text-red-950 font-sans">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setInvoiceModalPo(null);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={invoiceModalPo.id}
+            className="bg-[#fffcf5] rounded-3xl border border-red-800 shadow-none w-[148mm] max-w-[148mm] overflow-hidden my-6 text-red-950 font-sans"
+          >
 
             {/* Modal Header Bar */}
             <div className="p-2.5 bg-red-900 text-white flex items-center justify-between border-b border-red-800">
@@ -2213,7 +2243,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 Close
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
     </div>

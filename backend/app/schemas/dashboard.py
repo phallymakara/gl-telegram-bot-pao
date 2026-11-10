@@ -91,6 +91,7 @@ class StockMatrixColumn(BaseModel):
     target_date: str | None = None
     header_color: str
     text_color: str = "text-slate-900"
+    carryover_stock: float = 0.0
     import_stock: float
     trade_in: float = 0.0
     physical_sale: float = 0.0

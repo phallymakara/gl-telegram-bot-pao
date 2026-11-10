@@ -3,9 +3,10 @@
  * @description Slot Pricing Tables page component for configuring premium rates by slot date for buyback and sell modes.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Pencil, MoreHorizontal, X, Save, Check } from "lucide-react";
 import Card from "../components/Card";
+import DraggableModalBox from "../components/DraggableModalBox";
 import { api, SlotTableData } from "../api";
 
 interface SlotsPageProps {
@@ -30,6 +31,7 @@ interface SlotRowItem {
 interface BuyTableItem {
   id: number;
   title: string;
+  tableLimit: string;
   rows: SlotRowItem[];
 }
 
@@ -79,6 +81,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
   const [buyDateError, setBuyDateError] = useState("");
   const [sellDateError, setSellDateError] = useState("");
+  const focusedLimitTableIdRef = useRef<number | null>(null);
 
   function getLocalDateString(): string {
     const d = new Date();
@@ -119,21 +122,26 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
       .get<SlotTableData[]>("/api/slots/")
       .then((tables) => {
         if (tables) {
-          const buyList: BuyTableItem[] = tables
-            .filter((t) => t.table_name.toUpperCase().includes("BUY") || !t.table_name.toUpperCase().includes("SELL"))
-            .map((t) => {
-              const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
-                id: r.id,
-                start_date: r.slot_date,
-                end_date: r.slot_date,
-                premium: r.premium,
-              }));
-              return {
-                id: t.id,
-                title: t.table_name,
-                rows: sortSlotRows(rows),
-              };
-            });
+          setBuyTables((prev) =>
+            tables
+              .filter((t) => t.table_name.toUpperCase().includes("BUY") || !t.table_name.toUpperCase().includes("SELL"))
+              .map((t) => {
+                const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
+                  id: r.id,
+                  start_date: r.slot_date,
+                  end_date: r.slot_date,
+                  premium: r.premium,
+                }));
+                const existing = prev.find((p) => p.id === t.id);
+                const keepLocalLimit = focusedLimitTableIdRef.current === t.id && existing;
+                return {
+                  id: t.id,
+                  title: t.table_name,
+                  tableLimit: keepLocalLimit ? existing.tableLimit : String(t.buy_limit ?? 0),
+                  rows: sortSlotRows(rows),
+                };
+              })
+          );
           const sellList: SellTableItem[] = tables
             .filter((t) => t.table_name.toUpperCase().includes("SELL"))
             .map((t) => {
@@ -152,7 +160,6 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                 rows: sortSlotRows(rows),
               };
             });
-          setBuyTables(buyList);
           setSellTables(sellList);
         }
       })
@@ -172,13 +179,36 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     api
       .post<SlotTableData>("/api/slots/", {
         table_name: `Buy Slot Table ${buyTables.length + 1}`,
-        stock: 100,
+        stock: 0,
+        buy_limit: 0,
       })
       .then(() => {
         notify("New Buy Slot table added!");
         loadSlots();
       })
       .catch((e: Error) => notify(e.message || "Failed to add table"));
+  }
+
+  function updateTableLimit(tableId: number, limitVal: string) {
+    const tbl = buyTables.find((t) => t.id === tableId);
+    if (!tbl) return;
+    const previousLimit = tbl.tableLimit;
+
+    setBuyTables((prev) =>
+      prev.map((t) => (t.id === tableId ? { ...t, tableLimit: limitVal } : t))
+    );
+    api
+      .put(`/api/slots/${tableId}`, {
+        table_name: tbl.title,
+        buy_limit: Number(limitVal) || 0,
+      })
+      .then(() => { })
+      .catch((e: Error) => {
+        setBuyTables((prev) =>
+          prev.map((t) => (t.id === tableId ? { ...t, tableLimit: previousLimit } : t))
+        );
+        notify(e.message || "Failed to update buy limit", "error");
+      });
   }
 
   function deleteBuyTable(tableId: number) {
@@ -420,7 +450,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
             onClick={() => setSelectedSlotType("BUY")}
             className={`rounded-none bg-transparent border-0 py-1 text-sm sm:text-base font-bold transition-colors cursor-pointer outline-none focus:outline-none ${
               selectedSlotType === "BUY"
-                ? "text-indigo-600"
+                ? "text-rose-600"
                 : "text-slate-400 hover:text-slate-700"
             }`}
           >
@@ -450,9 +480,9 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               addBuyTable();
             }
           }}
-          className={`flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg text-white font-medium shadow-sm transition-colors cursor-pointer ${selectedSlotType === "SELL"
+          className={`flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg text-white font-medium transition-colors cursor-pointer ${selectedSlotType === "SELL"
             ? "bg-emerald-600 hover:bg-emerald-700"
-            : "bg-indigo-600 hover:bg-indigo-700"
+            : "bg-rose-600 hover:bg-rose-700"
             }`}
         >
           <Plus size={14} /> Add Table
@@ -466,9 +496,10 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         /* SELL SLOT TABLES */
         <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-1">
           {sellTables.map((tbl) => (
-            <Card key={tbl.id} className="flex flex-col min-h-0 overflow-hidden">
+            <Card key={tbl.id} className="flex flex-col min-h-0 overflow-hidden !border-emerald-200/80">
+              <div className="bg-emerald-500/10 flex flex-col min-h-0 w-full">
               {/* Table Title Header */}
-              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <div className="px-5 py-3 border-b border-emerald-200/70 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {editingTitleTableId === tbl.id ? (
                     <div className="flex items-center gap-1.5">
@@ -493,7 +524,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                           }
                         }}
                         autoFocus
-                        className="font-bold text-slate-800 text-sm bg-white border border-indigo-300 rounded-md px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="font-bold text-slate-800 text-sm bg-white border border-emerald-300 rounded-md px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                       />
                       <button
                         type="button"
@@ -526,7 +557,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                           setEditingTitleTableId(tbl.id);
                           setTempTitleValue(tbl.title);
                         }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-100/60 rounded-md transition-colors cursor-pointer"
                         title="Edit table name"
                       >
                         <Pencil size={14} />
@@ -547,20 +578,20 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 z-10 bg-slate-50">
-                    <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap w-12 text-slate-400">#</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-slate-400">SLOT DATE</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">STOCK</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">ACTIONS</th>
+                  <thead>
+                    <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-emerald-200/80">
+                      <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap">SLOT DATE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">STOCK</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
+                        className="border-b border-emerald-200/60 hover:bg-emerald-500/10 transition-colors"
                       >
                         <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
@@ -573,7 +604,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         {idx === 0 && (
                           <td
                             rowSpan={tbl.rows.length > 0 ? tbl.rows.length : 1}
-                            className="px-4 py-2 text-center align-middle bg-slate-50/40 border-x border-slate-200/60"
+                            className="px-4 py-2 text-center align-middle border-x border-emerald-200/70"
                           >
                             <div className="flex flex-col items-center justify-center py-1">
                               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
@@ -584,7 +615,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                                 value={tbl.tableStock}
                                 onChange={(e) => updateTableStock(tbl.id, e.target.value)}
                                 placeholder="100.000"
-                                className="w-24 text-xs border border-slate-200 rounded-md px-2.5 py-1 bg-white text-slate-900 font-bold text-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
+                                className="w-28 text-base border border-emerald-300/80 rounded-md px-3 py-1.5 bg-transparent text-slate-900 font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                               />
                             </div>
                           </td>
@@ -619,20 +650,20 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                       </tr>
                     )}
                     {/* Table Footer with Add Row and Save side by side */}
-                    <tr className="border-t border-slate-200 bg-slate-50/30">
+                    <tr className="border-t border-emerald-200/70">
                       <td colSpan={5} className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => openAddSellRowModal(tbl.id)}
-                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-semibold text-sm cursor-pointer transition-colors bg-indigo-50 hover:bg-indigo-100/80 px-3.5 py-1.5 rounded-lg border border-indigo-100"
+                            className="inline-flex items-center gap-1.5 text-emerald-700 hover:text-emerald-800 font-semibold text-sm cursor-pointer transition-colors bg-emerald-50 hover:bg-emerald-100/80 px-3.5 py-1.5 rounded-lg border border-emerald-200"
                           >
                             <Plus size={16} /> Add Row
                           </button>
                           <button
                             type="button"
                             onClick={() => notify(`Data saved for ${tbl.title}!`)}
-                            className="inline-flex items-center gap-1.5 text-white bg-emerald-600 hover:bg-emerald-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors shadow-xs"
+                            className="inline-flex items-center gap-1.5 text-white bg-emerald-600 hover:bg-emerald-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors"
                           >
                             <Save size={15} /> Save
                           </button>
@@ -642,6 +673,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   </tbody>
                 </table>
               </div>
+              </div>
             </Card>
           ))}
         </div>
@@ -649,9 +681,10 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         /* BUY SLOT TABLES */
         <div className="space-y-6 overflow-y-auto flex-1 min-h-0 pr-1">
           {buyTables.map((tbl) => (
-            <Card key={tbl.id} className="flex flex-col min-h-0 overflow-hidden">
+            <Card key={tbl.id} className="flex flex-col min-h-0 overflow-hidden !border-rose-200/80">
+              <div className="bg-rose-500/10 flex flex-col min-h-0 w-full">
               {/* Table Title Header */}
-              <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <div className="px-5 py-3 border-b border-rose-200/70 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {editingBuyTitleTableId === tbl.id ? (
                     <div className="flex items-center gap-1.5">
@@ -665,6 +698,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                               api
                                 .put(`/api/slots/${tbl.id}`, {
                                   table_name: tempBuyTitleValue.trim(),
+                                  buy_limit: Number(tbl.tableLimit) || 0,
                                 })
                                 .then(() => {
                                   notify("Table name updated!");
@@ -675,7 +709,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                           }
                         }}
                         autoFocus
-                        className="font-bold text-slate-800 text-sm bg-white border border-indigo-300 rounded-md px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        className="font-bold text-slate-800 text-sm bg-white border border-rose-300 rounded-md px-2.5 py-1 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                       />
                       <button
                         type="button"
@@ -684,6 +718,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             api
                               .put(`/api/slots/${tbl.id}`, {
                                 table_name: tempBuyTitleValue.trim(),
+                                buy_limit: Number(tbl.tableLimit) || 0,
                               })
                               .then(() => {
                                 notify("Table name updated!");
@@ -692,7 +727,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                           }
                           setEditingBuyTitleTableId(null);
                         }}
-                        className="p-1.5 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                        className="p-1.5 rounded-md bg-rose-100 text-rose-700 hover:bg-rose-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
                         title="Save title"
                       >
                         <Check size={15} />
@@ -707,7 +742,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                           setEditingBuyTitleTableId(tbl.id);
                           setTempBuyTitleValue(tbl.title);
                         }}
-                        className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-100/60 rounded-md transition-colors cursor-pointer"
                         title="Edit table name"
                       >
                         <Pencil size={14} />
@@ -728,19 +763,20 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-sm border-collapse">
-                  <thead className="sticky top-0 z-10 bg-slate-50">
-                    <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap w-12 text-slate-400">#</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-slate-400">SLOT DATE</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-medium bg-slate-50 whitespace-nowrap text-center text-slate-400">ACTIONS</th>
+                  <thead>
+                    <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-rose-200/80">
+                      <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap">SLOT DATE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {tbl.rows.map((r, idx) => (
                       <tr
                         key={r.id}
-                        className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
+                        className="border-b border-rose-200/60 hover:bg-rose-500/10 transition-colors"
                       >
                         <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
                         <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
@@ -749,7 +785,35 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
                           ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        {/* Merged LIMIT column spanning all table rows */}
+                        {idx === 0 && (
+                          <td
+                            rowSpan={tbl.rows.length > 0 ? tbl.rows.length : 1}
+                            className="px-4 py-2 text-center align-middle border-x border-rose-200/70"
+                          >
+                            <div className="flex flex-col items-center justify-center py-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                LIMIT (KG)
+                              </span>
+                              <input
+                                type="text"
+                                value={tbl.tableLimit}
+                                onFocus={() => {
+                                  focusedLimitTableIdRef.current = tbl.id;
+                                }}
+                                onBlur={() => {
+                                  if (focusedLimitTableIdRef.current === tbl.id) {
+                                    focusedLimitTableIdRef.current = null;
+                                  }
+                                }}
+                                onChange={(e) => updateTableLimit(tbl.id, e.target.value)}
+                                placeholder="100.000"
+                                className="w-28 text-base border border-rose-300/80 rounded-md px-3 py-1.5 bg-transparent text-slate-900 font-bold text-center focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                              />
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-2 text-center">
                           <div className="flex items-center justify-center gap-1">
                             <button
                               type="button"
@@ -773,26 +837,26 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                     ))}
                     {tbl.rows.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">
                           No rows in this table. Click "+ Add Row" below to add a row.
                         </td>
                       </tr>
                     )}
                     {/* Table Footer with Add Row and Save side by side */}
-                    <tr className="border-t border-slate-200 bg-slate-50/30">
-                      <td colSpan={4} className="px-5 py-3.5">
+                    <tr className="border-t border-rose-200/70">
+                      <td colSpan={5} className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
                             onClick={() => openAddBuyRowModal(tbl.id)}
-                            className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-700 font-semibold text-sm cursor-pointer transition-colors bg-indigo-50 hover:bg-indigo-100/80 px-3.5 py-1.5 rounded-lg border border-indigo-100"
+                            className="inline-flex items-center gap-1.5 text-rose-600 hover:text-rose-700 font-semibold text-sm cursor-pointer transition-colors bg-rose-50 hover:bg-rose-100/80 px-3.5 py-1.5 rounded-lg border border-rose-200"
                           >
                             <Plus size={16} /> Add Row
                           </button>
                           <button
                             type="button"
                             onClick={() => notify(`Data saved for ${tbl.title}!`)}
-                            className="inline-flex items-center gap-1.5 text-white bg-indigo-600 hover:bg-indigo-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors shadow-xs"
+                            className="inline-flex items-center gap-1.5 text-white bg-rose-600 hover:bg-rose-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors"
                           >
                             <Save size={15} /> Save
                           </button>
@@ -802,6 +866,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   </tbody>
                 </table>
               </div>
+              </div>
             </Card>
           ))}
         </div>
@@ -809,10 +874,22 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
 
       {/* Buy Slot Row Modal */}
       {isBuyModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsBuyModalOpen(false);
+              setEditingBuyRowId(null);
+              setTargetBuyTableId(null);
+            }
+          }}
+        >
+          <DraggableModalBox
+            resetKey={editingBuyRowId ?? targetBuyTableId ?? "buy"}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">
                 {editingBuyRowId !== null ? "Edit" : "Add"} Buy Slot Row
               </h3>
               <button
@@ -859,7 +936,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -867,29 +944,41 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   setEditingBuyRowId(null);
                   setTargetBuyTableId(null);
                 }}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submitBuyRowModal}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg text-white font-semibold bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg text-white font-semibold bg-rose-600 hover:bg-rose-700 transition-colors focus:outline-none cursor-pointer"
               >
-                {editingBuyRowId !== null ? <Pencil size={15} /> : <Plus size={15} />}
+                {editingBuyRowId !== null ? <Pencil size={14} /> : <Plus size={14} />}
                 {editingBuyRowId !== null ? "Save Changes" : "Add Row"}
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 
       {/* Sell Slot Row Modal */}
       {isSellModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4 transition-all">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-md overflow-hidden transform scale-100 transition-transform">
-            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-              <h3 className="font-semibold text-slate-800 text-lg">
+        <div
+          className="fixed inset-0 bg-transparent flex items-center justify-center z-50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsSellModalOpen(false);
+              setEditingSellRowId(null);
+              setTargetSellTableId(null);
+            }
+          }}
+        >
+          <DraggableModalBox
+            resetKey={editingSellRowId ?? targetSellTableId ?? "sell"}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-md overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">
                 {editingSellRowId !== null ? "Edit" : "Add"} Sell Slot Row
               </h3>
               <button
@@ -936,7 +1025,7 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -944,20 +1033,20 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   setEditingSellRowId(null);
                   setTargetSellTableId(null);
                 }}
-                className="text-sm px-4 py-2.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
+                className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={submitSellRowModal}
-                className="flex items-center gap-1.5 text-sm px-5 py-2.5 rounded-lg text-white font-semibold bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-colors focus:outline-none cursor-pointer"
+                className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg text-white font-semibold bg-emerald-600 hover:bg-emerald-700 transition-colors focus:outline-none cursor-pointer"
               >
-                {editingSellRowId !== null ? <Pencil size={15} /> : <Plus size={15} />}
+                {editingSellRowId !== null ? <Pencil size={14} /> : <Plus size={14} />}
                 {editingSellRowId !== null ? "Save Changes" : "Add Row"}
               </button>
             </div>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 

@@ -21,5 +21,6 @@ export * from "./salesPersons";
 export * from "./deliveryNotes";
 export * from "./deposits";
 export * from "./withdrawals";
+export * from "./auditLogs";
 
 

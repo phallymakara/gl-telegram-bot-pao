@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.models.customer import Customer
+from app.services.activity_log_service import log_activity
 
 router = APIRouter()
 
@@ -118,6 +119,15 @@ def create_customer(body: CustomerCreate, db: Session = Depends(get_db)):
     db.add(customer)
     db.commit()
     db.refresh(customer)
+    log_activity(
+        db,
+        action="CUSTOMER_CREATED",
+        category="MASTER_DATA",
+        description=f"Created customer '{customer.name}'",
+        entity_type="Customer",
+        entity_id=customer.id,
+        details={"customer_code": customer.customer_code, "name": customer.name},
+    )
     return customer
 
 
@@ -155,6 +165,15 @@ def update_customer(customer_id: int, body: CustomerUpdate, db: Session = Depend
 
     db.commit()
     db.refresh(customer)
+    log_activity(
+        db,
+        action="CUSTOMER_UPDATED",
+        category="MASTER_DATA",
+        description=f"Updated customer '{customer.name}'",
+        entity_type="Customer",
+        entity_id=customer.id,
+        details={"is_active": customer.is_active},
+    )
     return customer
 
 
@@ -166,5 +185,14 @@ def delete_customer(customer_id: int, db: Session = Depends(get_db)):
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     if not customer:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    name = customer.name
     db.delete(customer)
     db.commit()
+    log_activity(
+        db,
+        action="CUSTOMER_DELETED",
+        category="MASTER_DATA",
+        description=f"Deleted customer '{name}'",
+        entity_type="Customer",
+        entity_id=customer_id,
+    )

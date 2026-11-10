@@ -1,4 +1,9 @@
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    TokenResponse,
+    VerifySuperAdminRequest,
+    VerifySuperAdminResponse,
+)
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.schemas.order import OrderCreate, OrderUpdate, OrderResponse, OrderReturnRequest
 from app.schemas.slot import SlotRowCreate, SlotRowResponse, SlotTableCreate, SlotTableResponse
@@ -40,9 +45,22 @@ from app.schemas.withdrawal import (
     WithdrawalStatsResponse,
 )
 
+from app.schemas.activity_log import (
+    ActivityLogResponse,
+    ActivityLogListResponse,
+    ActivityLogStatsResponse,
+    AuthActivityEventRequest,
+)
+
 __all__ = [
+    "ActivityLogResponse",
+    "ActivityLogListResponse",
+    "ActivityLogStatsResponse",
+    "AuthActivityEventRequest",
     "LoginRequest",
     "TokenResponse",
+    "VerifySuperAdminRequest",
+    "VerifySuperAdminResponse",
     "UserCreate",
     "UserUpdate",
     "UserResponse",

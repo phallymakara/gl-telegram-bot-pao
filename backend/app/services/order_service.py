@@ -18,12 +18,18 @@ from app.models.purchase_order import StockReturn
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
 from app.models.telegram_group import TelegramGroup
+from app.services.activity_log_service import log_activity
 from app.services.slot_service import (
+    _matching_store_tables,
+    _resolve_target_store_type,
     add_incoming_to_slot_sync,
     add_stock_to_table_sync,
+    buy_limit_lock,
     calculate_slot_tier_breakdown_sync,
+    deduct_buy_limit_sync,
     deduct_store_stock_sync,
     get_slot_by_date_sync,
+    release_buy_limit_for_order_sync,
     sell_order_lock,
 )
 from app.utils.generators import generate_order_no, generate_po_no
@@ -56,24 +62,28 @@ def _get_or_create_default_group(session) -> TelegramGroup:
 
 
 def _find_slot_row(session, slot_date: str, order_type: str) -> tuple[SlotRow, SlotTable] | None:
-    """Helper to locate the underlying SlotRow and parent SlotTable matching slot_date and order perspective."""
+    """
+    Helper to locate the underlying SlotRow and parent SlotTable matching slot_date and order perspective.
+    Prefers the first table with active stock/limit availability, falling back to the first matching row.
+    """
     target = slot_date.strip()
-    store_type = "SELL" if order_type.upper() in ("BUY", "SELL_SLOT") else "BUY"
-    query = session.query(SlotTable).filter(SlotTable.is_active == True)
-    if store_type == "SELL":
-        tables = query.filter(SlotTable.table_name.ilike("%SELL%")).all()
-        if not tables:
-            tables = query.all()
-    else:
-        tables = query.filter(SlotTable.table_name.ilike("%BUY%")).all()
-        if not tables:
-            tables = query.filter(~SlotTable.table_name.ilike("%SELL%")).all()
+    store_type = _resolve_target_store_type(order_type)
+    tables = _matching_store_tables(session, store_type)
+    fallback = None
     for t in tables:
         for row in t.rows:
             row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
             if row_date == target:
-                return row, t
-    return None
+                if fallback is None:
+                    fallback = (row, t)
+                has_avail = (
+                    (float(t.stock) > 0 or float(row.incoming_kg or 0) > 0)
+                    if store_type == "SELL"
+                    else float(t.buy_limit or 0) > 0
+                )
+                if has_avail:
+                    return row, t
+    return fallback
 
 
 def _place_order_sync(
@@ -110,20 +120,21 @@ def _place_order_sync(
         spot_price_dec = Decimal(DEFAULT_SPOT_PRICE)
 
         tier_info = None
-        # Section 3: Calculate order totals (with multi-table tiered price support for store SELL)
+        # Section 3: Calculate order totals (with multi-table tiered price support for both SELL stock and BUY limit)
         if store_txn_type == "SELL":
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
             if not tier_info.get("is_sufficient"):
                 logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
                 raise InsufficientStockError("Insufficient stock")
-
-            premium_val = Decimal(f"{tier_info['weighted_premium']:.2f}")
-            premium_amt = Decimal(f"{tier_info['total_premium_amount']:.2f}")
-            total_amt = Decimal(f"{tier_info['total_amount']:.2f}")
         else:
-            premium_val = Decimal(str(slot_info["premium"]))
-            premium_amt = calculate_premium_amount(quantity, premium_val)
-            total_amt = calculate_order_total(quantity, spot_price_dec, premium_val)
+            tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "SELL", session=session)
+            if not tier_info.get("is_sufficient"):
+                logger.warning("Order failed: Buy limit exceeded for slot_date=%s, requested=%.2f", slot_date, quantity)
+                raise InsufficientStockError("Buy limit exceeded")
+
+        premium_val = Decimal(f"{tier_info['weighted_premium']:.2f}")
+        premium_amt = Decimal(f"{tier_info['total_premium_amount']:.2f}")
+        total_amt = Decimal(f"{tier_info['total_amount']:.2f}")
 
         # Section 4: Create and commit the Order record -- must be committed (and thus visible to the
         # separate session deduct_store_stock_sync uses) before Section 5 can reference it by FK.
@@ -172,6 +183,21 @@ def _place_order_sync(
             from datetime import date
             from app.models.purchase_order import PurchaseOrder
 
+            # Reserve buy limit atomically under buy_limit_lock before recording the buyback PO.
+            with buy_limit_lock:
+                reserved_limit = deduct_buy_limit_sync(
+                    quantity=quantity,
+                    slot_date=slot_date,
+                    txn_type="ORDER_BUY_LIMIT_DEDUCT",
+                    remark=f"Reserved buy limit for buyback order {order.order_no}",
+                    order_id=order.id,
+                )
+            if not reserved_limit:
+                session.delete(order)
+                session.commit()
+                logger.warning("Order failed: Buy limit exceeded for slot_date=%s, requested=%.2f", slot_date, quantity)
+                raise InsufficientStockError("Buy limit exceeded")
+
             po_no = generate_po_no("BUYBACK")
             cust_name = customer.display_name or username or f"Telegram #{telegram_id}"
             unit_cost_val = calculate_unit_cost(spot_price_dec, premium_val)
@@ -214,6 +240,26 @@ def _place_order_sync(
 
         session.refresh(order)
         order._tier_info = tier_info
+        log_activity(
+            session,
+            action="SELL_ORDER_CREATED" if store_txn_type == "SELL" else "BUY_ORDER_CREATED",
+            category="ORDERS",
+            description=f"Telegram Bot created {store_txn_type} order {order.order_no} for {customer.display_name or username} (Qty: {order.quantity}, Total: ${total_amt})",
+            entity_type="Order",
+            entity_id=order.order_no,
+            details={
+                "order_id": order.id,
+                "channel": "TELEGRAM",
+                "transaction_type": store_txn_type,
+                "telegram_id": telegram_id,
+                "quantity": float(order.quantity or 0),
+                "total_amount": float(total_amt),
+                "slot_date": slot_date,
+            },
+            username_override=username or telegram_id or "telegram_bot",
+            actor_name_override=customer.display_name or username or "Telegram User",
+            actor_role_override="TELEGRAM_BOT",
+        )
         logger.info("Successfully created order_no=%s for customer=%s, total_amount=%.2f", order.order_no, customer.display_name, total_amt)
         return order
     except Exception as exc:
@@ -258,7 +304,7 @@ async def place_sell_order(
 
 def cancel_order_sync(order_id: int) -> Order:
     """
-    Cancel an existing order and credit reserved gold stock back to the associated slot table.
+    Cancel an existing order and restore reserved buy limit for BUY (buyback) orders.
     """
     session = SessionLocal()
     try:
@@ -270,29 +316,22 @@ def cancel_order_sync(order_id: int) -> Order:
         if order.status in ("COLLECTED", "COMPLETED"):
             raise ValueError(f"Order {order_id} is collected and cannot be cancelled")
 
-        slot_table_id = order.slot.slot_table_id if order.slot else None
-        if order.transaction_type == "BUY" and not slot_table_id:
-            raise ValueError(f"Order {order_id} has no associated slot to restock into")
-
         order.status = "CANCELLED"
         session.commit()
         session.refresh(order)
         transaction_type = order.transaction_type
-        quantity = order.quantity
+        order_no = order.order_no
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
 
-    # Credit stock back to slot table on order cancellation
-    if transaction_type == "BUY" and slot_table_id:
-        add_stock_to_table_sync(
-            slot_table_id=slot_table_id,
-            quantity=Decimal(quantity),
-            txn_type="ORDER_CANCEL_RESTOCK",
-            remark=f"Cancelled order {order_id}",
+    # Release buy limit back to Buy slot tables on order cancellation
+    if transaction_type == "BUY":
+        release_buy_limit_for_order_sync(
             order_id=order_id,
+            remark=f"Cancelled buy order {order_no}",
         )
     return order
 

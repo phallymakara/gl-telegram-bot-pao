@@ -9,7 +9,7 @@ import threading
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.core.database import SessionLocal
 from app.models.inventory_transaction import InventoryTransaction
@@ -24,6 +24,7 @@ from app.utils.helpers import get_cambodia_now
 # lock here closes the race window where two concurrent requests could both pass the availability
 # check before either commits, letting combined demand exceed what's actually available.
 sell_order_lock = threading.Lock()
+buy_limit_lock = threading.Lock()
 
 # Events that represent gold genuinely entering/leaving the vault -- used to compute the true
 # physical stock total as a ledger balance, independent of any table's current sale-allocation
@@ -87,6 +88,7 @@ def _get_slot_dict(slot_row: SlotRow, slot_table: SlotTable) -> dict:
         "qty": float(slot_row.qty) if getattr(slot_row, "qty", None) is not None else 10.0,
         "incoming_kg": float(slot_row.incoming_kg) if getattr(slot_row, "incoming_kg", None) is not None else 0.0,
         "stock_kg": float(slot_table.stock),
+        "buy_limit_kg": float(slot_table.buy_limit) if getattr(slot_table, "buy_limit", None) is not None else 0.0,
         "min_order": 0,
         "active": "YES" if slot_table.is_active else "NO",
     }
@@ -166,40 +168,36 @@ def rollover_past_slots_sync(session=None) -> int:
 def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
     """
     Query active trading slots for the requested order type.
-    Merges duplicate slot dates across tables, sums total incoming and general stock.
+    Merges duplicate slot dates across tables, sums total incoming, general stock, and buy limit.
     Automatically rolls over past slot rows before returning.
     """
     session = SessionLocal()
     try:
         rollover_past_slots_sync(session)
 
-        query = session.query(SlotTable).filter(SlotTable.is_active == True)
         store_type = _resolve_target_store_type(order_type)
-        if store_type == "SELL":
-            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-        else:
-            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+        tables = _matching_store_tables(session, store_type)
 
         merged: dict[str, dict] = {}
         for t in tables:
             t_stock = float(t.stock)
+            t_buy_limit = float(t.buy_limit or 0)
             for row in t.rows:
                 slot = _get_slot_dict(row, t)
                 key = slot["slot_date"]
                 row_incoming = float(row.incoming_kg or 0)
-                table_has_stock = (t_stock > 0 or row_incoming > 0)
+                table_has_avail = (t_stock > 0 or row_incoming > 0) if store_type == "SELL" else (t_buy_limit > 0)
 
                 if key in merged:
                     merged[key]["stock_kg"] = float(merged[key]["stock_kg"]) + t_stock
                     merged[key]["incoming_kg"] = float(merged[key]["incoming_kg"]) + row_incoming
-                    # If previously assigned slot table had 0 stock, but this table has stock, switch to active starting premium
-                    if not merged[key].get("_has_stock", False) and table_has_stock:
+                    merged[key]["buy_limit_kg"] = float(merged[key]["buy_limit_kg"]) + t_buy_limit
+                    # If previously assigned slot table had 0 availability, switch to first active table's premium
+                    if not merged[key].get("_has_stock", False) and table_has_avail:
                         merged[key]["premium"] = slot["premium"]
                         merged[key]["_has_stock"] = True
                 else:
-                    slot["_has_stock"] = table_has_stock
+                    slot["_has_stock"] = table_has_avail
                     merged[key] = slot
 
         # Clean internal helper flag before returning
@@ -224,14 +222,8 @@ def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
     session = SessionLocal()
     try:
         target = slot_date.strip()
-        query = session.query(SlotTable).filter(SlotTable.is_active == True)
         store_type = _resolve_target_store_type(order_type)
-        if store_type == "SELL":
-            sell_tables = query.filter(SlotTable.table_name.ilike("%SELL%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = sell_tables if sell_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-        else:
-            buy_tables = query.filter(SlotTable.table_name.ilike("%BUY%")).order_by(SlotTable.display_order, SlotTable.id.desc()).all()
-            tables = buy_tables if buy_tables else query.order_by(SlotTable.display_order, SlotTable.id.desc()).all()
+        tables = _matching_store_tables(session, store_type)
 
         result = []
         for t in tables:
@@ -247,21 +239,27 @@ def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
 def get_slot_by_date_sync(slot_date: str, order_type: str = "BUY") -> dict | None:
     """
     Retrieve single slot details for a specific date and order type.
-    Sums total incoming and general stock across matching slot tables.
-    Uses premium from first table with available stock, or first table if none have stock.
+    Sums total incoming, general stock, and buy limit across matching slot tables.
+    Uses premium from first table with available stock/limit, or first table if none have availability.
     """
     slots = _matching_slots_sync(slot_date, order_type)
     if not slots:
         return None
-    active_slot = next(
-        (s for s in slots if (float(s.get("stock_kg", 0)) > 0 or float(s.get("incoming_kg", 0)) > 0)),
-        slots[0],
-    )
+    store_type = _resolve_target_store_type(order_type)
+    if store_type == "SELL":
+        active_slot = next(
+            (s for s in slots if (float(s.get("stock_kg", 0)) > 0 or float(s.get("incoming_kg", 0)) > 0)),
+            slots[0],
+        )
+    else:
+        active_slot = next(
+            (s for s in slots if float(s.get("buy_limit_kg", 0)) > 0),
+            slots[0],
+        )
     first = dict(active_slot)
-    total_incoming = sum(float(s["incoming_kg"]) for s in slots)
-    total_stock = sum(float(s["stock_kg"]) for s in slots)
-    first["incoming_kg"] = total_incoming
-    first["stock_kg"] = total_stock
+    first["incoming_kg"] = sum(float(s["incoming_kg"]) for s in slots)
+    first["stock_kg"] = sum(float(s["stock_kg"]) for s in slots)
+    first["buy_limit_kg"] = sum(float(s.get("buy_limit_kg", 0)) for s in slots)
     return first
 
 
@@ -309,7 +307,11 @@ def calculate_slot_tier_breakdown_sync(
             if not matching_row:
                 continue
 
-            avail = float(t.stock) + float(matching_row.incoming_kg or 0)
+            avail = (
+                float(t.stock) + float(matching_row.incoming_kg or 0)
+                if store_type == "SELL"
+                else float(t.buy_limit or 0)
+            )
             total_available += avail
 
             if not first_table_checked:
@@ -321,7 +323,7 @@ def calculate_slot_tier_breakdown_sync(
             if avail <= 0:
                 continue
 
-            if remaining_to_fill > 0:
+            if remaining_to_fill > 1e-9:
                 alloc = min(avail, remaining_to_fill)
                 is_new_price = (len(tiers) > 0) or (not first_table_had_stock)
                 tiers.append({
@@ -334,7 +336,7 @@ def calculate_slot_tier_breakdown_sync(
                 })
                 remaining_to_fill -= alloc
 
-        is_sufficient = (remaining_to_fill <= 0) and (len(tiers) > 0)
+        is_sufficient = (remaining_to_fill <= 1e-9) and (len(tiers) > 0)
         has_spillover = (len(tiers) > 1)
         is_first_table_exhausted = (not first_table_had_stock and len(tiers) > 0)
         is_new_price_involved = has_spillover or is_first_table_exhausted
@@ -384,13 +386,13 @@ def _matching_store_tables(session, store_type: str) -> list[SlotTable]:
     SELL tables (e.g. first 100kg at one premium, next 100kg at another) and selling will exhaust the
     first table before automatically spilling into the next one.
     """
-    query = session.query(SlotTable).filter(SlotTable.is_active == True).order_by(SlotTable.display_order)
+    query = session.query(SlotTable).filter(SlotTable.is_active == True).order_by(SlotTable.display_order, SlotTable.id.desc())
     st = (store_type or "SELL").strip().upper()
     if st == "SELL":
         tables = query.filter(SlotTable.table_name.ilike("%SELL%")).all()
         return tables if tables else query.all()
-    tables = query.filter(SlotTable.table_name.ilike("%BUY%")).all()
-    return tables if tables else query.filter(~SlotTable.table_name.ilike("%SELL%")).all()
+    tables = query.filter(or_(SlotTable.table_name.ilike("%BUY%"), ~SlotTable.table_name.ilike("%SELL%"))).all()
+    return tables
 
 
 def get_store_stock_total_sync(store_type: str = "SELL") -> float:
@@ -600,6 +602,118 @@ def credit_store_stock_sync(
             stock_after=table.stock,
             remark=remark,
         ))
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def deduct_buy_limit_sync(
+    quantity: float,
+    slot_date: str | None = None,
+    txn_type: str = "ORDER_BUY_LIMIT_DEDUCT",
+    remark: str | None = None,
+    order_id: int | None = None,
+) -> bool:
+    """
+    Deduct requested quantity from active BUY slot tables' buy_limit in display_order.
+    Returns False without committing if combined remaining buy_limit is insufficient.
+    """
+    session = SessionLocal()
+    try:
+        tables = _matching_store_tables(session, "BUY")
+        remaining = Decimal(str(quantity))
+        target = str(slot_date).strip() if slot_date else None
+
+        for t in tables:
+            if remaining <= Decimal(0):
+                break
+            if target is not None:
+                has_row = any(
+                    (row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)) == target
+                    for row in t.rows
+                )
+                if not has_row:
+                    continue
+
+            avail = t.buy_limit if t.buy_limit is not None else Decimal(0)
+            if avail <= Decimal(0):
+                continue
+
+            take = min(avail, remaining)
+            t.buy_limit = avail - take
+            remaining -= take
+            session.add(InventoryTransaction(
+                slot_table_id=t.id,
+                order_id=order_id,
+                transaction_type=txn_type,
+                quantity=take,
+                stock_before=avail,
+                stock_after=t.buy_limit,
+                remark=remark,
+            ))
+
+        if remaining > Decimal("0.000001"):
+            session.rollback()
+            return False
+
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def release_buy_limit_for_order_sync(
+    order_id: int | None,
+    remark: str | None = None,
+    deduct_txns: list[tuple[int, Decimal]] | None = None,
+) -> None:
+    """
+    Restore buy_limit to the exact Buy slot tables deducted by an order when cancelled or deleted.
+    Idempotent for a given order_id (skips if ORDER_BUY_LIMIT_RELEASE was already recorded).
+    """
+    session = SessionLocal()
+    try:
+        pairs: list[tuple[int, Decimal]] = []
+        if deduct_txns is not None:
+            pairs = [(tid, Decimal(str(qty))) for tid, qty in deduct_txns if tid is not None and Decimal(str(qty)) > 0]
+        elif order_id is not None:
+            already_released = session.query(InventoryTransaction.id).filter(
+                InventoryTransaction.order_id == order_id,
+                InventoryTransaction.transaction_type == "ORDER_BUY_LIMIT_RELEASE",
+            ).first()
+            if already_released:
+                return
+            rows = session.query(InventoryTransaction).filter(
+                InventoryTransaction.order_id == order_id,
+                InventoryTransaction.transaction_type == "ORDER_BUY_LIMIT_DEDUCT",
+            ).all()
+            pairs = [(r.slot_table_id, Decimal(str(r.quantity))) for r in rows if r.slot_table_id is not None and r.quantity > 0]
+
+        if not pairs:
+            return
+
+        for table_id, qty in pairs:
+            table = session.query(SlotTable).filter(SlotTable.id == table_id).first()
+            if not table:
+                continue
+            before = table.buy_limit if table.buy_limit is not None else Decimal(0)
+            table.buy_limit = before + qty
+            session.add(InventoryTransaction(
+                slot_table_id=table.id,
+                order_id=order_id,
+                transaction_type="ORDER_BUY_LIMIT_RELEASE",
+                quantity=qty,
+                stock_before=before,
+                stock_after=table.buy_limit,
+                remark=remark,
+            ))
+
         session.commit()
     except Exception:
         session.rollback()

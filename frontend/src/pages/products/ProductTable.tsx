@@ -156,10 +156,10 @@ export default function ProductTable({
             <tbody className="divide-y divide-slate-100">
               {visibleRecords.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-100 transition-colors">
-                  <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                  <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                     {p.name}
                   </td>
-                  <td className="py-2 px-3 font-mono font-bold text-slate-700 whitespace-nowrap">
+                  <td className="py-2 px-3 font-mono font-normal text-slate-700 whitespace-nowrap">
                     {p.conversion_factor ?? 1.0}
                   </td>
                   <td className="py-2 px-3 whitespace-nowrap">

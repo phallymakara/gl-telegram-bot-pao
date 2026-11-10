@@ -5,12 +5,13 @@ Centralizes standard Troy Ounce to Kilogram conversion factor (32.148 oz/kg) and
 
 from decimal import Decimal
 
+from app.core.config import (
+    DEFAULT_PREMIUM as _CONFIG_DEFAULT_PREMIUM,
+    DEFAULT_SPOT_PRICE as _CONFIG_DEFAULT_SPOT_PRICE,
+)
+
 # Troy Ounce to Kilogram conversion factor constant (1 Kilogram = 32.148 Troy Ounces)
 TROY_OUNCES_PER_KG = Decimal("32.148")
-
-# Default spot price and premium fallback constants
-DEFAULT_SPOT_PRICE = Decimal("4376.20")
-DEFAULT_PREMIUM = Decimal("200.00")
 
 
 def to_decimal(value: Decimal | float | str | None, default: Decimal = Decimal(0)) -> Decimal:
@@ -26,6 +27,11 @@ def to_decimal(value: Decimal | float | str | None, default: Decimal = Decimal(0
         return Decimal(str(value).strip().replace(",", ""))
     except (ValueError, TypeError):
         return default
+
+
+# Default spot price and premium loaded from environment configuration
+DEFAULT_SPOT_PRICE = to_decimal(_CONFIG_DEFAULT_SPOT_PRICE, Decimal(0))
+DEFAULT_PREMIUM = to_decimal(_CONFIG_DEFAULT_PREMIUM, Decimal(0))
 
 
 def calculate_unit_cost(

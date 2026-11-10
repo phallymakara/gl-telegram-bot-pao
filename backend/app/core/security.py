@@ -31,9 +31,20 @@ def verify_password(plain: str, hashed: str) -> bool:
 def create_access_token(data: dict) -> str:
     """
     Generate a signed JWT access token containing claims dictionary and expiration payload.
+    Reads session_timeout (minutes) from database security settings, falling back to ACCESS_TOKEN_EXPIRE_MINUTES.
     """
+    from app.services.settings_service import get_security_settings_sync
+
+    expire_minutes = ACCESS_TOKEN_EXPIRE_MINUTES
+    try:
+        timeout = int(get_security_settings_sync().get("session_timeout", 0))
+        if timeout > 0:
+            expire_minutes = timeout
+    except Exception:
+        pass
+
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

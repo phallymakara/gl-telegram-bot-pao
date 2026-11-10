@@ -10,12 +10,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.api.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderReturnRequest, StockReturnResponse
 from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
 from app.services.order_service import cancel_order_sync, return_order_sync
-from app.services.slot_service import credit_store_stock_sync, deduct_store_stock_sync, sell_order_lock
+from app.services.slot_service import (
+    credit_store_stock_sync,
+    deduct_store_stock_sync,
+    release_buy_limit_for_order_sync,
+    sell_order_lock,
+)
 from app.utils.generators import generate_order_no
 from app.utils.pricing import (
     DEFAULT_SPOT_PRICE,
@@ -146,6 +152,26 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
                 ),
             )
 
+    tx_type = (order.transaction_type or "SELL").upper()
+    action_name = "SELL_ORDER_CREATED" if tx_type == "SELL" else "BUY_ORDER_CREATED"
+    log_activity(
+        db,
+        action=action_name,
+        category="ORDERS",
+        description=f"Created {tx_type} order {order.order_no} for {order.customer_name or order.username or 'Customer'} (Qty: {order.quantity}, Total: ${order.total_amount or 0})",
+        entity_type="Order",
+        entity_id=order.order_no,
+        details={
+            "order_id": order.id,
+            "transaction_type": tx_type,
+            "customer_name": order.customer_name,
+            "product_type": order.product_type,
+            "quantity": float(order.quantity or 0),
+            "total_amount": float(order.total_amount or 0),
+            "status": order.status,
+            "channel": order.channel,
+        },
+    )
     return _to_order_response(order)
 
 
@@ -267,6 +293,21 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
         db.commit()
         db.refresh(o)
 
+    action_name = "ORDER_COLLECTED" if newly_collected else "ORDER_UPDATED"
+    log_activity(
+        db,
+        action=action_name,
+        category="ORDERS",
+        description=f"{'Collected' if newly_collected else 'Updated'} {o.transaction_type} order {o.order_no} (Status: {o.status}, Qty: {o.quantity})",
+        entity_type="Order",
+        entity_id=o.order_no,
+        details={
+            "order_id": o.id,
+            "transaction_type": o.transaction_type,
+            "status": o.status,
+            "quantity": float(o.quantity or 0),
+        },
+    )
     return _to_order_response(o)
 
 
@@ -287,6 +328,23 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     # would double-credit stock that was never actually held.
     had_reservation = (o.status != "CANCELLED") and not is_non_stock_gold(o.product_type, o.unit_type)
     was_collected = o.status in COLLECTED_STATUSES
+    buy_limit_deducts: list[tuple[int, Decimal]] = []
+    if had_reservation and txn_type == "BUY":
+        already_released = db.query(InventoryTransaction.id).filter(
+            InventoryTransaction.order_id == order_id,
+            InventoryTransaction.transaction_type == "ORDER_BUY_LIMIT_RELEASE",
+        ).first()
+        if not already_released:
+            deduct_rows = db.query(InventoryTransaction).filter(
+                InventoryTransaction.order_id == order_id,
+                InventoryTransaction.transaction_type == "ORDER_BUY_LIMIT_DEDUCT",
+            ).all()
+            buy_limit_deducts = [
+                (r.slot_table_id, Decimal(str(r.quantity)))
+                for r in deduct_rows
+                if r.slot_table_id is not None and r.quantity > 0
+            ]
+
     # Detach audit log entries so the FK on inventory_transactions.order_id doesn't block the delete.
     db.query(InventoryTransaction).filter(InventoryTransaction.order_id == order_id).update({"order_id": None})
     db.delete(o)
@@ -299,6 +357,21 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
             txn_type="ORDER_DELETE_RESTOCK" if was_collected else "ORDER_RESERVE_RELEASE",
             remark=f"Deleted {'collected' if was_collected else 'reserved'} sell order {order_no}",
         )
+    elif buy_limit_deducts:
+        release_buy_limit_for_order_sync(
+            order_id=None,
+            remark=f"Deleted buy order {order_no}",
+            deduct_txns=buy_limit_deducts,
+        )
+    log_activity(
+        db,
+        action="ORDER_DELETED",
+        category="ORDERS",
+        description=f"Deleted {txn_type} order {order_no} (Qty: {quantity})",
+        entity_type="Order",
+        entity_id=order_no,
+        details={"transaction_type": txn_type, "quantity": float(quantity or 0)},
+    )
     return None
 
 
@@ -338,6 +411,15 @@ def cancel_order(order_id: int, db: Session = Depends(get_db)):
     # cancel_order_sync commits through its own session, so this session's identity map
     # (populated by the `existing` lookup above) is stale until expired.
     db.expire_all()
+    log_activity(
+        db,
+        action="ORDER_CANCELLED",
+        category="ORDERS",
+        description=f"Cancelled {txn_type} order {order_no} (Qty: {quantity})",
+        entity_type="Order",
+        entity_id=order_no,
+        details={"order_id": order_id, "transaction_type": txn_type, "quantity": float(quantity or 0)},
+    )
     return get_order(order_id, db)
 
 
@@ -353,5 +435,14 @@ def return_order(order_id: int, body: OrderReturnRequest, db: Session = Depends(
         message = str(e)
         code = status.HTTP_404_NOT_FOUND if "not found" in message else status.HTTP_409_CONFLICT
         raise HTTPException(status_code=code, detail=message)
+    log_activity(
+        db,
+        action="ORDER_RETURNED",
+        category="ORDERS",
+        description=f"Processed return for Order #{order_id} (Qty: {body.quantity}, Reason: {body.reason})",
+        entity_type="Order",
+        entity_id=order_id,
+        details={"quantity": float(body.quantity), "reason": body.reason},
+    )
     return stock_return
 

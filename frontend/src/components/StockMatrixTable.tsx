@@ -12,6 +12,13 @@ import {
   X,
 } from "lucide-react";
 import Loader from "./Loader";
+import DraggableModalBox from "./DraggableModalBox";
+import MatrixCellEntryModal, {
+  CLICKABLE_MATRIX_ROW_KEYS,
+  ClickableMatrixRowKey,
+  MatrixCellTarget,
+} from "./MatrixCellEntryModal";
+import { ToastType } from "./Toast";
 import {
   dashboardApi,
   StockMatrixResponseData,
@@ -136,10 +143,15 @@ function getRowIcon(rowKey: string) {
  * - Brand & Settlement Date Columns
  * - Calculated Total Row below combining two columns into one
  */
-export default function StockMatrixTable() {
+export default function StockMatrixTable({
+  notify,
+}: {
+  notify?: (msg: string, type?: ToastType) => void;
+}) {
   const [data, setData] = useState<StockMatrixResponseData | null>(null);
   const [columns, setColumns] = useState<StockMatrixColumnData[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [selectedCell, setSelectedCell] = useState<MatrixCellTarget | null>(null);
 
   // Column CRUD Modal states
   const [isAddColModalOpen, setIsAddColModalOpen] = useState(false);
@@ -153,12 +165,17 @@ export default function StockMatrixTable() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Local ISO date string (YYYY-MM-DD)
+  // Cambodia ISO date string (YYYY-MM-DD, UTC+7) aligned with backend schedule/slot rollover
   const getTodayStr = () => {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Phnom_Penh",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date());
+    const y = parts.find((p) => p.type === "year")?.value ?? new Date().getFullYear();
+    const m = parts.find((p) => p.type === "month")?.value ?? "01";
+    const d = parts.find((p) => p.type === "day")?.value ?? "01";
     return `${y}-${m}-${d}`;
   };
 
@@ -295,12 +312,13 @@ export default function StockMatrixTable() {
     return () => clearTimeout(timer);
   }, [editColError]);
 
-  // Formula: Available stock = import stock + Stock buy from customer - stock sell to customer
+  // Formula: Available stock = carryover (from expired day) + import stock + buy - sell
   const getColAvailableStock = (col: StockMatrixColumnData): number => {
+    const carryover = col.carryover_stock ?? 0;
     const importStock = col.import_stock ?? 0;
     const stockBuy = (col.physical_buy ?? 0) + (col.bot_buy ?? 0);
     const stockSell = Math.abs(col.physical_sale ?? 0) + Math.abs(col.bot_sale ?? 0);
-    return Math.round((importStock + stockBuy - stockSell) * 10000) / 10000;
+    return Math.round((carryover + importStock + stockBuy - stockSell) * 10000) / 10000;
   };
 
   // Read cell value for a row and column
@@ -716,11 +734,14 @@ export default function StockMatrixTable() {
                 </div>
               </div>
 
-              {/* Value Cells (Read-only) */}
+              {/* Value Cells (Clickable for operational input rows; read-only for Available Stock) */}
               {columns.map((col) => {
                 const val = getCellValue(col, row);
                 const isSell = row.key === "physical_sell" || row.key === "bot_sell";
                 const isRed = isSell;
+                const isClickable = (CLICKABLE_MATRIX_ROW_KEYS as readonly string[]).includes(
+                  row.key
+                );
 
                 let cellDisplay = val.toLocaleString();
                 if (isSell) {
@@ -731,9 +752,29 @@ export default function StockMatrixTable() {
                 return (
                   <div
                     key={`cell_${row.key}_${col.id}`}
+                    onClick={
+                      isClickable
+                        ? () =>
+                            setSelectedCell({
+                              rowKey: row.key as ClickableMatrixRowKey,
+                              rowTitle: row.title,
+                              col,
+                            })
+                        : undefined
+                    }
+                    title={
+                      isClickable
+                        ? `Click to add ${row.title} entry for ${cleanBrand(col.brand)} (${formatHeaderDate(
+                            col.date_label,
+                            col.target_date
+                          )})`
+                        : undefined
+                    }
                     className={`h-[56px] rounded-md ${
                       row.cell_bg || "bg-slate-50"
-                    } flex flex-col items-center justify-center select-none w-full min-w-0 cursor-default`}
+                    } flex flex-col items-center justify-center select-none w-full min-w-0 ${
+                      isClickable ? "cursor-pointer" : "cursor-default"
+                    }`}
                   >
                     <div
                       className={`text-sm sm:text-[15px] font-semibold tracking-tight leading-none ${
@@ -742,6 +783,11 @@ export default function StockMatrixTable() {
                     >
                       {cellDisplay}
                     </div>
+                    {row.key === "available" && Math.abs(col.carryover_stock ?? 0) > 1e-9 && (
+                      <div className="text-[10px] text-emerald-700 font-medium mt-0.5 leading-none">
+                        Prev: {(col.carryover_stock ?? 0) > 0 ? `+${(col.carryover_stock ?? 0).toLocaleString()}` : (col.carryover_stock ?? 0).toLocaleString()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -798,132 +844,160 @@ export default function StockMatrixTable() {
 
       {/* --- MODAL: ADD COLUMN --- */}
       {isAddColModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-none">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Add Matrix Column</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddColModalOpen(false);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={isAddColModalOpen}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">Add Matrix Column</h3>
               <button
                 type="button"
+                aria-label="Close dialog"
                 onClick={() => setIsAddColModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 transition"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleCreateColumn} className="pt-3 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Brand</label>
-                <select
-                  value={newColBrand}
-                  onChange={(e) => handleBrandChange(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-slate-500"
-                >
-                  <option value="DB">DB</option>
-                  <option value="Swiss">Swiss</option>
-                  <option value="SV">SV</option>
-                </select>
-              </div>
+            <form onSubmit={handleCreateColumn} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Brand</label>
+                  <select
+                    value={newColBrand}
+                    onChange={(e) => handleBrandChange(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    <option value="DB">DB</option>
+                    <option value="Swiss">Swiss</option>
+                    <option value="SV">SV</option>
+                  </select>
+                </div>
 
-              {newColError && <p className="text-xs text-red-500 mt-1">{newColError}</p>}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                {newColError && <p className="text-xs text-red-500 mt-1">{newColError}</p>}
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsAddColModalOpen(false)}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                  className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition disabled:opacity-50"
+                  className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? "Adding..." : "Add Column"}
                 </button>
               </div>
             </form>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 
       {/* --- MODAL: EDIT COLUMN --- */}
       {editingCol && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white border border-slate-200 rounded-lg p-5 w-full max-w-sm shadow-none">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Edit Column</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-transparent p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingCol(null);
+          }}
+        >
+          <DraggableModalBox
+            resetKey={editingCol.id}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <h3 className="font-semibold text-slate-800 text-base">Edit Column</h3>
               <button
                 type="button"
+                aria-label="Close dialog"
                 onClick={() => setEditingCol(null)}
-                className="text-slate-400 hover:text-slate-700 transition"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleUpdateColumn} className="pt-3 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Brand</label>
-                <select
-                  value={editColBrand}
-                  onChange={(e) => setEditColBrand(e.target.value)}
-                  className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-slate-500"
-                >
-                  <option value="DB">DB</option>
-                  <option value="Swiss">Swiss</option>
-                  <option value="SV">SV</option>
-                </select>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-slate-700">
-                    Target Date
-                  </label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="date"
-                    value={editColDate}
-                    min={todayStr}
-                    onChange={(e) => setEditColDate(e.target.value)}
-                    className={`flex-1 min-w-0 px-2.5 py-1.5 text-xs border rounded-md focus:outline-none ${
-                      editColError ? "border-red-500" : "border-slate-300 focus:border-slate-500"
-                    }`}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={handleExtendEditColDate}
-                    className="shrink-0 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-md transition select-none flex items-center gap-1"
-                    title="Extend date by +1 day"
+            <form onSubmit={handleUpdateColumn} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Brand</label>
+                  <select
+                    value={editColBrand}
+                    onChange={(e) => setEditColBrand(e.target.value)}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
-                    <Plus size={12} className="stroke-[2.5]" />
-                    <span>+1 Day</span>
-                  </button>
+                    <option value="DB">DB</option>
+                    <option value="Swiss">Swiss</option>
+                    <option value="SV">SV</option>
+                  </select>
                 </div>
-                {editColError && <p className="text-xs text-red-500 mt-1">{editColError}</p>}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-500 block">
+                      Target Date
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="date"
+                      value={editColDate}
+                      min={todayStr}
+                      onChange={(e) => setEditColDate(e.target.value)}
+                      className={`flex-1 min-w-0 px-3 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
+                        editColError ? "border-red-500" : "border-slate-200 focus:border-indigo-500"
+                      }`}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={handleExtendEditColDate}
+                      className="shrink-0 px-3 py-2.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition select-none flex items-center gap-1 cursor-pointer"
+                      title="Extend date by +1 day"
+                    >
+                      <Plus size={12} className="stroke-[2.5]" />
+                      <span>+1 Day</span>
+                    </button>
+                  </div>
+                  {editColError && <p className="text-xs text-red-500 mt-1">{editColError}</p>}
+                </div>
               </div>
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditingCol(null)}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition"
+                  className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-md transition disabled:opacity-50"
+                  className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmitting ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
-          </div>
+          </DraggableModalBox>
         </div>
       )}
 
-
+      {/* --- MODAL: MATRIX CELL QUICK ENTRY --- */}
+      <MatrixCellEntryModal
+        target={selectedCell}
+        onClose={() => setSelectedCell(null)}
+        onSuccess={loadData}
+        notify={notify}
+      />
     </div>
   );
 }

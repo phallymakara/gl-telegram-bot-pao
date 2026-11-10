@@ -100,6 +100,7 @@ export interface StockMatrixColumnData {
   target_date?: string;
   header_color: string;
   text_color?: string;
+  carryover_stock?: number;
   import_stock: number;
   trade_in?: number;
   physical_sale?: number;

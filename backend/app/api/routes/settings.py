@@ -8,14 +8,16 @@ import os
 import uuid
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from PIL import Image
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.services.settings_service import (
     get_bank_qr_settings_sync,
+    get_bot_token_sync,
     get_settings_dict_sync,
     save_settings_dict_sync,
 )
@@ -32,9 +34,9 @@ MAX_POSTER_SIZE = 10 * 1024 * 1024  # 10MB
 class BotSettings(BaseModel):
     """Schema for bot configuration parameters."""
     bot_token: str = ""
-    bot_username: str = "GoldSystemBot"
-    sales_telegram_username: str = "phallymakara"
-    sales_phone_number: str = "+85589804659"
+    bot_username: str = ""
+    sales_telegram_username: str = ""
+    sales_phone_number: str = ""
 
 
 class SecuritySettings(BaseModel):
@@ -97,7 +99,7 @@ def get_settings(db: Session = Depends(get_db)):
     Returns currently stored bot, security, system, bank_qr, and payment_methods parameters from database.
     """
     store = get_settings_dict_sync(db)
-    bank_qr_data = get_bank_qr_settings_sync(db)
+    bank_qr_data = get_bank_qr_settings_sync(db, settings_dict=store)
     pm_store = store.get("payment_methods", {})
     return SettingsResponse(
         bot=BotSettings(**store.get("bot", {})),
@@ -116,20 +118,60 @@ def get_settings(db: Session = Depends(get_db)):
     )
 
 
+def _validate_security_settings(sec: SecuritySettings) -> None:
+    if sec.session_timeout < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session timeout must be at least 1 minute.",
+        )
+    if sec.password_expiry < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password expiry must be at least 1 day.",
+        )
+
+
 @router.put("/", response_model=SettingsResponse)
 def update_settings(body: SettingsResponse, db: Session = Depends(get_db)):
     """
     Update global system settings configuration in database.
+    Preserves stored bot_token or bank_qr.caption when omitted by callers and returns the persisted DB state.
     """
+    _validate_security_settings(body.security)
+    existing = get_settings_dict_sync(db)
+    bot_data = body.bot.model_dump()
+    if "bot_token" not in body.bot.model_fields_set:
+        bot_data["bot_token"] = existing.get("bot", {}).get("bot_token", "")
+
+    if body.bank_qr:
+        bank_qr_data = body.bank_qr.model_dump()
+        if "caption" not in body.bank_qr.model_fields_set:
+            bank_qr_data["caption"] = existing.get("bank_qr", {}).get("caption", "")
+    else:
+        bank_qr_data = existing.get("bank_qr", {"enabled": False, "image_urls": [], "caption": ""})
+
     payload = {
-        "bot": body.bot.model_dump(),
+        "bot": bot_data,
         "security": body.security.model_dump(),
         "system": body.system.model_dump(),
-        "bank_qr": body.bank_qr.model_dump() if body.bank_qr else {"enabled": False, "image_urls": [], "caption": ""},
-        "payment_methods": body.payment_methods.model_dump() if body.payment_methods else {"deposit": {"bank": True, "cheque": True, "cash": True}, "withdrawal": {"bank": True, "cheque": False, "cash": True}},
+        "bank_qr": bank_qr_data,
+        "payment_methods": (
+            body.payment_methods.model_dump()
+            if body.payment_methods
+            else existing.get("payment_methods", {"deposit": {"bank": True, "cheque": True, "cash": True}, "withdrawal": {"bank": True, "cheque": False, "cash": True}})
+        ),
     }
     save_settings_dict_sync(payload, db)
-    return body
+    log_activity(
+        db,
+        action="SETTINGS_UPDATED",
+        category="SETTINGS",
+        description="Updated global bot and system configuration settings",
+        entity_type="SystemSetting",
+        entity_id="global",
+        details={"bot_enabled": body.bot.enabled, "session_timeout": body.security.session_timeout},
+    )
+    return get_settings(db)
 
 
 @router.put("/payment-methods", response_model=PaymentMethodsSettings)
@@ -137,10 +179,41 @@ def update_payment_methods(body: PaymentMethodsSettings, db: Session = Depends(g
     """
     Update payment method toggle settings for deposit and withdrawal immediately.
     """
-    store = get_settings_dict_sync(db)
-    store["payment_methods"] = body.model_dump()
-    save_settings_dict_sync(store, db)
-    return body
+    save_settings_dict_sync({"payment_methods": body.model_dump()}, db)
+    log_activity(
+        db,
+        action="PAYMENT_METHODS_UPDATED",
+        category="SETTINGS",
+        description="Updated payment method toggles for deposits and withdrawals",
+        entity_type="SystemSetting",
+        entity_id="payment_methods",
+        details=body.model_dump(),
+    )
+    pm_store = get_settings_dict_sync(db).get("payment_methods", {})
+    return PaymentMethodsSettings(
+        deposit=PaymentMethodToggles(**pm_store.get("deposit", {})),
+        withdrawal=PaymentMethodToggles(**pm_store.get("withdrawal", {})),
+    )
+
+
+@router.put("/security", response_model=SecuritySettings)
+def update_security_settings(body: SecuritySettings, db: Session = Depends(get_db)):
+    """
+    Update security policies (session_timeout, password_expiry, two_factor) in database.
+    """
+    _validate_security_settings(body)
+    save_settings_dict_sync({"security": body.model_dump()}, db)
+    log_activity(
+        db,
+        action="SECURITY_SETTINGS_UPDATED",
+        category="SETTINGS",
+        description=f"Updated security policy (Session Timeout: {body.session_timeout}m, 2FA: {body.two_factor})",
+        entity_type="SystemSetting",
+        entity_id="security",
+        details=body.model_dump(),
+    )
+    sec_store = get_settings_dict_sync(db).get("security", {})
+    return SecuritySettings(**sec_store)
 
 
 class DeletePosterRequest(BaseModel):
@@ -240,6 +313,15 @@ def update_posters(body: UpdatePostersRequest, db: Session = Depends(get_db)):
     system["off_store_image_urls"] = body.urls
     system["off_store_image_url"] = body.urls[0] if body.urls else ""
     save_settings_dict_sync({"system": system}, db)
+    log_activity(
+        db,
+        action="POSTERS_UPDATED",
+        category="SETTINGS",
+        description=f"Updated off-store poster images ({len(body.urls)} active poster(s))",
+        entity_type="SystemSetting",
+        entity_id="posters",
+        details={"count": len(body.urls)},
+    )
     return {"status": "success", "urls": body.urls}
 
 
@@ -263,6 +345,15 @@ def update_schedule(body: UpdateScheduleRequest, db: Session = Depends(get_db)):
     if body.off_store_message is not None:
         system["off_store_message"] = body.off_store_message
     save_settings_dict_sync({"system": system}, db)
+    log_activity(
+        db,
+        action="SCHEDULE_SETTINGS_UPDATED",
+        category="SETTINGS",
+        description=f"Updated store schedule ({system.get('open_time')} - {system.get('close_time')})",
+        entity_type="SystemSetting",
+        entity_id="schedule",
+        details={"open_time": system.get("open_time"), "close_time": system.get("close_time")},
+    )
     return {"status": "success", "system": system}
 
 
@@ -370,24 +461,43 @@ def update_bank_qr(body: UpdateBankQrRequest, db: Session = Depends(get_db)):
         "caption": store.get("bank_qr", {}).get("caption", ""),
     }
     save_settings_dict_sync({"bank_qr": payload}, db)
+    log_activity(
+        db,
+        action="BANK_QR_UPDATED",
+        category="SETTINGS",
+        description=f"Updated Bank QR configuration ({len(active_urls)} active QR code(s))",
+        entity_type="SystemSetting",
+        entity_id="bank_qr",
+        details={"total_qr": len(items_dump), "active_qr": len(active_urls)},
+    )
     return {"status": "success", "items": payload["items"]}
 
 
 @router.post("/broadcast-notice")
-async def broadcast_notice():
+async def broadcast_notice(db: Session = Depends(get_db)):
     """
     Broadcast the configured off-store announcement message and poster images to all registered customers.
+    Fetches the Telegram bot token configured in database settings, falling back to environment BOT_TOKEN.
     """
-    from app.core.config import BOT_TOKEN
     from app.bot.notice_service import broadcast_off_store_notice
     from telegram import Bot
 
-    if not BOT_TOKEN:
-        raise HTTPException(status_code=500, detail="BOT_TOKEN is not configured in environment")
+    bot_token = get_bot_token_sync(db)
+    if not bot_token:
+        raise HTTPException(status_code=500, detail="BOT_TOKEN is not configured in settings or environment")
 
     try:
-        bot = Bot(token=BOT_TOKEN)
+        bot = Bot(token=bot_token)
         sent = await broadcast_off_store_notice(bot)
+        log_activity(
+            db,
+            action="NOTICE_BROADCASTED",
+            category="SETTINGS",
+            description=f"Broadcasted off-store announcement notice to {sent} customer(s)",
+            entity_type="Broadcast",
+            entity_id="off_store_notice",
+            details={"sent_count": sent},
+        )
         return {
             "success": True,
             "sent_count": sent,

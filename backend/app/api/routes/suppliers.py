@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_db
 from app.api.schemas import SupplierCreate, SupplierResponse
 from app.models.purchase_order import Supplier
+from app.services.activity_log_service import log_activity
 
 router = APIRouter()
 
@@ -41,6 +42,14 @@ def create_supplier(body: SupplierCreate, db: Session = Depends(get_db)):
     db.add(supplier)
     db.commit()
     db.refresh(supplier)
+    log_activity(
+        db,
+        action="SUPPLIER_CREATED",
+        category="MASTER_DATA",
+        description=f"Created supplier '{supplier.name}' ({supplier.supplier_type})",
+        entity_type="Supplier",
+        entity_id=supplier.id,
+    )
     return supplier
 
 
@@ -62,6 +71,14 @@ def update_supplier(supplier_id: int, body: SupplierCreate, db: Session = Depend
     supplier.address = body.address
     db.commit()
     db.refresh(supplier)
+    log_activity(
+        db,
+        action="SUPPLIER_UPDATED",
+        category="MASTER_DATA",
+        description=f"Updated supplier '{supplier.name}' ({supplier.supplier_type})",
+        entity_type="Supplier",
+        entity_id=supplier.id,
+    )
     return supplier
 
 
@@ -74,6 +91,15 @@ def delete_supplier(supplier_id: int, db: Session = Depends(get_db)):
     supplier = db.query(Supplier).filter(Supplier.id == supplier_id).first()
     if not supplier:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+    name = supplier.name
     db.delete(supplier)
     db.commit()
+    log_activity(
+        db,
+        action="SUPPLIER_DELETED",
+        category="MASTER_DATA",
+        description=f"Deleted supplier '{name}'",
+        entity_type="Supplier",
+        entity_id=supplier_id,
+    )
 

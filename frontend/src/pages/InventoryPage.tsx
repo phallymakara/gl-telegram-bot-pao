@@ -153,25 +153,21 @@ export default function InventoryPage({ notify }: InventoryPageProps) {
         <StatCard
           label="Current Stock"
           value={`${currentStockKg.toFixed(2)} KG`}
-          sub="Real-time physical vault stock"
           valueClassName="text-lg font-bold text-slate-800"
         />
         <StatCard
           label="Total Net Gold Stock"
           value={`${totalStockKg.toFixed(2)} KG`}
-          sub="Combined physical vault inventory"
           valueClassName="text-lg font-bold text-slate-800"
         />
         <StatCard
           label="Total Stock Inflow"
           value={`+${totalInflowKg.toFixed(2)} KG`}
-          sub="Received from POs & buybacks"
           valueClassName="text-lg font-bold text-emerald-600"
         />
         <StatCard
           label="Total Stock Outflow"
           value={`-${totalOutflowKg.toFixed(2)} KG`}
-          sub="Dispatched to customer sales"
           valueClassName="text-lg font-bold text-indigo-600"
         />
       </div>

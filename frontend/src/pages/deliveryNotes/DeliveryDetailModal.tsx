@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
+import DraggableModalBox from "../../components/DraggableModalBox";
 import {
   X,
   Clock,
@@ -103,10 +104,18 @@ export default function DeliveryDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <DraggableModalBox
+        resetKey={deliveryNoteId ?? isOpen}
+        className="bg-white rounded-3xl shadow-none border border-slate-300 w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]"
+      >
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 bg-slate-50/90 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between shrink-0">
           <div>
             <div className="flex flex-wrap items-center gap-2.5">
               <h3 className="font-bold text-slate-800 text-lg">
@@ -371,19 +380,19 @@ export default function DeliveryDetailModal({
         )}
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between shrink-0">
           <span className="text-[11px] text-slate-400 font-medium">
             {detail?.created_at && `Issued on ${new Date(detail.created_at).toLocaleDateString()}`}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+            className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
           >
             Close
           </button>
         </div>
-      </div>
+      </DraggableModalBox>
     </div>
   );
 }

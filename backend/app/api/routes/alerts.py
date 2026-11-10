@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_db
 from app.api.schemas import AlertCreate, AlertResponse
 from app.models.alert import Alert
+from app.services.activity_log_service import log_activity
 
 router = APIRouter()
 
@@ -47,6 +48,15 @@ def create_alert(body: AlertCreate, db: Session = Depends(get_db)):
     db.add(alert)
     db.commit()
     db.refresh(alert)
+    log_activity(
+        db,
+        action="ALERT_CREATED",
+        category="MASTER_DATA",
+        description=f"Created {alert.type} alert '{alert.title}'",
+        entity_type="Alert",
+        entity_id=alert.id,
+        details={"type": alert.type, "title": alert.title},
+    )
     return alert
 
 
@@ -71,6 +81,15 @@ def update_alert(alert_id: int, body: AlertCreate, db: Session = Depends(get_db)
     alert.slot_table_id = body.slot_table_id
     db.commit()
     db.refresh(alert)
+    log_activity(
+        db,
+        action="ALERT_UPDATED",
+        category="MASTER_DATA",
+        description=f"Updated {alert.type} alert '{alert.title}'",
+        entity_type="Alert",
+        entity_id=alert.id,
+        details={"type": alert.type, "title": alert.title},
+    )
     return alert
 
 
@@ -83,6 +102,16 @@ def delete_alert(alert_id: int, db: Session = Depends(get_db)):
     alert = db.query(Alert).filter(Alert.id == alert_id).first()
     if not alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    alert_title = alert.title
+    alert_type = alert.type
     db.delete(alert)
     db.commit()
+    log_activity(
+        db,
+        action="ALERT_DELETED",
+        category="MASTER_DATA",
+        description=f"Deleted {alert_type} alert '{alert_title}'",
+        entity_type="Alert",
+        entity_id=alert_id,
+    )
 

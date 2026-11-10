@@ -6,10 +6,11 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Diamond, User, ChevronDown, Check, UserCheck, Shield } from "lucide-react";
+import { Diamond, User, ChevronDown, Check, UserCheck, Shield, LogIn, LogOut, X } from "lucide-react";
 import { NAV_ITEMS, NavItem } from "../data/navigation";
 import { useAuth } from "../context/AuthContext";
 import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
+import DraggableModalBox from "../components/DraggableModalBox";
 
 interface SidebarProps {
   /** Active page route key (optional, defaults to current route) */
@@ -49,10 +50,15 @@ export default function Sidebar({
     navigate(`/${targetId}`);
     setMobileOpen(false);
   };
-  const { currentUser, isAllowed, users, switchUser } = useAuth();
+  const { currentUser, isAllowed, users, switchUser, loginUser, logoutUser } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [verifyPasswordOpen, setVerifyPasswordOpen] = useState(false);
   const [pendingUser, setPendingUser] = useState<any>(null);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close profile dropdown on outside click
@@ -69,7 +75,13 @@ export default function Sidebar({
   }, [profileMenuOpen]);
 
   // Dynamically filter navigation items according to current user's permitted modules
+  const isSuperAdmin =
+    currentUser?.role === "Super Admin" ||
+    currentUser?.role === "SUPER_ADMIN" ||
+    currentUser?.name === "Super Admin";
+
   const visibleNavItems: NavItem[] = NAV_ITEMS.map((item) => {
+    if (item.id === "audit-logs" && !isSuperAdmin) return null;
     if (item.children) {
       const permittedChildren = item.children.filter((child) => isAllowed(child.id));
       if (permittedChildren.length === 0) return null;
@@ -261,6 +273,33 @@ export default function Sidebar({
                   );
                 })}
               </div>
+              <div className="border-t border-slate-100 mt-1 pt-1.5 flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    setLoginError("");
+                    setLoginUsername(currentUser?.username || "");
+                    setLoginPassword("");
+                    setLoginModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  <LogIn size={14} className="text-indigo-600 shrink-0" />
+                  <span>Sign In with Credentials</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setProfileMenuOpen(false);
+                    await logoutUser();
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                >
+                  <LogOut size={14} className="shrink-0" />
+                  <span>Log Out</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -313,6 +352,107 @@ export default function Sidebar({
         title="Super Admin Verification"
         description="Enter password to access Super Admin account."
       />
+
+      {loginModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4"
+          onClick={() => !loginSubmitting && setLoginModalOpen(false)}
+        >
+          <DraggableModalBox
+            resetKey={loginModalOpen}
+            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
+          >
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+              <div className="flex items-center gap-2">
+                <LogIn size={16} className="text-indigo-600" />
+                <h3 className="text-base font-semibold text-slate-800">Sign In</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoginModalOpen(false)}
+                disabled={loginSubmitting}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                aria-label="Close sign in dialog"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form
+              className="flex flex-col flex-1 min-h-0"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!loginUsername.trim() || !loginPassword) {
+                  setLoginError("Please enter both username and password.");
+                  return;
+                }
+                setLoginSubmitting(true);
+                setLoginError("");
+                try {
+                  await loginUser(loginUsername.trim(), loginPassword);
+                  setLoginModalOpen(false);
+                } catch {
+                  setLoginError("Invalid username or password.");
+                } finally {
+                  setLoginSubmitting(false);
+                }
+              }}
+            >
+              <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Username</label>
+                  <input
+                    type="text"
+                    value={loginUsername}
+                    onChange={(e) => {
+                      setLoginUsername(e.target.value);
+                      if (loginError) setLoginError("");
+                    }}
+                    placeholder="Enter username"
+                    autoComplete="username"
+                    className={`w-full text-sm px-3 py-2.5 rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
+                      loginError ? "border-rose-500" : "border-slate-200 focus:border-indigo-500"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Password</label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => {
+                      setLoginPassword(e.target.value);
+                      if (loginError) setLoginError("");
+                    }}
+                    placeholder="Enter password"
+                    autoComplete="current-password"
+                    className={`w-full text-sm px-3 py-2.5 rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
+                      loginError ? "border-rose-500" : "border-slate-200 focus:border-indigo-500"
+                    }`}
+                  />
+                  {loginError && <p className="mt-1.5 text-xs text-rose-600">{loginError}</p>}
+                </div>
+              </div>
+              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setLoginModalOpen(false)}
+                  disabled={loginSubmitting}
+                  className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loginSubmitting}
+                  className="text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {loginSubmitting ? "Signing In..." : "Sign In"}
+                </button>
+              </div>
+            </form>
+          </DraggableModalBox>
+        </div>
+      )}
     </>
   );
 }

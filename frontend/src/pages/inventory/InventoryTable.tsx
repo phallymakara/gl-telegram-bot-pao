@@ -245,26 +245,8 @@ export default function InventoryTable({
   } = useLazyRecords(rows, { initialCount: 15, batchSize: 15 });
   return (
     <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <div className="p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4 flex-shrink-0">
-        <div>
-          <h3 className="font-semibold text-slate-800">Inventory Movement Ledger</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Audit history of physical gold stock movements in and out of the vault.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <ExportInventoryDropdown rows={rows} notify={notify} />
-          <button
-            onClick={openAdjustmentModal}
-            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-xs cursor-pointer"
-          >
-            + Record Stock Adjustment
-          </button>
-        </div>
-      </div>
-
-      <div className="p-4 bg-slate-50/60 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
-        <div className="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+      <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
           <div className="relative flex-1 min-w-[200px] max-w-xs">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -299,22 +281,32 @@ export default function InventoryTable({
               </button>
             )}
           </div>
+
+          <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg">
+            {(["all", "inflow", "outflow"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setFilterType(t)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-all ${
+                  filterType === t
+                    ? "bg-white text-slate-800"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-lg">
-          {(["all", "inflow", "outflow"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setFilterType(t)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-all ${
-                filterType === t
-                  ? "bg-white text-slate-800 shadow-xs"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 shrink-0">
+          <ExportInventoryDropdown rows={rows} notify={notify} />
+          <button
+            onClick={openAdjustmentModal}
+            className="flex items-center gap-2 text-sm px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 cursor-pointer"
+          >
+            + Record Stock Adjustment
+          </button>
         </div>
       </div>
 
@@ -350,17 +342,17 @@ export default function InventoryTable({
                       <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
                         {row.inventory_date}
                       </td>
-                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-slate-700">
+                      <td className="px-5 py-3.5 font-mono text-xs font-normal text-slate-700">
                         {row.reference || `REF-${row.id}`}
                       </td>
-                      <td className="px-5 py-3.5 text-slate-700 font-medium">
+                      <td className="px-5 py-3.5 text-slate-700 font-normal">
                         {row.party || row.name || "Vault Stock Adjustment"}
                       </td>
                       <td className="px-5 py-3.5">
                         <StatusBadge status={isPositive ? "Received" : "Returned"} />
                       </td>
                       <td
-                        className={`px-5 py-3.5 font-bold whitespace-nowrap ${
+                        className={`px-5 py-3.5 font-normal whitespace-nowrap ${
                           isPositive ? "text-emerald-600" : "text-rose-600"
                         }`}
                       >

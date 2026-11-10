@@ -11,3 +11,12 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class VerifySuperAdminRequest(BaseModel):
+    password: str
+
+
+class VerifySuperAdminResponse(BaseModel):
+    verified: bool
+    user_id: int

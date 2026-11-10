@@ -103,20 +103,36 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
     type_str = t("buy", lang) if order_type == BUY else t("sell", lang)
     msg = t("selected_slot", lang).format(type=type_str, date=slot_date)
 
-    # Check slot details and available inventory stock
+    # Check slot details and available stock (BUY) or buy limit (SELL)
     slot = await asyncio.to_thread(get_slot_by_date_sync, slot_date, order_type)
     incoming = float(slot.get("incoming_kg", 0)) if slot else 0
     stock = float(slot.get("stock_kg", 0)) if slot else 0
-    total_available = incoming + stock
-    logger.info("handle_slot_selection | slot_date=%s | order_type=%s | incoming=%.2f | stock=%.2f | total=%.2f", slot_date, order_type, incoming, stock, total_available)
+    buy_limit = float(slot.get("buy_limit_kg", 0)) if slot else 0
+    total_available = (incoming + stock) if order_type == BUY else buy_limit
+    logger.info(
+        "handle_slot_selection | slot_date=%s | order_type=%s | incoming=%.2f | stock=%.2f | buy_limit=%.2f | total=%.2f",
+        slot_date,
+        order_type,
+        incoming,
+        stock,
+        buy_limit,
+        total_available,
+    )
 
-    if order_type == BUY and total_available <= 0:
-        await query.answer(t("slot_out_of_stock", lang), show_alert=True)
+    if total_available <= 0:
+        err_key = "slot_out_of_stock" if order_type == BUY else "slot_buy_limit_reached"
+        await query.answer(t(err_key, lang), show_alert=True)
         return
 
     await query.message.reply_text(
         text=msg,
-        reply_markup=build_quantity_keyboard(stock=stock, incoming_kg=incoming, order_type=order_type, lang=lang),
+        reply_markup=build_quantity_keyboard(
+            stock=stock,
+            incoming_kg=incoming,
+            order_type=order_type,
+            lang=lang,
+            buy_limit_kg=buy_limit,
+        ),
     )
 
 
@@ -143,7 +159,7 @@ def format_confirmation_message(
     new_price_suffix = ""
     premium_str = format_premium(slot.get("premium", 0))
 
-    if tier_info and order_type == BUY:
+    if tier_info:
         tiers = tier_info.get("tiers", [])
         if tier_info.get("has_spillover") and len(tiers) >= 2:
             t1 = tiers[0]
@@ -194,46 +210,69 @@ def format_confirmation_message(
     return summary_text
 
 
-async def handle_quantity_selection(query, context: ContextTypes.DEFAULT_TYPE):
+def _get_insufficient_msg(order_type: str, tier_info: dict, lang: str) -> str:
+    """Build localized error message when requested quantity exceeds stock or buy limit."""
+    if order_type == BUY:
+        return t("slot_out_of_stock", lang)
+    avail = float(tier_info.get("total_available", 0))
+    if avail > 0:
+        return t("slot_buy_limit_insufficient", lang).format(avail=f"{avail:g}")
+    return t("slot_buy_limit_reached", lang)
+
+
+async def _finalize_quantity_selection(
+    reply_target,
+    context: ContextTypes.DEFAULT_TYPE,
+    quantity: float,
+    query=None,
+) -> bool:
     """
-    Handle user selecting order quantity in Kilograms (1kg - 5kg).
-    Validates active session state, calculates multi-table tier breakdown, and renders confirmation keyboard.
+    Validate selected quantity against slot availability (stock or buy limit),
+    store order context, and send confirmation summary. Returns True if accepted.
     """
     lang = context.user_data.get("lang", "EN")
-    quantity = float(query.data.replace(QTY_PREFIX, ""))
-
     selected_slot = context.user_data.get("selected_slot")
     order_type = context.user_data.get("order_type", BUY)
 
-    # Validate active session state
     if not selected_slot:
-        await query.message.reply_text(t("session_expired", lang))
-        return
+        await reply_target.reply_text(t("session_expired", lang))
+        return False
 
     slot = await asyncio.to_thread(get_slot_by_date_sync, selected_slot, order_type)
     if not slot:
-        await query.message.reply_text(t("slot_not_found", lang))
-        return
+        await reply_target.reply_text(t("slot_not_found", lang))
+        return False
 
-    tier_info = None
-    is_new_price = False
-    if order_type == BUY:
-        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, "BUY")
-        if not tier_info.get("is_sufficient"):
-            await query.answer(t("slot_out_of_stock", lang), show_alert=True)
-            return
-        is_new_price = tier_info.get("is_new_price_involved", False)
+    tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, order_type)
+    if not tier_info.get("is_sufficient"):
+        err_msg = _get_insufficient_msg(order_type, tier_info, lang)
+        if query is not None:
+            await query.answer(err_msg, show_alert=True)
+        else:
+            await reply_target.reply_text(err_msg)
+        return False
 
+    is_new_price = tier_info.get("is_new_price_involved", False) if order_type == BUY else False
     context.user_data["quantity"] = quantity
     context.user_data["tier_info"] = tier_info
 
     summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang, tier_info=tier_info)
 
-    await query.message.reply_text(
+    await reply_target.reply_text(
         text=summary,
         parse_mode="Markdown",
         reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
     )
+    return True
+
+
+async def handle_quantity_selection(query, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handle user selecting order quantity in Kilograms (1kg - 5kg).
+    Validates active session state, calculates multi-table tier breakdown, and renders confirmation keyboard.
+    """
+    quantity = float(query.data.replace(QTY_PREFIX, ""))
+    await _finalize_quantity_selection(query.message, context, quantity, query=query)
 
 
 def get_pad_display_text(current: str, pad_mode: str, lang: str) -> str:
@@ -459,38 +498,7 @@ async def handle_numpad_ok(query, context: ContextTypes.DEFAULT_TYPE):
         return
 
     context.user_data.pop("awaiting_custom_qty", None)
-    context.user_data["quantity"] = num
-
-    selected_slot = context.user_data.get("selected_slot")
-    order_type = context.user_data.get("order_type", BUY)
-
-    if not selected_slot:
-        await query.message.reply_text(t("session_expired", lang))
-        return
-
-    slot = await asyncio.to_thread(get_slot_by_date_sync, selected_slot, order_type)
-    if not slot:
-        await query.message.reply_text(t("slot_not_found", lang))
-        return
-
-    tier_info = None
-    is_new_price = False
-    if order_type == BUY:
-        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, num, "BUY")
-        if not tier_info.get("is_sufficient"):
-            await query.answer(t("slot_out_of_stock", lang), show_alert=True)
-            return
-        is_new_price = tier_info.get("is_new_price_involved", False)
-
-    context.user_data["tier_info"] = tier_info
-
-    summary = format_confirmation_message(selected_slot, order_type, num, slot, lang, tier_info=tier_info)
-
-    await query.message.reply_text(
-        text=summary,
-        parse_mode="Markdown",
-        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
-    )
+    await _finalize_quantity_selection(query.message, context, num, query=query)
 
 
 async def handle_numpad_back(query, context: ContextTypes.DEFAULT_TYPE):
@@ -520,10 +528,17 @@ async def handle_numpad_back(query, context: ContextTypes.DEFAULT_TYPE):
     slot = await asyncio.to_thread(get_slot_by_date_sync, selected_slot, order_type)
     incoming = float(slot.get("incoming_kg", 0)) if slot else 0
     stock = float(slot.get("stock_kg", 0)) if slot else 0
+    buy_limit = float(slot.get("buy_limit_kg", 0)) if slot else 0
 
     await query.message.reply_text(
         text=t("selected_slot", lang),
-        reply_markup=build_quantity_keyboard(stock=stock, incoming_kg=incoming, order_type=order_type, lang=lang),
+        reply_markup=build_quantity_keyboard(
+            stock=stock,
+            incoming_kg=incoming,
+            order_type=order_type,
+            lang=lang,
+            buy_limit_kg=buy_limit,
+        ),
     )
 
 
@@ -804,56 +819,48 @@ async def handle_skip_deposit_doc(update: Update, query, context: ContextTypes.D
     )
 
 
+def _parse_numeric_input(raw_text: str | None) -> float | None:
+    """
+    Clean and parse numeric text input from chat messages.
+    Supports group messages that mention the bot (e.g. '@chayvan_bot 5'),
+    commands (e.g. '/5' or '/5@chayvan_bot'), commas, and common unit/currency suffixes (e.g. '5kg', '$5000').
+    """
+    if not raw_text:
+        return None
+    # Filter out bot mention tokens like @chayvan_bot
+    words = [w for w in raw_text.split() if not w.startswith("@")]
+    cleaned = " ".join(words).strip()
+    if "@" in cleaned:
+        cleaned = cleaned.split("@")[0]
+    cleaned = cleaned.lstrip("/")
+    # Strip common units and currency symbols
+    for s in ["kg", "គីឡូ", "usd", "$", ","]:
+        cleaned = cleaned.lower().replace(s, "")
+    cleaned = cleaned.strip()
+    try:
+        val = float(cleaned)
+        return val if val > 0 else None
+    except (ValueError, TypeError):
+        return None
+
+
 async def handle_custom_quantity_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle user typing custom numeric quantity text message in chat.
     Validates number and proceeds to order confirmation step.
     """
     lang = context.user_data.get("lang", "EN")
-    text = (update.message.text or "").strip()
+    raw_text = update.message.text if update.message else ""
+    quantity = _parse_numeric_input(raw_text)
 
-    try:
-        quantity = float(text)
-        if quantity <= 0:
-            raise ValueError()
-    except (ValueError, TypeError):
+    if quantity is None:
         await update.message.reply_text(t("invalid_qty", lang))
         return
 
-    context.user_data.pop("awaiting_custom_qty", None)
     context.user_data.pop("pad_qty", None)
-    selected_slot = context.user_data.get("selected_slot")
-    order_type = context.user_data.get("order_type", BUY)
-
-    if not selected_slot:
-        await update.message.reply_text(t("session_expired", lang))
-        return
-
-    slot = await asyncio.to_thread(get_slot_by_date_sync, selected_slot, order_type)
-    if not slot:
-        await update.message.reply_text(t("slot_not_found", lang))
-        return
-
-    tier_info = None
-    is_new_price = False
-    if order_type == BUY:
-        tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, "BUY")
-        if not tier_info.get("is_sufficient"):
-            await update.message.reply_text(t("slot_out_of_stock", lang))
-            return
-        is_new_price = tier_info.get("is_new_price_involved", False)
-
-    context.user_data["quantity"] = quantity
-    context.user_data["tier_info"] = tier_info
-
-    # Format order review summary
-    summary = format_confirmation_message(selected_slot, order_type, quantity, slot, lang, tier_info=tier_info)
-
-    await update.message.reply_text(
-        text=summary,
-        parse_mode="Markdown",
-        reply_markup=build_confirmation_keyboard(selected_slot, order_type, lang, is_new_price=is_new_price),
-    )
+    ok = await _finalize_quantity_selection(update.message, context, quantity)
+    if ok:
+        context.user_data.pop("awaiting_custom_qty", None)
 
 
 async def handle_deposit_amount_text_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -862,13 +869,10 @@ async def handle_deposit_amount_text_input(update: Update, context: ContextTypes
     Validates number and proceeds to deposit summary screen.
     """
     lang = context.user_data.get("lang", "EN")
-    text = (update.message.text or "").strip()
+    raw_text = update.message.text if update.message else ""
+    amount = _parse_numeric_input(raw_text)
 
-    try:
-        amount = float(text)
-        if amount <= 0:
-            raise ValueError()
-    except (ValueError, TypeError):
+    if amount is None:
         await update.message.reply_text(t("invalid_amount", lang))
         return
 
@@ -897,13 +901,10 @@ async def handle_withdraw_amount_text_input(update: Update, context: ContextType
     Validates number and proceeds to withdrawal summary screen.
     """
     lang = context.user_data.get("lang", "EN")
-    text = (update.message.text or "").strip()
+    raw_text = update.message.text if update.message else ""
+    amount = _parse_numeric_input(raw_text)
 
-    try:
-        amount = float(text)
-        if amount <= 0:
-            raise ValueError()
-    except (ValueError, TypeError):
+    if amount is None:
         await update.message.reply_text(t("invalid_amount", lang))
         return
 
@@ -987,4 +988,5 @@ async def handle_confirm_order(
     except SlotNotFoundError as error:
         await query.message.reply_text(str(error))
     except InsufficientStockError as error:
-        await query.message.reply_text(str(error))
+        err_msg = t("slot_buy_limit_reached", lang) if order_type == SELL else str(error)
+        await query.message.reply_text(err_msg)

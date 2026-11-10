@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Clock, QrCode, Send, User, UserCheck } from "lucide-react";
+import { Clock, QrCode, Send, Shield, User, UserCheck } from "lucide-react";
 import { api, CustomerData } from "../api";
 import ProfileTab from "./settings/ProfileTab";
 import BotTab from "./settings/BotTab";
@@ -21,7 +21,7 @@ interface SettingsPageProps {
  * System settings container page component.
  */
 export default function SettingsPage({ notify }: SettingsPageProps) {
-  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "allow-user" | "system" | "bank-qr">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "bot" | "allow-user" | "security" | "system" | "bank-qr">("profile");
   const [showToken, setShowToken] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [openTime, setOpenTime] = useState("08:00");
@@ -29,14 +29,16 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [offStoreMessage, setOffStoreMessage] = useState("");
   const [offStoreImageUrl, setOffStoreImageUrl] = useState("");
   const [offStoreImageUrls, setOffStoreImageUrls] = useState<string[]>([]);
-  const [botUsername, setBotUsername] = useState("GoldSystemBot");
-  const [salesTelegramUsername, setSalesTelegramUsername] = useState("phallymakara");
-  const [salesPhoneNumber, setSalesPhoneNumber] = useState("+85589804659");
+  const [botUsername, setBotUsername] = useState("");
+  const [botToken, setBotToken] = useState("");
+  const [salesTelegramUsername, setSalesTelegramUsername] = useState("");
+  const [salesPhoneNumber, setSalesPhoneNumber] = useState("");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
 
   // Bank QR State
   const [bankQrItems, setBankQrItems] = useState<BankQrItemData[]>([]);
+  const [bankQrCaption, setBankQrCaption] = useState("");
 
   // Payment Method Toggles State
   const [paymentMethods, setPaymentMethods] = useState<{
@@ -52,51 +54,60 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [newUserId, setNewUserId] = useState("");
   const [newUsername, setNewUsername] = useState("");
 
+  function applySettingsFromApi(s: any) {
+    if (!s) return;
+    setBotToken(s.bot?.bot_token ?? "");
+    setBotUsername(s.bot?.bot_username ?? "");
+    setSalesTelegramUsername(s.bot?.sales_telegram_username ?? "");
+    setSalesPhoneNumber(s.bot?.sales_phone_number ?? "");
+    if (s.security) {
+      setSessionTimeout(s.security.session_timeout ?? 30);
+      setPasswordExpiry(s.security.password_expiry ?? 90);
+      setTwoFA(Boolean(s.security.two_factor));
+    }
+    if (s.system) {
+      setOpenTime(s.system.open_time || "08:00");
+      setCloseTime(s.system.close_time || "21:00");
+      setOffStoreMessage(s.system.off_store_message || "");
+      const rawUrls: string[] = s.system.off_store_image_urls || [];
+      const initialUrls = rawUrls.length > 0 ? rawUrls : (s.system.off_store_image_url ? [s.system.off_store_image_url] : []);
+      setOffStoreImageUrls(initialUrls);
+      setOffStoreImageUrl(initialUrls[0] || "");
+    }
+    if (s.bank_qr) {
+      setBankQrCaption(s.bank_qr.caption ?? "");
+      const items: BankQrItemData[] = s.bank_qr.items || [];
+      if (items.length > 0) {
+        setBankQrItems(items);
+      } else if (s.bank_qr.image_urls) {
+        setBankQrItems(
+          s.bank_qr.image_urls.map((u: string) => ({
+            url: u,
+            enabled: s.bank_qr.enabled !== undefined ? Boolean(s.bank_qr.enabled) : true,
+          }))
+        );
+      }
+    }
+    if (s.payment_methods) {
+      setPaymentMethods({
+        deposit: {
+          bank: s.payment_methods.deposit?.bank !== undefined ? Boolean(s.payment_methods.deposit.bank) : true,
+          cheque: s.payment_methods.deposit?.cheque !== undefined ? Boolean(s.payment_methods.deposit.cheque) : true,
+          cash: s.payment_methods.deposit?.cash !== undefined ? Boolean(s.payment_methods.deposit.cash) : true,
+        },
+        withdrawal: {
+          bank: s.payment_methods.withdrawal?.bank !== undefined ? Boolean(s.payment_methods.withdrawal.bank) : true,
+          cheque: s.payment_methods.withdrawal?.cheque !== undefined ? Boolean(s.payment_methods.withdrawal.cheque) : false,
+          cash: s.payment_methods.withdrawal?.cash !== undefined ? Boolean(s.payment_methods.withdrawal.cash) : true,
+        },
+      });
+    }
+  }
+
   useEffect(() => {
     api
       .get<any>("/api/settings/")
-      .then((s) => {
-        setBotUsername(s.bot.bot_username);
-        if (s.bot.sales_telegram_username) setSalesTelegramUsername(s.bot.sales_telegram_username);
-        if (s.bot.sales_phone_number) setSalesPhoneNumber(s.bot.sales_phone_number);
-        setSessionTimeout(s.security.session_timeout);
-        setPasswordExpiry(s.security.password_expiry);
-        setTwoFA(s.security.two_factor);
-        setOpenTime(s.system.open_time);
-        setCloseTime(s.system.close_time);
-        setOffStoreMessage(s.system.off_store_message || "");
-        const rawUrls: string[] = s.system.off_store_image_urls || [];
-        const initialUrls = rawUrls.length > 0 ? rawUrls : (s.system.off_store_image_url ? [s.system.off_store_image_url] : []);
-        setOffStoreImageUrls(initialUrls);
-        setOffStoreImageUrl(initialUrls[0] || "");
-        if (s.bank_qr) {
-          const items: BankQrItemData[] = s.bank_qr.items || [];
-          if (items.length > 0) {
-            setBankQrItems(items);
-          } else if (s.bank_qr.image_urls) {
-            setBankQrItems(
-              s.bank_qr.image_urls.map((u: string) => ({
-                url: u,
-                enabled: s.bank_qr.enabled !== undefined ? Boolean(s.bank_qr.enabled) : true,
-              }))
-            );
-          }
-        }
-        if (s.payment_methods) {
-          setPaymentMethods({
-            deposit: {
-              bank: s.payment_methods.deposit?.bank !== undefined ? Boolean(s.payment_methods.deposit.bank) : true,
-              cheque: s.payment_methods.deposit?.cheque !== undefined ? Boolean(s.payment_methods.deposit.cheque) : true,
-              cash: s.payment_methods.deposit?.cash !== undefined ? Boolean(s.payment_methods.deposit.cash) : true,
-            },
-            withdrawal: {
-              bank: s.payment_methods.withdrawal?.bank !== undefined ? Boolean(s.payment_methods.withdrawal.bank) : true,
-              cheque: s.payment_methods.withdrawal?.cheque !== undefined ? Boolean(s.payment_methods.withdrawal.cheque) : false,
-              cash: s.payment_methods.withdrawal?.cash !== undefined ? Boolean(s.payment_methods.withdrawal.cash) : true,
-            },
-          });
-        }
-      })
+      .then((s) => applySettingsFromApi(s))
       .catch(() => {});
 
     api
@@ -123,9 +134,9 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
 
   function saveSettings() {
     api
-      .put("/api/settings/", {
+      .put<any>("/api/settings/", {
         bot: {
-          bot_token: "",
+          bot_token: botToken,
           bot_username: botUsername,
           sales_telegram_username: salesTelegramUsername,
           sales_phone_number: salesPhoneNumber,
@@ -146,11 +157,14 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           items: bankQrItems,
           image_urls: bankQrItems.map((it) => it.url),
           enabled: bankQrItems.some((it) => it.enabled),
-          caption: "",
+          caption: bankQrCaption,
         },
         payment_methods: paymentMethods,
       })
-      .then(() => notify("Settings saved"))
+      .then((updated) => {
+        applySettingsFromApi(updated);
+        notify("Settings saved");
+      })
       .catch(() => notify("Failed to save settings"));
   }
 
@@ -187,6 +201,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     { id: "profile", label: "User Profile", desc: "Personal info & avatar", icon: User },
     { id: "bot", label: "Telegram Bot", desc: "Bot token & username", icon: Send },
     { id: "allow-user", label: "Allow User", desc: "Whitelist allowed Telegram users", icon: UserCheck },
+    { id: "security", label: "Security", desc: "Session & 2FA policies", icon: Shield },
     { id: "system", label: "Operating Hours", desc: "Store operating times", icon: Clock },
     { id: "bank-qr", label: "Bank QR Code", desc: "Deposit account QR images", icon: QrCode },
   ] as const;
@@ -239,6 +254,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           <BotTab
             botUsername={botUsername}
             setBotUsername={setBotUsername}
+            botToken={botToken}
+            setBotToken={setBotToken}
             salesTelegramUsername={salesTelegramUsername}
             setSalesTelegramUsername={setSalesTelegramUsername}
             salesPhoneNumber={salesPhoneNumber}

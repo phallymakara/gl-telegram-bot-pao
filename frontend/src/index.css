@@ -1,11 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Kantumruy+Pro:ital,wght@0,100..700;1,100..700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* System-wide consistent font family matching Customers page ("Inter") including controls & placeholders */
+html,
+body,
+#root,
+button,
+input,
+select,
+textarea,
+.font-sans,
+.font-mono,
+.font-serif,
 .font-kantoumrouy {
-  font-family: 'Kantumruy Pro', sans-serif;
+  font-family: 'Inter', 'Kantumruy Pro', system-ui, sans-serif !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  font-family: 'Inter', 'Kantumruy Pro', system-ui, sans-serif !important;
 }
 
 
@@ -142,24 +158,23 @@ button:active,
    - Respects user accessibility / prefers-reduced-motion
    ========================================================================== */
 
-/* 1. Page View Smooth Entrance */
+/* 1. Page View Smooth Entrance (opacity-only so page wrappers never trap fixed modal z-index) */
 main > * {
-  animation: systemPageEntrance 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: systemPageEntrance 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes systemPageEntrance {
   from {
     opacity: 0;
-    transform: translateY(3px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
-/* 2. Modal Overlay & Dialog Smooth Transitions */
+/* 2. Modal Overlay & Dialog Smooth Transitions (always render on the topmost layer) */
 .fixed.inset-0.z-50 {
+  z-index: 9990 !important;
   animation: systemModalBackdropFade 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

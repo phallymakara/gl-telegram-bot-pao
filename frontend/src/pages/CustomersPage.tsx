@@ -4,7 +4,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { UserCheck, Users, UserX } from "lucide-react";
 import StatCard from "../components/StatCard";
 import { CustomerData, customersApi } from "../api";
 import CustomerTable from "./customers/CustomerTable";
@@ -169,27 +168,21 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
 
   return (
     <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-shrink-0">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 flex-shrink-0">
         <StatCard
-          icon={Users}
           label="Total Master Customers"
           value={customers.length}
-          sub="Registered client directory"
-          tint="bg-indigo-50 text-indigo-600"
+          valueClassName="text-lg font-bold text-slate-800"
         />
         <StatCard
-          icon={UserCheck}
           label="Active Accounts"
           value={customers.filter((c) => c.is_active !== false).length}
-          sub="Active trade clients"
-          tint="bg-emerald-50 text-emerald-600"
+          valueClassName="text-lg font-bold text-emerald-600"
         />
         <StatCard
-          icon={UserX}
           label="Inactive Accounts"
           value={customers.filter((c) => c.is_active === false).length}
-          sub="Suspended / disabled clients"
-          tint="bg-amber-50 text-amber-600"
+          valueClassName="text-lg font-bold text-amber-600"
         />
       </div>
 

@@ -23,6 +23,8 @@ export interface PaymentMethodsState {
 interface BotTabProps {
   botUsername: string;
   setBotUsername: (val: string) => void;
+  botToken: string;
+  setBotToken: (val: string) => void;
   salesTelegramUsername: string;
   setSalesTelegramUsername: (val: string) => void;
   salesPhoneNumber: string;
@@ -41,6 +43,8 @@ interface BotTabProps {
 export default function BotTab({
   botUsername,
   setBotUsername,
+  botToken,
+  setBotToken,
   salesTelegramUsername,
   setSalesTelegramUsername,
   salesPhoneNumber,
@@ -118,6 +122,8 @@ export default function BotTab({
           <div className="relative">
             <input
               type={showToken ? "text" : "password"}
+              value={botToken}
+              onChange={(e) => setBotToken(e.target.value)}
               placeholder="Bot token API"
               className="w-full pl-3 pr-10 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
@@ -174,7 +180,7 @@ export default function BotTab({
       </div>
 
       {/* Payment Method Toggle Buttons Section */}
-      <div className="space-y-4 pt-1 font-kantoumrouy">
+      <div className="space-y-4 pt-1">
         <div>
           <h4 className="text-sm font-bold text-slate-900 leading-snug">Payment Method Buttons (វិធីសាស្ត្រទូទាត់)</h4>
           <p className="text-xs text-slate-400 mt-0.5">

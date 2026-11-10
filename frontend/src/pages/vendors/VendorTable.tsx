@@ -368,16 +368,16 @@ export default function VendorTable({
               <tbody className="divide-y divide-slate-100">
                 {visibleRecords.map((v, i) => (
                   <tr key={v.id} className="hover:bg-slate-100 transition-colors">
-                    <td className="py-2 px-3 font-mono text-xs font-bold text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 font-mono text-xs font-normal text-slate-800 whitespace-nowrap">
                       {v.vendor_code || `VEND-${String(i + 1).padStart(3, "0")}`}
                     </td>
-                    <td className="py-2 px-3 font-semibold text-slate-800 whitespace-nowrap">{v.name}</td>
+                    <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">{v.name}</td>
                     <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-normal bg-slate-100 text-slate-700">
                         {v.supplier_type}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="py-2 px-3 text-slate-700 font-normal whitespace-nowrap">
                       {v.contact_person || "—"}
                     </td>
                     <td className="py-2 px-3 text-slate-600 whitespace-nowrap">

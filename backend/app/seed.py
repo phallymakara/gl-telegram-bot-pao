@@ -10,6 +10,12 @@ from decimal import Decimal
 
 from sqlalchemy import delete, func
 
+from app.core.config import (
+    DEFAULT_ADMIN_EMAIL,
+    DEFAULT_ADMIN_NAME,
+    DEFAULT_ADMIN_PASSWORD,
+    DEFAULT_ADMIN_USERNAME,
+)
 from app.core.database import Base, SessionLocal, engine
 from app.core.security import hash_password
 from app.models.alert import Alert
@@ -93,16 +99,21 @@ def seed():
         db.execute(delete(Customer))
         db.execute(delete(TelegramGroup))
 
-        # Section 3: Seed default super administrator user (admin / admin123)
-        if not db.query(User).filter(User.username == "admin").first():
-            db.add(User(
-                name="Admin User",
-                username="admin",
-                email="admin@goldsystem.com",
-                password_hash=hash_password("admin123"),
-                role="SUPER_ADMIN",
-                is_active=True,
-            ))
+        # Section 3: Seed default super administrator user from environment
+        if DEFAULT_ADMIN_USERNAME and DEFAULT_ADMIN_EMAIL and DEFAULT_ADMIN_PASSWORD:
+            if not db.query(User).filter(User.username == DEFAULT_ADMIN_USERNAME).first():
+                db.add(User(
+                    name=DEFAULT_ADMIN_NAME,
+                    username=DEFAULT_ADMIN_USERNAME,
+                    email=DEFAULT_ADMIN_EMAIL,
+                    password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
+                    role="SUPER_ADMIN",
+                    is_active=True,
+                ))
+        else:
+            raise RuntimeError(
+                "DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_EMAIL, and DEFAULT_ADMIN_PASSWORD must be set in environment"
+            )
 
         # Section 4: Seed default Telegram bot group channel
         group = TelegramGroup(telegram_group_id="-1000000000001", group_name="Telegram Bot", is_active=True)
@@ -222,7 +233,7 @@ def seed():
         print(f"  - {len(slot_tables)} slot tables / {len(slot_rows)} slot rows")
         print(f"  - {len(PURCHASE_ORDERS)} purchase orders")
         print(f"  - {len(ORDERS)} orders")
-        print("  - admin user (username=admin, password=admin123) created")
+        print(f"  - admin user (username={DEFAULT_ADMIN_USERNAME}) created")
     finally:
         db.close()
 

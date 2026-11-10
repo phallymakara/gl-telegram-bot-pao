@@ -3,10 +3,9 @@
  * @description Sub-component rendering discount promotions list, campaign status, and promotion controls.
  */
 
-import { AlertCircle, Calendar, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import Card from "../../components/Card";
 import IconBtn from "../../components/IconBtn";
-import StatCard from "../../components/StatCard";
 import StatusBadge from "../../components/StatusBadge";
 import { AlertData, toNumber } from "../../api";
 
@@ -21,32 +20,7 @@ interface PromoDiscountsViewProps {
  */
 export default function PromoDiscountsView({ alerts, notify, deleteAlert }: PromoDiscountsViewProps) {
   return (
-    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-shrink-0">
-        <StatCard
-          icon={Tag}
-          label="Total Promotions"
-          value={alerts.length}
-          sub="Configured discount campaigns"
-          tint="bg-indigo-50 text-indigo-600"
-        />
-        <StatCard
-          icon={AlertCircle}
-          label="Active Promos"
-          value={alerts.filter((a) => a.is_active).length}
-          sub="Currently running discounts"
-          tint="bg-emerald-50 text-emerald-600"
-        />
-        <StatCard
-          icon={Calendar}
-          label="Scheduled Promos"
-          value={
-            alerts.filter((a) => a.start_at && new Date(a.start_at) > new Date()).length
-          }
-          sub="Upcoming campaigns queue"
-          tint="bg-blue-50 text-blue-600"
-        />
-      </div>
+    <div className="flex-1 pt-4 px-3.5 pb-2 sm:pt-4 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col min-h-0">
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div>

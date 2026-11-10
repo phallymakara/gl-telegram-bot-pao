@@ -9,11 +9,11 @@ import logging
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler, MessageHandler, PicklePersistence, filters
 
 from app.bot.handlers import button_handler, start_command
-from app.core.config import BOT_TOKEN
 from app.core.logging import setup_logging
 from app.db import base  # ensure all SQLAlchemy models are registered
 from app.bot.notice_service import store_close_scheduler_loop
 from app.services.promotion_service import promotions_loop
+from app.services.settings_service import get_bot_token_sync
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,8 @@ def main():
     setup_logging()
     logger.info("Initializing Gold Trading Bot application...")
     persistence = PicklePersistence(filepath="persistence.pickle")
-    app = Application.builder().token(BOT_TOKEN).persistence(persistence).post_init(post_init).build()
+    bot_token = get_bot_token_sync()
+    app = Application.builder().token(bot_token).persistence(persistence).post_init(post_init).build()
 
     # Register bot handlers
     app.add_handler(CommandHandler(["start", "hi"], start_command))

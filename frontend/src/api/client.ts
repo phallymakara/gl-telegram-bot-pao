@@ -20,13 +20,15 @@ const BASE = import.meta.env.VITE_API_URL || "";
  * @throws Error containing server detail or raw HTTP error message if status is not OK.
  */
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  // Retrieve bearer token from local storage
+  // Retrieve bearer token and active dashboard user id from local storage
   const token = localStorage.getItem("token");
+  const currentUserId = localStorage.getItem("current_user_id");
   const headers: Record<string, string> = {};
   if (!(options?.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
   if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (currentUserId) headers["X-User-Id"] = currentUserId;
 
   // Add 60-second request timeout to prevent infinite hanging spinners
   let timeoutId: ReturnType<typeof setTimeout> | undefined;

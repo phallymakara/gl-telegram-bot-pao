@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.api.schemas import (
     DeliveryNoteCreate,
     DeliveryNoteDetailResponse,
@@ -215,6 +216,15 @@ def create_delivery_note(body: DeliveryNoteCreate, db: Session = Depends(get_db)
         .filter(DeliveryNote.id == delivery_note.id)
         .first()
     )
+    log_activity(
+        db,
+        action="DELIVERY_NOTE_CREATED",
+        category="DELIVERY",
+        description=f"Created delivery note {delivery_note.delivery_no} for customer '{delivery_note.customer_name}'",
+        entity_type="DeliveryNote",
+        entity_id=delivery_note.delivery_no,
+        details={"order_id": delivery_note.order_id, "courier_status": delivery_note.courier_status},
+    )
     return _to_delivery_response(dn or delivery_note)
 
 
@@ -282,6 +292,15 @@ def update_delivery_note(
 
     db.commit()
     db.refresh(dn)
+    log_activity(
+        db,
+        action="DELIVERY_NOTE_UPDATED",
+        category="DELIVERY",
+        description=f"Updated delivery note {dn.delivery_no} (courier status: {dn.courier_status})",
+        entity_type="DeliveryNote",
+        entity_id=dn.delivery_no,
+        details={"courier_status": dn.courier_status},
+    )
     return _to_delivery_response(dn)
 
 
@@ -296,7 +315,16 @@ def record_payment(
     Validates amount > 0 and amount <= outstanding balance, appends an immutable payment record,
     and automatically recalculates the note's balance and payment status.
     """
-    _, payment = record_payment_collection_sync(db, delivery_note_id, body)
+    dn, payment = record_payment_collection_sync(db, delivery_note_id, body)
+    log_activity(
+        db,
+        action="DELIVERY_PAYMENT_RECORDED",
+        category="DELIVERY",
+        description=f"Recorded delivery payment of ${payment.amount} for {dn.delivery_no} via {payment.payment_method}",
+        entity_type="DeliveryNote",
+        entity_id=dn.delivery_no,
+        details={"amount": float(payment.amount), "payment_method": payment.payment_method, "collected_by": payment.collected_by},
+    )
     return DeliveryPaymentResponse(
         id=payment.id,
         delivery_note_id=payment.delivery_note_id,
@@ -320,6 +348,15 @@ def delete_delivery_note(delivery_note_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Delivery Note {delivery_note_id} not found.",
         )
+    delivery_no = dn.delivery_no
     db.delete(dn)
     db.commit()
+    log_activity(
+        db,
+        action="DELIVERY_NOTE_DELETED",
+        category="DELIVERY",
+        description=f"Deleted delivery note {delivery_no}",
+        entity_type="DeliveryNote",
+        entity_id=delivery_no,
+    )
     return None

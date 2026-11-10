@@ -29,10 +29,34 @@ app.add_middleware(
 )
 
 
+from app.services.activity_log_service import (
+    extract_client_ip,
+    reset_request_audit_context,
+    set_request_audit_context,
+)
+
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
+    auth_header = request.headers.get("authorization", "")
+    bearer_token = (
+        auth_header[7:].strip()
+        if auth_header.lower().startswith("bearer ")
+        else None
+    )
+    ctx_token = set_request_audit_context(
+        bearer_token=bearer_token,
+        x_user_id=request.headers.get("x-user-id"),
+        ip_address=extract_client_ip(request),
+        user_agent=request.headers.get("user-agent"),
+        method=request.method,
+        path=request.url.path,
+    )
     start_time = time.time()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    finally:
+        reset_request_audit_context(ctx_token)
     duration_ms = (time.time() - start_time) * 1000
     logger.info(
         "HTTP %s %s -> Status %d (%.2fms)",

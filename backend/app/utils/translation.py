@@ -124,6 +124,8 @@ TRANSLATIONS = {
         "switch_lang": "Switch Language",
         "unauthorized": "Sorry, you do not have permission to use this bot. Please contact the administrator. \n\n សូមអភ័យទោស អ្នកមិនមានសិទ្ធិប្រើប្រាស់ Bot នេះទេ។ សូមទាក់ទងអ្នកគ្រប់គ្រង។",
         "slot_out_of_stock": "Sorry, this slot is out of stock. Please select another slot.",
+        "slot_buy_limit_reached": "Sorry, this slot has reached its buy limit. Please select another slot.",
+        "slot_buy_limit_insufficient": "Sorry, the remaining buy limit for this slot is {avail} kg. Please enter a smaller quantity or select another slot.",
         "contact_sales_title": "📞 *Contact Sales*\n\n📱 Phone: `{phone}` _(Tap to copy/dial)_\n💬 Telegram: @{username}\n⏰ Working Hours: 8:00 AM - 6:00 PM",
         "contact_telegram_btn": "💬 Telegram Chat",
         "contact_call_btn": "📞 Call by Phone",
@@ -253,6 +255,8 @@ TRANSLATIONS = {
         "switch_lang": "ប្តូរភាសា",
         "unauthorized": "សូមអភ័យទោស អ្នកមិនមានសិទ្ធិប្រើប្រាស់ Bot នេះទេ។ សូមទាក់ទងអ្នកគ្រប់គ្រង។",
         "slot_out_of_stock": "សូមអភ័យទោស Slot នេះអស់ស្តុកហើយ។ សូមជ្រើសរើស Slot ផ្សេងទៀត។",
+        "slot_buy_limit_reached": "សូមអភ័យទោស Slot នេះបានពេញកំណត់ទទួលទិញហើយ។ សូមជ្រើសរើស Slot ផ្សេងទៀត។",
+        "slot_buy_limit_insufficient": "សូមអភ័យទោស ចំនួនកំណត់ទទួលទិញដែលនៅសល់សម្រាប់ Slot នេះគឺ {avail} គីឡូ។ សូមបញ្ចូលចំនួនតិចជាងនេះ ឬជ្រើសរើស Slot ផ្សេងទៀត។",
         "closed_hours": "⚠️ *ការជួញដូរត្រូវបានបិទនៅពេលនេះ*\n\n⏰ ម៉ោងធ្វើការ៖ *{open_time} - {close_time}*\n\nការទទួលការបញ្ជាទិញស្វ័យប្រវត្តិត្រូវបានបិទជាបណ្តោះអាសន្ន។ សូមត្រឡប់មកវិញក្នុងម៉ោងធ្វើការ ឬទាក់ទងមកកាន់ភ្នាក់ងារលក់របស់យើង។",
         "closed_order_rejected": "⚠️ *ការជួញដូរត្រូវបានបិទនៅពេលនេះ*\n\nម៉ោងធ្វើការ៖ *{open_time} - {close_time}*\n\nមិនអាចដាក់ការបញ្ជាទិញក្រៅម៉ោងធ្វើការបានទេ។ សូមព្យាយាមម្តងទៀតក្នុងម៉ោងធ្វើការ។",
     }

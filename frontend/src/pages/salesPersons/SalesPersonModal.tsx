@@ -6,6 +6,7 @@
 import React from "react";
 import { X } from "lucide-react";
 import { SalesPersonData } from "../../api";
+import DraggableModalBox from "../../components/DraggableModalBox";
 
 interface SalesPersonModalProps {
   isOpen: boolean;
@@ -45,9 +46,17 @@ export default function SalesPersonModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-xl w-full max-w-lg overflow-hidden transform scale-100 transition-all animate-in fade-in zoom-in-95 duration-150">
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+    <div
+      className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <DraggableModalBox
+        resetKey={editingSalesPerson?.id ?? "new"}
+        className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
           <div>
             <h3 className="font-semibold text-slate-800 text-base">
               {editingSalesPerson ? "Edit Sales Person" : "New Sales Person"}
@@ -60,8 +69,9 @@ export default function SalesPersonModal({
           </div>
           <button
             type="button"
+            aria-label="Close dialog"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -79,7 +89,7 @@ export default function SalesPersonModal({
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
                 placeholder="Salesperson code"
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
             <div>
@@ -107,7 +117,7 @@ export default function SalesPersonModal({
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 placeholder="Contact phone number"
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
             <div>
@@ -168,23 +178,23 @@ export default function SalesPersonModal({
             />
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0 -mx-4 -mb-4 mt-4">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
             >
               {editingSalesPerson ? "Save Changes" : "Create Sales Person"}
             </button>
           </div>
         </form>
-      </div>
+      </DraggableModalBox>
     </div>
   );
 }

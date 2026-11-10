@@ -22,6 +22,7 @@ export interface SlotTableData {
   id: number;
   table_name: string;
   stock: number;
+  buy_limit?: number;
   is_active: boolean;
   display_order: number;
   rows: SlotRowData[];

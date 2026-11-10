@@ -6,9 +6,14 @@ Calculates high-level admin metrics including gold inventory breakdown, channel 
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 import json
+import logging
+import threading
 from uuid import uuid4
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
+
+from app.utils.helpers import get_cambodia_now
+from app.services.activity_log_service import log_activity
 
 from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
@@ -448,6 +453,7 @@ def calculate_daily_breakdown(db: Session, target_date: str = "") -> DailyBreakd
 
 def _parse_matrix_date(d_str: str) -> date:
     """Helper to parse a date string from either ISO YYYY-MM-DD or DD/MM format."""
+    today = get_cambodia_now().date()
     d_clean = d_str.strip()
     try:
         return datetime.strptime(d_clean, "%Y-%m-%d").date()
@@ -455,9 +461,9 @@ def _parse_matrix_date(d_str: str) -> date:
         pass
     try:
         parsed = datetime.strptime(d_clean, "%d/%m")
-        return date(date.today().year, parsed.month, parsed.day)
+        return date(today.year, parsed.month, parsed.day)
     except ValueError:
-        return date.today()
+        return today
 
 
 def _normalize_and_sort_matrix_columns(columns_list: list[dict]) -> list[dict]:
@@ -499,6 +505,288 @@ def _normalize_and_sort_matrix_columns(columns_list: list[dict]) -> list[dict]:
     return deduped
 
 
+logger = logging.getLogger(__name__)
+_matrix_rollover_lock = threading.Lock()
+MATRIX_ROLLOVER_SETTING_KEY = "stock_matrix_rollovers"
+
+
+def _resolve_order_brand(o: Order) -> str:
+    """Resolve normalized matrix brand key for an Order."""
+    pt = getattr(o, "product_type", None)
+    if pt and pt.strip():
+        pt_l = pt.strip().lower()
+        if "db" in pt_l:
+            return "db"
+        if "sv" in pt_l:
+            return "sv"
+        if "swiss" in pt_l:
+            return "swiss"
+        return pt_l
+
+    ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
+    if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+        return "db"
+    return "swiss"
+
+
+def _resolve_po_brand(po: PurchaseOrder) -> str:
+    """Resolve normalized matrix brand key for a PurchaseOrder."""
+    pt = getattr(po, "product_type", None)
+    if pt and pt.strip():
+        pt_l = pt.strip().lower()
+        if "db" in pt_l:
+            return "db"
+        if "sv" in pt_l:
+            return "sv"
+        if "swiss" in pt_l:
+            return "swiss"
+
+    supp = (getattr(po, "supplier_name", None) or "").lower()
+    if "db" in supp:
+        return "db"
+    if "sv" in supp:
+        return "sv"
+
+    po_type = (getattr(po, "po_type", None) or "").upper()
+    if po_type == "BUYBACK":
+        return "db"
+    return "swiss"
+
+
+def _parse_col_date(raw_date) -> date | None:
+    """Safely parse a stored matrix column target_date value into a date object."""
+    if isinstance(raw_date, datetime):
+        return raw_date.date()
+    if isinstance(raw_date, date):
+        return raw_date
+    if isinstance(raw_date, str) and raw_date.strip():
+        try:
+            return datetime.strptime(raw_date.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+    return None
+
+
+def _default_header_color(brand_name: str) -> str:
+    b = (brand_name or "").strip().lower()
+    if "db" in b:
+        return "orange"
+    if "sv" in b:
+        return "magenta"
+    return "peach"
+
+
+def _make_carryover_key(brand: str, dt: date) -> str:
+    return f"{(brand or '').strip().lower()}|{dt.strftime('%Y-%m-%d')}"
+
+
+def _load_rollover_state(db: Session) -> dict:
+    """Load persisted stock matrix carryover balances and processed source dates."""
+    setting = db.query(SystemSetting).filter(SystemSetting.key == MATRIX_ROLLOVER_SETTING_KEY).first()
+    if setting and setting.value:
+        try:
+            parsed = json.loads(setting.value)
+            if isinstance(parsed, dict):
+                raw_carryovers = parsed.get("carryovers") or {}
+                raw_processed = parsed.get("processed_sources") or []
+                carryovers = {
+                    str(k): round(float(v), 4)
+                    for k, v in raw_carryovers.items()
+                    if isinstance(v, (int, float))
+                }
+                processed = [str(x) for x in raw_processed]
+                return {"carryovers": carryovers, "processed_sources": processed}
+        except Exception as exc:
+            logger.warning("Failed to parse stock_matrix_rollovers setting: %s", exc)
+    return {"carryovers": {}, "processed_sources": []}
+
+
+def _save_rollover_state(db: Session, state: dict) -> None:
+    """Persist stock matrix carryover balances and processed sources to SystemSetting."""
+    payload = json.dumps({
+        "carryovers": {k: round(float(v), 4) for k, v in (state.get("carryovers") or {}).items()},
+        "processed_sources": sorted(set(state.get("processed_sources") or [])),
+    })
+    setting = db.query(SystemSetting).filter(SystemSetting.key == MATRIX_ROLLOVER_SETTING_KEY).first()
+    if not setting:
+        db.add(SystemSetting(key=MATRIX_ROLLOVER_SETTING_KEY, value=payload))
+    else:
+        setting.value = payload
+
+
+def rollover_expired_matrix_columns(db: Session, anchor: date) -> dict:
+    """
+    Roll closing Available Stock from expired matrix columns (< anchor) forward into the
+    earliest upcoming column (>= anchor) for the same brand.
+
+    Only Available Stock carries forward (directly into the next day's Available Stock).
+    Import Stock, Physical Sell, Bot Sell, Physical Buy, and Bot Buy remain strictly per-day.
+    Uses an idempotent SystemSetting ledger (`stock_matrix_rollovers`) and a mutex lock so
+    2s dashboard polling never double-counts expired columns or drags in unrelated past data.
+    """
+    with _matrix_rollover_lock:
+        col_setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_columns").first()
+        stored_cols: list[dict] = []
+        if col_setting and col_setting.value:
+            try:
+                parsed = json.loads(col_setting.value)
+                if isinstance(parsed, list):
+                    stored_cols = parsed
+            except Exception:
+                stored_cols = []
+
+        rollover_state = _load_rollover_state(db)
+        if not stored_cols:
+            return rollover_state
+
+        expired_items: list[tuple[date, str, dict]] = []
+        active_cols: list[dict] = []
+        brand_future_dates: dict[str, set[date]] = {}
+        brand_display_names: dict[str, str] = {}
+
+        for col in stored_cols:
+            b_raw = (col.get("brand") or "").strip()
+            b_key = b_raw.lower()
+            if b_key and b_key not in brand_display_names:
+                brand_display_names[b_key] = b_raw
+            c_date = _parse_col_date(col.get("target_date"))
+            if c_date is None:
+                active_cols.append(col)
+                continue
+            if c_date < anchor:
+                expired_items.append((c_date, b_key, col))
+            else:
+                active_cols.append(col)
+                brand_future_dates.setdefault(b_key, set()).add(c_date)
+
+        if not expired_items:
+            return rollover_state
+
+        # Include upcoming SlotRow dates for DB brand even before DB sync creates them
+        active_slot_dates = get_active_slot_dates(db, anchor)
+        for s_date in active_slot_dates:
+            brand_future_dates.setdefault("db", set()).add(s_date)
+
+        all_pos = db.query(PurchaseOrder).filter(
+            PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
+        ).all()
+        all_orders = db.query(Order).filter(
+            Order.status != "CANCELLED"
+        ).all()
+
+        carryovers: dict[str, float] = dict(rollover_state["carryovers"])
+        processed_set: set[str] = set(rollover_state["processed_sources"])
+        moved_summaries: list[dict] = []
+
+        # Process oldest -> newest so multi-day gaps accumulate into the first active day cleanly
+        expired_items.sort(key=lambda item: (item[0], item[1]))
+
+        for exp_date, b_key, col in expired_items:
+            if not b_key:
+                continue
+            source_key = _make_carryover_key(b_key, exp_date)
+            if source_key in processed_set:
+                continue
+
+            po_import = 0.0
+            for po in all_pos:
+                if _resolve_po_brand(po) != b_key:
+                    continue
+                po_d = po.expected_date or po.order_date
+                if po_d == exp_date:
+                    po_import += float(po.quantity or 0)
+
+            phys_buy = 0.0
+            bot_buy = 0.0
+            phys_sell = 0.0
+            bot_sell = 0.0
+            for o in all_orders:
+                if _resolve_order_brand(o) != b_key:
+                    continue
+                eff_d = get_effective_order_date(o)
+                if eff_d != exp_date:
+                    continue
+                txn = (o.transaction_type or "").upper()
+                ch = (getattr(o, "channel", None) or "").upper()
+                qty = float(o.quantity or 0)
+                if txn == "BUY":
+                    if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+                        bot_buy += qty
+                    else:
+                        phys_buy += qty
+                elif txn == "SELL":
+                    if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+                        bot_sell += abs(qty)
+                    else:
+                        phys_sell += abs(qty)
+
+            prev_carry = float(carryovers.pop(source_key, 0.0))
+            closing_available = round(
+                prev_carry + po_import + phys_buy + bot_buy - phys_sell - bot_sell,
+                4,
+            )
+
+            future_set = brand_future_dates.get(b_key)
+            if future_set:
+                target_date = min(future_set)
+            else:
+                # Guarantee brand retains an active column on `anchor` when its last date expired
+                target_date = anchor
+                brand_future_dates.setdefault(b_key, set()).add(target_date)
+                d_str = target_date.strftime("%Y-%m-%d")
+                b_label = brand_display_names.get(b_key) or col.get("brand") or b_key.upper()
+                active_cols.append({
+                    "id": f"{b_key}_{d_str}",
+                    "brand": b_label,
+                    "date_label": f"{target_date.day}-{target_date.strftime('%b')}",
+                    "header_color": col.get("header_color") or _default_header_color(b_label),
+                    "target_date": d_str,
+                })
+
+            target_key = _make_carryover_key(b_key, target_date)
+            if abs(closing_available) > 1e-9:
+                carryovers[target_key] = round(float(carryovers.get(target_key, 0.0)) + closing_available, 4)
+                moved_summaries.append({
+                    "brand": b_key.upper(),
+                    "from": exp_date.isoformat(),
+                    "to": target_date.isoformat(),
+                    "closing_available": closing_available,
+                })
+            processed_set.add(source_key)
+
+        new_state = {
+            "carryovers": carryovers,
+            "processed_sources": sorted(processed_set),
+        }
+        normalized_cols = _normalize_and_sort_matrix_columns(active_cols)
+        if col_setting:
+            col_setting.value = json.dumps(normalized_cols)
+        else:
+            db.add(SystemSetting(key="stock_matrix_columns", value=json.dumps(normalized_cols)))
+        _save_rollover_state(db, new_state)
+        db.commit()
+
+        if moved_summaries:
+            summary_txt = ", ".join(
+                f"{m['brand']} {m['from']}->{m['to']}: {m['closing_available']:+g}kg"
+                for m in moved_summaries
+            )
+            log_activity(
+                db,
+                action="MATRIX_DAY_ROLLOVER",
+                category="STOCK",
+                description=f"Rolled expired dashboard stock forward ({summary_txt})",
+                entity_type="StockMatrix",
+                entity_id=anchor.isoformat(),
+                details={"rollovers": moved_summaries},
+                username_override="system",
+                actor_name_override="System Scheduler",
+                actor_role_override="SYSTEM",
+            )
+
+        return new_state
+
+
 def get_active_slot_dates(db: Session, anchor: date) -> list[date]:
     """Retrieve distinct dates from active slot tables on or after anchor date."""
     slot_dates_query = (
@@ -518,7 +806,7 @@ def validate_db_columns_not_less_than_slots(db: Session, columns_list: list[dict
     1. Count of DB columns must not be less than active user-created slots.
     2. All active user-created slot dates must be present in DB columns.
     """
-    today = date.today()
+    today = get_cambodia_now().date()
     active_slot_dates = get_active_slot_dates(db, today)
     if not active_slot_dates:
         return
@@ -641,9 +929,13 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
 def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     """
     Retrieve matrix column configurations from SystemSetting.
-    Ensures DB columns are NEVER less than the active slots that user created.
+    Ensures expired columns roll forward their closing Available Stock before column sync/pruning,
+    and ensures DB columns are NEVER less than the active slots that user created.
     If no columns stored in SystemSetting, initializes with default Swiss, DB, SV columns.
     """
+    if anchor >= get_cambodia_now().date():
+        rollover_expired_matrix_columns(db, anchor)
+
     active_dates = get_active_slot_dates(db, anchor)
     if not active_dates:
         active_dates = [anchor, anchor + timedelta(days=1)]
@@ -753,7 +1045,7 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
         elif isinstance(t_d, (date, datetime)):
             dt_obj = t_d if isinstance(t_d, date) else t_d.date()
         else:
-            dt_obj = date.today()
+            dt_obj = get_cambodia_now().date()
         result.append({
             **c,
             "target_date": dt_obj,
@@ -769,7 +1061,7 @@ def sync_db_matrix_columns_with_slots(db: Session, anchor: date | None = None) -
     - Automatically deletes DB columns for deleted slot dates.
     """
     if anchor is None:
-        anchor = date.today()
+        anchor = get_cambodia_now().date()
     return get_matrix_columns_config(db, anchor)
 
 
@@ -778,15 +1070,16 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
     """
     Calculate the brand & settlement date inventory matrix (Swiss, DB, SV) strictly from
     real database records starting from today (or target_date) and forward dates.
-    Past dates ("last date") are strictly excluded.
+    Past dates ("last date") are excluded after rolling their closing Available Stock forward.
     """
+    cambodia_today = get_cambodia_now().date()
     if target_date and target_date.strip():
         try:
             anchor = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
         except ValueError:
-            anchor = date.today()
+            anchor = cambodia_today
     else:
-        anchor = date.today()
+        anchor = cambodia_today
 
     columns_config = get_matrix_columns_config(db, anchor)
     # Strictly exclude past dates from calculation
@@ -794,6 +1087,7 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         c for c in columns_config
         if not c.get("target_date") or c.get("target_date") >= anchor
     ]
+    rollover_carryovers = _load_rollover_state(db).get("carryovers", {})
 
     all_pos = db.query(PurchaseOrder).filter(
         PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
@@ -803,48 +1097,6 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         Order.status != "CANCELLED"
     ).all()
 
-    def resolve_order_brand(o: Order) -> str:
-        pt = getattr(o, "product_type", None)
-        if pt and pt.strip():
-            pt_l = pt.strip().lower()
-            if "db" in pt_l:
-                return "db"
-            if "sv" in pt_l:
-                return "sv"
-            if "swiss" in pt_l:
-                return "swiss"
-            return pt_l
-
-        # Gold buy and sell via platform is DB
-        ch = (getattr(o, "channel", None) or "TELEGRAM").upper()
-        if ch in ("TELEGRAM", "WEB", "PLATFORM"):
-            return "db"
-        return "swiss"
-
-    def resolve_po_brand(po: PurchaseOrder) -> str:
-        pt = getattr(po, "product_type", None)
-        if pt and pt.strip():
-            pt_l = pt.strip().lower()
-            if "db" in pt_l:
-                return "db"
-            if "sv" in pt_l:
-                return "sv"
-            if "swiss" in pt_l:
-                return "swiss"
-
-        supp = (getattr(po, "supplier_name", None) or "").lower()
-        if "db" in supp:
-            return "db"
-        if "sv" in supp:
-            return "sv"
-
-        # Platform customer buyback POs add to DB stock
-        po_type = (getattr(po, "po_type", None) or "").upper()
-        if po_type == "BUYBACK":
-            return "db"
-
-        return "swiss"
-
     computed_columns: list[StockMatrixColumn] = []
     col_orders: list[list[Order]] = []
 
@@ -852,10 +1104,10 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         brand = cfg["brand"].lower()
         t_date = cfg["target_date"]
 
-        # Matching POs (Gold In / Import stock)
+        # Matching POs (Gold In / Import stock strictly for this date)
         matching_pos = []
         for po in all_pos:
-            if resolve_po_brand(po) != brand:
+            if _resolve_po_brand(po) != brand:
                 continue
 
             po_d = po.expected_date or po.order_date
@@ -877,7 +1129,7 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         matching_sell_orders = []
 
         for o in all_orders:
-            if resolve_order_brand(o) != brand:
+            if _resolve_order_brand(o) != brand:
                 continue
 
             eff_d = get_effective_order_date(o)
@@ -937,10 +1189,15 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         total_deductions = sum(deductions)
         physical_sell_mag = sum(abs(float(o.quantity or 0)) for o in physical_orders)
         bot_sell_mag = sum(abs(float(o.quantity or 0)) for o in bot_orders)
-        # Formula: Available stock = import stock + Stock buy from customer - stock sell to customer
+        # Formula: Available stock = carryover (from expired days) + import stock + buy - sell
         stock_buy = physical_buy_qty + bot_buy_qty
         stock_sell = physical_sell_mag + bot_sell_mag
-        avail = round(import_stock + stock_buy - stock_sell, 4)
+        carryover_stock = (
+            round(float(rollover_carryovers.get(_make_carryover_key(brand, t_date), 0.0)), 4)
+            if isinstance(t_date, date)
+            else 0.0
+        )
+        avail = round(carryover_stock + import_stock + stock_buy - stock_sell, 4)
 
         # Format date label to D-MMM (e.g. 6-Oct) if valid date object
         if isinstance(t_date, (date, datetime)):
@@ -956,6 +1213,7 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                 target_date=cfg["target_date"].strftime("%Y-%m-%d"),
                 header_color=cfg["header_color"],
                 text_color="text-slate-900",
+                carryover_stock=carryover_stock,
                 import_stock=import_stock,
                 trade_in=trade_in_qty,
                 physical_sale=physical_qty,
@@ -1322,7 +1580,7 @@ def add_matrix_column(
     """
     Persistently add a column to the stock matrix in SystemSetting.
     """
-    today = date.today()
+    today = get_cambodia_now().date()
     current = get_matrix_columns_config(db, today)
     target_d = _parse_matrix_date(date_str)
     if target_d < today:
@@ -1381,7 +1639,8 @@ def delete_matrix_column(db: Session, col_id: str) -> StockMatrixData:
     Persistently remove a column from the stock matrix in SystemSetting.
     Enforces validation: DB columns must not be less than the active slots created by user.
     """
-    current = get_matrix_columns_config(db, date.today())
+    today = get_cambodia_now().date()
+    current = get_matrix_columns_config(db, today)
     target_col = next((c for c in current if c["id"] == col_id), None)
     if not target_col:
         raise ValueError(f"Column '{col_id}' not found in stock matrix.")
@@ -1403,6 +1662,34 @@ def delete_matrix_column(db: Session, col_id: str) -> StockMatrixData:
     # Validate that DB columns are not less than the slots created by user
     if (target_col.get("brand") or "").strip().lower() == "db":
         validate_db_columns_not_less_than_slots(db, stored_list)
+
+    # Preserve any carried-over stock held on the deleted column by transferring it to another column of the same brand
+    target_brand = (target_col.get("brand") or "").strip().lower()
+    target_dt = _parse_col_date(target_col.get("target_date"))
+    if target_brand and target_dt:
+        rollover_state = _load_rollover_state(db)
+        carryovers = rollover_state.get("carryovers", {})
+        src_key = _make_carryover_key(target_brand, target_dt)
+        held_carry = float(carryovers.get(src_key, 0.0))
+        if abs(held_carry) > 1e-9:
+            same_brand_dates = sorted(
+                d for d in (
+                    _parse_col_date(c.get("target_date"))
+                    for c in stored_list
+                    if (c.get("brand") or "").strip().lower() == target_brand
+                )
+                if d is not None and d >= today
+            )
+            if not same_brand_dates:
+                raise ValueError(
+                    "Cannot delete this column because it holds carried-forward stock and has no other upcoming column for this brand."
+                )
+            dest_date = same_brand_dates[0]
+            dest_key = _make_carryover_key(target_brand, dest_date)
+            if dest_key != src_key:
+                carryovers.pop(src_key, None)
+                carryovers[dest_key] = round(float(carryovers.get(dest_key, 0.0)) + held_carry, 4)
+                _save_rollover_state(db, rollover_state)
 
     normalized = _normalize_and_sort_matrix_columns(stored_list)
 
@@ -1428,10 +1715,16 @@ def update_matrix_column(
     Persistently update brand, date, or header color for a column in SystemSetting.
     Enforces validation: DB columns must not be less than the active slots created by user.
     """
-    current = get_matrix_columns_config(db, date.today())
+    today = get_cambodia_now().date()
+    current = get_matrix_columns_config(db, today)
     target_col = next((c for c in current if c["id"] == col_id), None)
     if not target_col:
         raise ValueError(f"Column '{col_id}' not found in stock matrix.")
+
+    old_brand = (target_col.get("brand") or "").strip().lower()
+    old_date = _parse_col_date(target_col.get("target_date"))
+    updated_brand = old_brand
+    updated_date = old_date
 
     stored_list = []
     for c in current:
@@ -1449,6 +1742,7 @@ def update_matrix_column(
                 brand_clean = brand.strip()
                 col_dict["brand"] = brand_clean
                 brand_l = brand_clean.lower()
+                updated_brand = brand_l
                 if not header_color:
                     if "db" in brand_l:
                         col_dict["header_color"] = "orange"
@@ -1460,6 +1754,7 @@ def update_matrix_column(
                 col_dict["header_color"] = header_color
             if date_str is not None and date_str.strip():
                 new_d = _parse_matrix_date(date_str)
+                updated_date = new_d
                 col_dict["target_date"] = new_d.strftime("%Y-%m-%d")
                 col_dict["date_label"] = f"{new_d.day}-{new_d.strftime('%b')}"
         stored_list.append(col_dict)
@@ -1467,6 +1762,16 @@ def update_matrix_column(
     # Validate that DB columns are not less than the slots created by user
     if (target_col.get("brand") or "").strip().lower() == "db" or (brand and brand.strip().lower() == "db"):
         validate_db_columns_not_less_than_slots(db, stored_list)
+
+    if old_brand and old_date and updated_brand and updated_date and (old_brand != updated_brand or old_date != updated_date):
+        rollover_state = _load_rollover_state(db)
+        carryovers = rollover_state.get("carryovers", {})
+        src_key = _make_carryover_key(old_brand, old_date)
+        held_carry = float(carryovers.pop(src_key, 0.0))
+        if abs(held_carry) > 1e-9:
+            dest_key = _make_carryover_key(updated_brand, updated_date)
+            carryovers[dest_key] = round(float(carryovers.get(dest_key, 0.0)) + held_carry, 4)
+            _save_rollover_state(db, rollover_state)
 
     normalized = _normalize_and_sort_matrix_columns(stored_list)
 
@@ -1596,7 +1901,7 @@ def update_matrix_cell(
     - 'physical_buy' / 'bot_buy' -> creates/updates BUY order
     - custom rows -> stores value in row's custom_values for that col_id
     """
-    current_cols = get_matrix_columns_config(db, date.today())
+    current_cols = get_matrix_columns_config(db, get_cambodia_now().date())
     target_col = next((c for c in current_cols if c["id"] == col_id), None)
     if not target_col:
         raise ValueError(f"Column '{col_id}' not found in stock matrix.")

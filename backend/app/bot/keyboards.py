@@ -39,7 +39,6 @@ from app.constants.callback import (
     TXN_PERIOD_1M,
     READY_TXN,
 )
-from app.core.config import SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
 from app.utils.helpers import format_date_dd_mm_yy, format_premium
 from app.utils.translation import t
 
@@ -131,6 +130,13 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarku
                 total_available = 0.0
             if total_available <= 0:
                 continue
+        elif order_type == SELL:
+            try:
+                total_available = float(str(slot.get("buy_limit_kg", 0)).strip())
+            except (ValueError, TypeError):
+                total_available = 0.0
+            if total_available <= 0:
+                continue
 
         raw_premium = slot.get("premium", 0)
         try:
@@ -157,7 +163,13 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarku
     return InlineKeyboardMarkup(keyboard)
 
 
-def build_quantity_keyboard(stock=None, incoming_kg=None, order_type=BUY, lang="EN") -> InlineKeyboardMarkup:
+def build_quantity_keyboard(
+    stock=None,
+    incoming_kg=None,
+    order_type=BUY,
+    lang="EN",
+    buy_limit_kg=None,
+) -> InlineKeyboardMarkup:
     """
     Construct keyboard displaying quantity options (1kg - 5kg) and custom input.
     Layout:
@@ -166,17 +178,26 @@ def build_quantity_keyboard(stock=None, incoming_kg=None, order_type=BUY, lang="
       [5 kg]  [Enter Number]
       [Back]
     """
-    if incoming_kg is not None and stock is not None:
+    if order_type == SELL:
+        total = float(buy_limit_kg) if buy_limit_kg is not None else 0.0
+    elif incoming_kg is not None and stock is not None:
         total = float(incoming_kg) + float(stock)
     elif stock is not None:
         total = float(stock)
     else:
-        total = 0
+        total = 0.0
 
-    logger.info("build_quantity_keyboard | incoming=%s stock=%s total=%s order_type=%s", incoming_kg, stock, total, order_type)
+    logger.info(
+        "build_quantity_keyboard | incoming=%s stock=%s buy_limit=%s total=%s order_type=%s",
+        incoming_kg,
+        stock,
+        buy_limit_kg,
+        total,
+        order_type,
+    )
 
-    if order_type == SELL or total <= 0:
-        max_allowed_qty = 5 if order_type == SELL else 0
+    if total <= 0:
+        max_allowed_qty = 0
     else:
         try:
             max_allowed_qty = int(total)
@@ -188,7 +209,7 @@ def build_quantity_keyboard(stock=None, incoming_kg=None, order_type=BUY, lang="
     unit = t("kg_unit", lang)
     buttons = []
     for q in [1, 2, 3, 4, 5]:
-        if q <= max_allowed_qty or order_type == SELL:
+        if q <= max_allowed_qty:
             buttons.append(InlineKeyboardButton(f"{q} {unit}", callback_data=f"{QTY_PREFIX}{q}"))
         else:
             buttons.append(InlineKeyboardButton(f"{q} {unit} (N/A)", callback_data="IGNORE"))

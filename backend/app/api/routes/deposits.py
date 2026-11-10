@@ -22,6 +22,7 @@ from app.schemas.deposit import (
     DepositStatsResponse,
 )
 from app.utils.generators import generate_deposit_no
+from app.services.activity_log_service import log_activity
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,15 @@ def create_deposit(body: DepositCreate, db: Session = Depends(get_db)):
     db.add(deposit)
     db.commit()
     db.refresh(deposit)
+    log_activity(
+        db,
+        action="DEPOSIT_CREATED",
+        category="FINANCE",
+        description=f"Created deposit {deposit.deposit_no} for ${deposit.amount} ({deposit.payment_method})",
+        entity_type="Deposit",
+        entity_id=deposit.deposit_no,
+        details={"amount": float(deposit.amount), "currency": deposit.currency, "payment_method": deposit.payment_method},
+    )
     return deposit
 
 
@@ -180,6 +190,16 @@ def review_deposit(
     db.commit()
     db.refresh(deposit)
     logger.info("Deposit %s reviewed: status=%s by %s", deposit.deposit_no, deposit.status, deposit.reviewed_by)
+    action_name = "DEPOSIT_APPROVED" if new_status == "APPROVED" else ("DEPOSIT_REJECTED" if new_status == "REJECTED" else "DEPOSIT_UPDATED")
+    log_activity(
+        db,
+        action=action_name,
+        category="FINANCE",
+        description=f"Deposit {deposit.deposit_no} marked {new_status} (${deposit.amount})",
+        entity_type="Deposit",
+        entity_id=deposit.deposit_no,
+        details={"status": new_status, "amount": float(deposit.amount), "reviewed_by": deposit.reviewed_by},
+    )
     return deposit
 
 
@@ -191,5 +211,14 @@ def delete_deposit(deposit_id: int, db: Session = Depends(get_db)):
     deposit = db.query(Deposit).filter(Deposit.id == deposit_id).first()
     if not deposit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deposit not found")
+    deposit_no = deposit.deposit_no
     db.delete(deposit)
     db.commit()
+    log_activity(
+        db,
+        action="DEPOSIT_DELETED",
+        category="FINANCE",
+        description=f"Deleted deposit {deposit_no}",
+        entity_type="Deposit",
+        entity_id=deposit_no,
+    )

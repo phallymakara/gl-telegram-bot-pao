@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.api.schemas import (
     CalculatePricingRequest,
     CalculatePricingResponse,
@@ -263,6 +264,15 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
             remark=f"Created {po_type} PO {po.po_no}",
         )
 
+    log_activity(
+        db,
+        action="PO_CREATED",
+        category="PURCHASING",
+        description=f"Created {po.po_type} Purchase Order {po.po_no} (Qty: {po.quantity}, Total: ${po.total_cost})",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"po_type": po.po_type, "supplier_name": po.supplier_name, "quantity": float(po.quantity or 0), "total_cost": float(po.total_cost or 0)},
+    )
     return _to_response(po)
 
 
@@ -311,6 +321,15 @@ def update_purchase_order(po_id: int, body: PurchaseOrderUpdate, db: Session = D
 
     db.commit()
     db.refresh(po)
+    log_activity(
+        db,
+        action="PO_UPDATED",
+        category="PURCHASING",
+        description=f"Updated Purchase Order {po.po_no} (Status: {po.status}, Qty: {po.quantity})",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"status": po.status, "quantity": float(po.quantity or 0)},
+    )
     return _to_response(po)
 
 
@@ -323,8 +342,17 @@ def delete_purchase_order(po_id: int, db: Session = Depends(get_db)):
     po = db.query(PurchaseOrder).filter(PurchaseOrder.id == po_id).first()
     if not po:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Purchase order not found")
+    po_no = po.po_no
     db.delete(po)
     db.commit()
+    log_activity(
+        db,
+        action="PO_DELETED",
+        category="PURCHASING",
+        description=f"Deleted Purchase Order {po_no}",
+        entity_type="PurchaseOrder",
+        entity_id=po_no,
+    )
     return None
 
 
@@ -354,6 +382,15 @@ def mark_ordered(po_id: int, db: Session = Depends(get_db)):
     po.status = "INCOMING"
     db.commit()
     db.refresh(po)
+    log_activity(
+        db,
+        action="PO_STATUS_UPDATED",
+        category="PURCHASING",
+        description=f"Marked Purchase Order {po.po_no} as INCOMING",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"status": po.status},
+    )
     return _to_response(po)
 
 
@@ -368,6 +405,15 @@ def confirm_purchase_order(po_id: int, db: Session = Depends(get_db)):
     po.status = "CONFIRMED"
     db.commit()
     db.refresh(po)
+    log_activity(
+        db,
+        action="PO_CONFIRMED",
+        category="PURCHASING",
+        description=f"Confirmed Purchase Order {po.po_no}",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"status": po.status},
+    )
     return _to_response(po)
 
 
@@ -387,6 +433,15 @@ def receive_purchase_order(po_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(po)
     db.expire_all()
+    log_activity(
+        db,
+        action="PO_RECEIVED",
+        category="PURCHASING",
+        description=f"Received Purchase Order {po.po_no} into stock (Qty: {po.quantity})",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"quantity": float(po.quantity or 0), "slot_table_id": po.slot_table_id},
+    )
     return get_purchase_order(po.id, db)
 
 
@@ -400,6 +455,15 @@ def return_purchase_order(po_id: int, body: POReturnRequest, db: Session = Depen
         stock_return = return_purchase_order_sync(po_id, body.quantity, body.reason)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    log_activity(
+        db,
+        action="PO_RETURNED",
+        category="PURCHASING",
+        description=f"Returned stock on Purchase Order #{po_id} (Qty: {body.quantity}, Reason: {body.reason})",
+        entity_type="PurchaseOrder",
+        entity_id=po_id,
+        details={"quantity": float(body.quantity), "reason": body.reason},
+    )
     return stock_return
 
 
@@ -429,5 +493,14 @@ def cancel_purchase_order(po_id: int, db: Session = Depends(get_db)):
             remark=f"Cancelled PO {po.po_no} - removed incoming",
         )
 
+    log_activity(
+        db,
+        action="PO_CANCELLED",
+        category="PURCHASING",
+        description=f"Cancelled Purchase Order {po.po_no} (previous status: {old_status})",
+        entity_type="PurchaseOrder",
+        entity_id=po.po_no,
+        details={"previous_status": old_status, "quantity": float(po.quantity or 0)},
+    )
     return _to_response(po)
 

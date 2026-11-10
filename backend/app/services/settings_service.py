@@ -3,12 +3,18 @@ System Settings & Operating Hours Service.
 Manages persistent system configuration, trading schedules, and operating hours checks.
 """
 
+import copy
 import json
 import logging
 from datetime import datetime, time
 from typing import Tuple
 
-from app.core.config import SALES_PHONE_DISPLAY, SALES_PHONE_NUMBER, SALES_TELEGRAM_USERNAME
+from app.core.config import (
+    BOT_USERNAME,
+    SALES_PHONE_DISPLAY,
+    SALES_PHONE_NUMBER,
+    SALES_TELEGRAM_USERNAME,
+)
 from app.core.database import SessionLocal
 from app.models.system_setting import SystemSetting
 from app.utils.helpers import get_cambodia_now
@@ -18,7 +24,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_SETTINGS = {
     "bot": {
         "bot_token": "",
-        "bot_username": "GoldSystemBot",
+        "bot_username": BOT_USERNAME,
         "sales_telegram_username": SALES_TELEGRAM_USERNAME,
         "sales_phone_number": SALES_PHONE_NUMBER,
     },
@@ -43,6 +49,16 @@ DEFAULT_SETTINGS = {
 }
 
 
+def _deep_merge_dict(target: dict, source: dict) -> dict:
+    """Recursively merge source dictionary into target dictionary."""
+    for key, val in source.items():
+        if isinstance(val, dict) and isinstance(target.get(key), dict):
+            _deep_merge_dict(target[key], val)
+        else:
+            target[key] = copy.deepcopy(val)
+    return target
+
+
 def get_settings_dict_sync(session=None) -> dict:
     """
     Retrieve all global settings from database with default fallbacks.
@@ -52,7 +68,7 @@ def get_settings_dict_sync(session=None) -> dict:
         session = SessionLocal()
         should_close = True
 
-    result = {k: dict(v) for k, v in DEFAULT_SETTINGS.items()}
+    result = copy.deepcopy(DEFAULT_SETTINGS)
     try:
         records = session.query(SystemSetting).all()
         for rec in records:
@@ -60,7 +76,7 @@ def get_settings_dict_sync(session=None) -> dict:
                 try:
                     loaded = json.loads(rec.value)
                     if isinstance(loaded, dict):
-                        result[rec.key].update(loaded)
+                        _deep_merge_dict(result[rec.key], loaded)
                 except Exception as e:
                     logger.warning("Failed to decode setting %s: %s", rec.key, e)
     except Exception as e:
@@ -99,7 +115,7 @@ def save_settings_dict_sync(data: dict, session=None) -> dict:
         if should_close:
             session.close()
 
-    return get_settings_dict_sync()
+    return get_settings_dict_sync(None if should_close else session)
 
 
 def format_time_12h(time_str: str) -> str:
@@ -187,11 +203,11 @@ def get_off_store_notice_sync(session=None) -> dict:
     }
 
 
-def get_bank_qr_settings_sync(session=None) -> dict:
+def get_bank_qr_settings_sync(session=None, settings_dict: dict | None = None) -> dict:
     """
     Retrieve Bank QR settings with individual item states (url, enabled).
     """
-    settings = get_settings_dict_sync(session)
+    settings = settings_dict if settings_dict is not None else get_settings_dict_sync(session)
     bank_qr_cfg = settings.get("bank_qr", {})
 
     items = []
@@ -244,6 +260,31 @@ def get_payment_methods_sync(session=None) -> dict:
             "cash": bool(withdrawal.get("cash", True)),
         },
     }
+
+
+def get_security_settings_sync(session=None) -> dict:
+    """
+    Retrieve security settings (session_timeout, password_expiry, two_factor) from database.
+    """
+    settings = get_settings_dict_sync(session)
+    sec = settings.get("security", {})
+    return {
+        "session_timeout": int(sec.get("session_timeout", 30) or 30),
+        "password_expiry": int(sec.get("password_expiry", 90) or 90),
+        "two_factor": bool(sec.get("two_factor", False)),
+    }
+
+
+def get_bot_token_sync(session=None) -> str:
+    """
+    Retrieve Telegram bot token configured in database settings,
+    falling back to BOT_TOKEN from environment if not set in database.
+    """
+    from app.core.config import BOT_TOKEN
+
+    settings = get_settings_dict_sync(session)
+    db_token = str(settings.get("bot", {}).get("bot_token") or "").strip()
+    return db_token or (BOT_TOKEN or "").strip()
 
 
 def get_sales_contact_sync(session=None) -> Tuple[str, str, str]:

@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from "react";
 import { X, DollarSign, Calendar, User, CreditCard, FileText, CheckCircle2 } from "lucide-react";
+import DraggableModalBox from "../../components/DraggableModalBox";
 import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { deliveryNotesApi, DeliveryNoteItem } from "../../api";
 
@@ -99,10 +100,18 @@ export default function PaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div
+      className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isSubmitting) onClose();
+      }}
+    >
+      <DraggableModalBox
+        resetKey={deliveryNote?.id ?? isOpen}
+        className="bg-white rounded-3xl shadow-none border border-slate-300 w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
+      >
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
           <div>
             <h3 className="font-bold text-slate-800 text-base flex items-center gap-2">
               <DollarSign size={18} className="text-emerald-600" />
@@ -279,26 +288,26 @@ export default function PaymentModal({
           </div>
 
           {/* Footer */}
-          <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2.5">
+          <div className="px-4 py-3 bg-slate-50/60 border-t border-slate-100 flex items-center justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-200/70 rounded-lg transition-colors cursor-pointer"
+              className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors focus:outline-none cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || isOverpaying || numAmount <= 0}
-              className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+              className="text-xs px-4 py-2 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer flex items-center gap-1.5"
             >
               <CheckCircle2 size={14} />
               {isSubmitting ? "Recording..." : "Confirm Payment Collection"}
             </button>
           </div>
         </form>
-      </div>
+      </DraggableModalBox>
     </div>
   );
 }

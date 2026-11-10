@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.api.dependencies import get_db
+from app.services.activity_log_service import log_activity
 from app.api.schemas import SlotRowCreate, SlotRowResponse, SlotTableCreate, SlotTableResponse
 from app.models.alert import Alert
 from app.models.inventory_transaction import InventoryTransaction
@@ -55,10 +56,17 @@ def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
     and date/premium schedule, not a stock source. Physical stock only enters through tracked,
     audited paths (PO receipt, customer buyback, or a manual stock adjustment via PUT).
     """
+    if body.buy_limit is not None and body.buy_limit < 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Buy limit cannot be negative.",
+        )
+
     max_order = db.query(SlotTable.display_order).order_by(SlotTable.display_order.desc()).first()
     table = SlotTable(
         table_name=body.table_name,
         stock=Decimal(0),
+        buy_limit=body.buy_limit if body.buy_limit is not None else Decimal(0),
         display_order=(max_order[0] + 1) if max_order else 0,
     )
     db.add(table)
@@ -82,7 +90,17 @@ def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
         ))
 
     db.commit()
-    return db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table.id).first()
+    created = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table.id).first()
+    log_activity(
+        db,
+        action="SLOT_TABLE_CREATED",
+        category="STOCK",
+        description=f"Created slot table '{table.table_name}' (Buy Limit: {table.buy_limit})",
+        entity_type="SlotTable",
+        entity_id=table.id,
+        details={"table_name": table.table_name, "buy_limit": float(table.buy_limit or 0)},
+    )
+    return created
 
 
 @router.put("/{table_id}", response_model=SlotTableResponse)
@@ -107,6 +125,11 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
     table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
     if not table:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+
+    if body.stock < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stock cannot be negative.")
+    if body.buy_limit is not None and body.buy_limit < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Buy limit cannot be negative.")
 
     stock_before = table.stock
     delta = body.stock - stock_before
@@ -138,20 +161,68 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
             )
 
     table.table_name = body.table_name
-    table.stock = body.stock
 
-    if body.stock != stock_before:
-        db.add(InventoryTransaction(
-            slot_table_id=table.id,
-            transaction_type="TABLE_STOCK_MANUAL_EDIT",
-            quantity=abs(body.stock - stock_before),
-            stock_before=stock_before,
-            stock_after=body.stock,
-            remark=f"Manual stock edit on table '{table.table_name}'",
-        ))
+    # Only update physical stock when modifying SELL tables or legacy payloads without buy_limit,
+    # so editing a BUY table's buy_limit never overwrites stock.
+    if "SELL" in table.table_name.upper() or body.buy_limit is None:
+        table.stock = body.stock
+        if body.stock != stock_before:
+            db.add(InventoryTransaction(
+                slot_table_id=table.id,
+                transaction_type="TABLE_STOCK_MANUAL_EDIT",
+                quantity=abs(body.stock - stock_before),
+                stock_before=stock_before,
+                stock_after=body.stock,
+                remark=f"Manual stock edit on table '{table.table_name}'",
+            ))
+
+    limit_changed = False
+    if body.buy_limit is not None:
+        limit_before = table.buy_limit if table.buy_limit is not None else Decimal(0)
+        table.buy_limit = body.buy_limit
+        if body.buy_limit != limit_before:
+            limit_changed = True
+            db.add(InventoryTransaction(
+                slot_table_id=table.id,
+                transaction_type="TABLE_LIMIT_MANUAL_EDIT",
+                quantity=abs(body.buy_limit - limit_before),
+                stock_before=limit_before,
+                stock_after=body.buy_limit,
+                remark=f"Manual buy limit edit on table '{table.table_name}'",
+            ))
 
     db.commit()
-    return db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
+    updated = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
+    stock_changed = ("SELL" in table.table_name.upper() or body.buy_limit is None) and body.stock != stock_before
+    if stock_changed or limit_changed:
+        log_activity(
+            db,
+            action="SLOT_STOCK_ADJUSTED" if stock_changed else "SLOT_LIMIT_ADJUSTED",
+            category="STOCK",
+            description=(
+                f"Adjusted '{table.table_name}' stock from {stock_before} to {body.stock}"
+                if stock_changed
+                else f"Adjusted '{table.table_name}' buy limit to {body.buy_limit}"
+            ),
+            entity_type="SlotTable",
+            entity_id=table.id,
+            details={
+                "table_name": table.table_name,
+                "stock_before": float(stock_before),
+                "stock_after": float(table.stock),
+                "buy_limit": float(table.buy_limit) if table.buy_limit is not None else None,
+            },
+        )
+    else:
+        log_activity(
+            db,
+            action="SLOT_TABLE_UPDATED",
+            category="STOCK",
+            description=f"Updated slot table '{table.table_name}'",
+            entity_type="SlotTable",
+            entity_id=table.id,
+        )
+    return updated
 
 
 @router.delete("/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -173,10 +244,19 @@ def delete_table(table_id: int, db: Session = Depends(get_db)):
     for row in table.rows:
         db.query(Order).filter(Order.slot_id == row.id).update({"slot_id": None}, synchronize_session=False)
 
+    table_name = table.table_name
     db.delete(table)
     db.commit()
     from app.services.dashboard_service import sync_db_matrix_columns_with_slots
     sync_db_matrix_columns_with_slots(db)
+    log_activity(
+        db,
+        action="SLOT_TABLE_DELETED",
+        category="STOCK",
+        description=f"Deleted slot table '{table_name}'",
+        entity_type="SlotTable",
+        entity_id=table_id,
+    )
 
 
 @router.post("/{table_id}/rows", response_model=SlotRowResponse, status_code=status.HTTP_201_CREATED)
@@ -228,6 +308,15 @@ def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
     db.refresh(row)
     from app.services.dashboard_service import sync_db_matrix_columns_with_slots
     sync_db_matrix_columns_with_slots(db)
+    log_activity(
+        db,
+        action="SLOT_ROW_ADDED",
+        category="STOCK",
+        description=f"Added slot row for {row.slot_date} (Table #{table_id}, Premium: {row.premium})",
+        entity_type="SlotRow",
+        entity_id=row.id,
+        details={"table_id": table_id, "slot_date": str(row.slot_date), "premium": float(row.premium)},
+    )
     return row
 
 
@@ -278,6 +367,15 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
     db.refresh(row)
     from app.services.dashboard_service import sync_db_matrix_columns_with_slots
     sync_db_matrix_columns_with_slots(db)
+    log_activity(
+        db,
+        action="SLOT_ROW_UPDATED",
+        category="STOCK",
+        description=f"Updated slot row for {row.slot_date} (Table #{table_id}, Premium: {row.premium})",
+        entity_type="SlotRow",
+        entity_id=row.id,
+        details={"table_id": table_id, "slot_date": str(row.slot_date), "premium": float(row.premium)},
+    )
     return row
 
 
@@ -371,4 +469,13 @@ def delete_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
     db.commit()
     from app.services.dashboard_service import sync_db_matrix_columns_with_slots
     sync_db_matrix_columns_with_slots(db)
+    log_activity(
+        db,
+        action="SLOT_ROW_DELETED",
+        category="STOCK",
+        description=f"Deleted slot date row {date_str} across slot tables",
+        entity_type="SlotRow",
+        entity_id=row_id,
+        details={"table_id": table_id, "slot_date": date_str},
+    )
 

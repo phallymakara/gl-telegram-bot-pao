@@ -1,5 +1,6 @@
 from sqlalchemy import inspect as sa_inspect, text
 from app.core.database import Base, engine
+import app.db.base  # noqa: F401 - register all models in Base.metadata
 
 def migrate():
     Base.metadata.create_all(bind=engine)
