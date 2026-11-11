@@ -221,11 +221,6 @@ export default function UserModal({
               <h3 className="font-semibold text-slate-800 text-base">
                 {isEditing ? `Edit User: ${userToEdit?.name}` : "Create New User"}
               </h3>
-              <p className="text-xs text-slate-400">
-                {isEditing
-                  ? "Update user profile details and sidebar module authorization"
-                  : "Add a new system user and configure which sidebar modules they can access"}
-              </p>
             </div>
           </div>
           <button
@@ -480,13 +475,16 @@ export default function UserModal({
               )}
 
               {/* Categories & Checkboxes */}
-              <div className="space-y-3 pt-1">
-                {Object.entries(categories).map(([catName, modules]) => {
+              <div className="space-y-4 pt-1">
+                {Object.entries(categories).map(([catName, modules], idx) => {
                   const isCatAllSelected = modules.every((m) => allowedModules.includes(m.id));
 
                   return (
-                    <div key={catName} className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div
+                      key={catName}
+                      className={`space-y-2 ${idx > 0 ? "pt-3 border-t border-slate-100" : ""}`}
+                    >
+                      <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
                           {catName}
                         </span>
@@ -499,16 +497,14 @@ export default function UserModal({
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                         {modules.map((mod) => {
                           const isChecked = allowedModules.includes(mod.id);
                           return (
                             <label
                               key={mod.id}
-                              className={`flex items-start gap-2.5 p-2 rounded-lg border bg-white cursor-pointer transition-colors ${
-                                isChecked
-                                  ? "border-indigo-400 text-slate-900"
-                                  : "border-slate-200 text-slate-600 hover:border-slate-300"
+                              className={`flex items-start gap-2.5 py-1.5 px-1.5 rounded-lg cursor-pointer transition-colors hover:bg-slate-50 ${
+                                isChecked ? "text-slate-900" : "text-slate-600"
                               }`}
                             >
                               <input

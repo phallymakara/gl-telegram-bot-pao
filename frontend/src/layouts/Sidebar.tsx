@@ -2,7 +2,7 @@
  * @file Sidebar.tsx
  * @description Application sidebar navigation layout component supporting desktop collapsible mode,
  * mobile slide-over drawers, dynamic module permission filtering, and user session switching.
- */
+ */ 
 
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";

@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { Plus, Pencil, Trash2, Key, CheckCircle, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import Card from "../components/Card";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
@@ -129,26 +129,19 @@ export default function UsersPage({ notify }: UsersPageProps) {
   const renderModuleBadge = (u: UserData) => {
     const isSuper = u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.allowed_modules?.includes("*");
     if (isSuper) {
-      return (
-        <span className="inline-flex items-center gap-1 text-xs font-normal text-emerald-700">
-          <CheckCircle size={12} /> All Modules
-        </span>
-      );
+      return <span className="text-xs font-normal text-slate-600">All Modules</span>;
     }
     const count = u.allowed_modules?.length || 0;
     if (count === 0) {
-      return (
-        <span className="inline-flex items-center gap-1 text-xs font-normal text-rose-600">
-          No Access
-        </span>
-      );
+      return <span className="text-xs font-normal text-slate-600">No Access</span>;
     }
     return (
-      <div className="flex items-center gap-1.5" title={u.allowed_modules?.join(", ")}>
-        <span className="inline-flex items-center gap-1 text-xs font-normal text-indigo-700">
-          <Layers size={11} /> {count} / {ALL_MODULES.length} Modules
-        </span>
-      </div>
+      <span
+        className="text-xs font-normal text-slate-600"
+        title={u.allowed_modules?.join(", ")}
+      >
+        {count} / {ALL_MODULES.length} Modules
+      </span>
     );
   };
 

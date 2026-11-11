@@ -5,14 +5,9 @@
  * purchasing, financial approvals, and configuration updates.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChevronDown,
-  ChevronRight,
-  Lock,
-  Shield,
-} from "lucide-react";
+import { Lock, Shield } from "lucide-react";
 import Card from "../components/Card";
 import SearchInput from "../components/SearchInput";
 import Pagination from "../components/Pagination";
@@ -35,15 +30,15 @@ interface AuditLogsPageProps {
 const PAGE_SIZE = 25;
 
 const CATEGORY_BADGES: Record<string, string> = {
-  AUTH: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  ORDERS: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  STOCK: "bg-amber-50 text-amber-700 border-amber-200",
-  PURCHASING: "bg-blue-50 text-blue-700 border-blue-200",
-  DELIVERY: "bg-cyan-50 text-cyan-700 border-cyan-200",
-  FINANCE: "bg-teal-50 text-teal-700 border-teal-200",
-  USERS: "bg-violet-50 text-violet-700 border-violet-200",
-  SETTINGS: "bg-purple-50 text-purple-700 border-purple-200",
-  MASTER_DATA: "bg-slate-100 text-slate-700 border-slate-200",
+  AUTH: "text-indigo-700",
+  ORDERS: "text-emerald-700",
+  STOCK: "text-amber-700",
+  PURCHASING: "text-blue-700",
+  DELIVERY: "text-cyan-700",
+  FINANCE: "text-teal-700",
+  USERS: "text-violet-700",
+  SETTINGS: "text-purple-700",
+  MASTER_DATA: "text-slate-700",
 };
 
 function formatActionLabel(action: string): string {
@@ -92,7 +87,6 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
 
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   const isFirstLoad = useRef(true);
   const inFlight = useRef(false);
@@ -395,7 +389,6 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-[11px] text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                <th className="px-2 py-2 font-medium whitespace-nowrap bg-slate-50 w-6" />
                 <th className="px-2.5 py-2 font-medium whitespace-nowrap bg-slate-50">Timestamp</th>
                 <th className="px-2.5 py-2 font-medium whitespace-nowrap bg-slate-50">User</th>
                 <th className="px-2.5 py-2 font-medium whitespace-nowrap bg-slate-50">Category</th>
@@ -408,16 +401,16 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
             </thead>
             <tbody>
               {loading ? (
-                <TableLoader colSpan={9} text="Loading activity logs..." />
+                <TableLoader colSpan={8} text="Loading activity logs..." />
               ) : errorMsg ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-rose-600">
+                  <td colSpan={8} className="px-4 py-8 text-center text-rose-600">
                     {errorMsg}
                   </td>
                 </tr>
               ) : logs.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400">
                     <div className="flex flex-col items-center gap-1.5">
                       <Shield size={22} className="text-slate-300" />
                       <span>No activity logs match the selected filters.</span>
@@ -427,102 +420,52 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
               ) : (
                 logs.map((log) => {
                   const ts = formatTimestamp(log.created_at);
-                  const isExpanded = expandedId === log.id;
-                  const catBadge =
-                    CATEGORY_BADGES[log.category] ||
-                    "bg-slate-100 text-slate-700 border-slate-200";
+                  const catColor = CATEGORY_BADGES[log.category] || "text-slate-700";
                   return (
-                    <React.Fragment key={log.id}>
-                      <tr
-                        onClick={() => setExpandedId(isExpanded ? null : log.id)}
-                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer"
-                      >
-                        <td className="px-2 py-2 text-slate-400">
-                          {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <div className="font-medium text-slate-700">{ts.date}</div>
+                    <tr
+                      key={log.id}
+                      className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="px-2.5 py-2 whitespace-nowrap leading-tight">
+                        <div className="text-slate-700">{ts.date}</div>
+                        {ts.time && (
                           <div className="text-[11px] text-slate-400 font-mono">{ts.time}</div>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <div className="font-medium text-slate-800">
-                            {log.actor_name || log.username || "System"}
-                          </div>
-                          <div className="text-[11px] text-slate-400">
-                            {log.username ? `@${log.username}` : ""}{" "}
-                            {log.actor_role ? `· ${log.actor_role}` : ""}
-                          </div>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold border ${catBadge}`}
-                          >
-                            {log.category}
-                          </span>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap font-medium text-slate-700">
-                          {formatActionLabel(log.action)}
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap text-slate-600 font-mono text-[11px]">
-                          {log.entity_type || log.entity_id
-                            ? `${log.entity_type || "Item"}${log.entity_id ? ` #${log.entity_id}` : ""}`
-                            : "—"}
-                        </td>
-                        <td className="px-2.5 py-2 text-slate-700 max-w-md">
-                          <span className="line-clamp-2">{log.description}</span>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                              log.status === "FAILED"
-                                ? "bg-rose-50 text-rose-700"
-                                : "bg-emerald-50 text-emerald-700"
-                            }`}
-                          >
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="px-2.5 py-2 whitespace-nowrap text-slate-500 font-mono text-[11px]">
-                          {log.ip_address || "—"}
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr className="bg-slate-50/70 border-b border-slate-100">
-                          <td colSpan={9} className="px-4 py-2">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <div className="text-[11px] font-semibold text-slate-500 uppercase mb-1">
-                                  Action Metadata
-                                </div>
-                                <pre className="text-[11px] font-mono bg-white border border-slate-200 rounded-lg p-2 overflow-x-auto text-slate-700">
-                                  {JSON.stringify(log.details || { action: log.action }, null, 2)}
-                                </pre>
-                              </div>
-                              <div className="space-y-1 text-slate-600">
-                                <div className="text-[11px] font-semibold text-slate-500 uppercase">
-                                  Request Context
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Log ID:</span> #{log.id}
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">Raw Action Code:</span>{" "}
-                                  <code className="font-mono text-[11px] text-slate-700">
-                                    {log.action}
-                                  </code>
-                                </div>
-                                <div>
-                                  <span className="text-slate-400">User Agent:</span>{" "}
-                                  <span className="break-all text-[11px]">
-                                    {log.user_agent || "Internal / Server"}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                        )}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-800">
+                        {log.actor_name || log.username || "System"}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <span className={`text-[11px] font-medium ${catColor}`}>
+                          {log.category}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-700">
+                        {formatActionLabel(log.action)}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-600 font-mono text-[11px]">
+                        {log.entity_type || log.entity_id
+                          ? `${log.entity_type || "Item"}${log.entity_id ? ` #${log.entity_id}` : ""}`
+                          : "—"}
+                      </td>
+                      <td className="px-2.5 py-2 text-slate-700 max-w-md whitespace-nowrap truncate" title={log.description}>
+                        {log.description}
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                            log.status === "FAILED"
+                              ? "bg-rose-50 text-rose-700"
+                              : "bg-emerald-50 text-emerald-700"
+                          }`}
+                        >
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                        {log.ip_address || "—"}
+                      </td>
+                    </tr>
                   );
                 })
               )}
