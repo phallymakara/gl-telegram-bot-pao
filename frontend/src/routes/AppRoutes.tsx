@@ -11,12 +11,22 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import ComingSoon from "../components/ComingSoon";
 import { PAGE_TITLE } from "../data/navigation";
 import { PageLoader } from "../components/Loader";
+import { reloadForStaleChunk } from "../utils/chunkRecovery";
 
-// Lazy-loaded Page Views
+// Lazy-loaded Page Views with automatic recovery when a deploy invalidates old chunk hashes
 function lazyPage<T extends React.ComponentType<any>>(
   factory: () => Promise<{ default: T }>
 ) {
-  return lazy(factory);
+  return lazy(async () => {
+    try {
+      return await factory();
+    } catch (err) {
+      if (reloadForStaleChunk()) {
+        return new Promise<never>(() => {});
+      }
+      throw err;
+    }
+  });
 }
 
 const DashboardPage = lazyPage(() => import("../pages/DashboardPage"));

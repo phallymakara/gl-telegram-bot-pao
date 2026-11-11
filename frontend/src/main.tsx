@@ -7,6 +7,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
+import { reloadForStaleChunk } from './utils/chunkRecovery'
+
+// Recover cleanly if a newly deployed build invalidates stale chunk/preload URLs
+window.addEventListener('vite:preloadError', () => {
+  reloadForStaleChunk();
+});
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
