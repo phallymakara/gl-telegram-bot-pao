@@ -77,3 +77,6 @@ DEFAULT_ADMIN_NAME = os.getenv("DEFAULT_ADMIN_NAME", "Super Admin")
 DEFAULT_ADMIN_USERNAME = os.getenv("DEFAULT_ADMIN_USERNAME", "")
 DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "")
 DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD", "")
+
+# Optional secondary unlock passcode configured via environment for Super Admin verification
+SUPER_ADMIN_UNLOCK_PASSCODE = os.getenv("SUPER_ADMIN_UNLOCK_PASSCODE", "")

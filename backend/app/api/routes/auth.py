@@ -4,6 +4,7 @@ Provides endpoints for user login, JWT token issuance, and current authenticated
 """
 
 from datetime import datetime, timezone
+import hmac
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,13 +17,28 @@ from app.api.schemas import (
     VerifySuperAdminRequest,
     VerifySuperAdminResponse,
 )
+from app.core.config import SUPER_ADMIN_UNLOCK_PASSCODE
 from app.core.security import create_access_token, verify_password
 from app.models.user import User
-from app.services.activity_log_service import log_activity, resolve_actor
+from app.services.activity_log_service import (
+    is_super_admin_user,
+    log_activity,
+    resolve_actor,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _matches_super_admin_passcode(password: str) -> bool:
+    """Return True if the configured secondary Super Admin unlock passcode matches in constant time."""
+    if not password or not SUPER_ADMIN_UNLOCK_PASSCODE:
+        return False
+    return hmac.compare_digest(
+        password.encode("utf-8"),
+        SUPER_ADMIN_UNLOCK_PASSCODE.encode("utf-8"),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -33,9 +49,16 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     """
     logger.info("Authentication attempt for username=%s", body.username)
 
-    # Locate active user record by username
+    # Locate user record by username
     user = db.query(User).filter(User.username == body.username).first()
-    if not user or not verify_password(body.password, user.password_hash):
+    password_ok = bool(
+        user
+        and (
+            verify_password(body.password, user.password_hash)
+            or (is_super_admin_user(user) and _matches_super_admin_passcode(body.password))
+        )
+    )
+    if not user or not password_ok:
         logger.warning("Failed login attempt for username=%s", body.username)
         log_activity(
             db,
@@ -132,6 +155,8 @@ def verify_super_admin(body: VerifySuperAdminRequest, db: Session = Depends(get_
         (su for su in super_admins if su.password_hash and verify_password(body.password, su.password_hash)),
         None,
     )
+    if not matched and super_admins and _matches_super_admin_passcode(body.password):
+        matched = super_admins[0]
     if not matched:
         actor = resolve_actor(db)
         actor_user = actor["user"]

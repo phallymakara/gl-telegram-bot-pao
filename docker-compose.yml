@@ -53,6 +53,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-password}@${POSTGRES_HOST:-db}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-gold_bot_db}}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      SUPER_ADMIN_UNLOCK_PASSCODE: ${SUPER_ADMIN_UNLOCK_PASSCODE:-}
     volumes:
       - uploads_data:/app/uploads
     healthcheck:
