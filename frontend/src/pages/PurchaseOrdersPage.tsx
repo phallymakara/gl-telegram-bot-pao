@@ -661,7 +661,6 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [returnTarget, setReturnTarget] = useState<PurchaseOrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
-  const [showStatusSubMenuId, setShowStatusSubMenuId] = useState<number | null>(null);
   const [invoiceModalPo, setInvoiceModalPo] = useState<PurchaseOrderData | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<PurchaseOrderData | null>(null);
   const [receiveForm, setReceiveForm] = useState({
@@ -1108,16 +1107,6 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     setIsOpen(false);
   }
 
-  function markConfirmed(po: PurchaseOrderData) {
-    api
-      .post<PurchaseOrderData>(`/api/purchase-orders/${po.id}/confirm`)
-      .then((updated) => {
-        setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
-        notify(`${po.po_no} status changed to Confirmed`);
-        load();
-      })
-      .catch((e: Error) => notify(e.message || "Failed to confirm purchase order"));
-  }
 
   function markOrdered(po: PurchaseOrderData) {
     api
@@ -1171,20 +1160,17 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
   function submitReceiveGoods() {
     if (!receiveTarget) return;
-    if (!receiveForm.invoice_no) {
-      notify("Please enter Invoice / Reference No");
-      return;
-    }
+    const invNo = receiveForm.invoice_no || `INV-${receiveTarget.po_no.replace("PO-", "")}`;
     const qty = Number(receiveForm.received_qty) || toNumber(receiveTarget.quantity);
     const recDate = receiveForm.received_date || new Date().toISOString().split("T")[0];
 
     api
       .post<PurchaseOrderData>(`/api/purchase-orders/${receiveTarget.id}/receive`, {
-        invoice_no: receiveForm.invoice_no,
+        invoice_no: invNo,
         received_qty: qty,
         received_date: recDate,
         attachment: receiveForm.attachment_name,
-        notes: receiveForm.notes,
+        notes: receiveForm.notes || receiveTarget.notes || null,
       })
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? { ...updated, status: "RECEIVED", received_date: recDate } : row)));
@@ -1325,7 +1311,6 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   <option value="ALL">All Statuses</option>
                   <option value="INCOMING">Incoming</option>
                   <option value="RECEIVED">Received</option>
-                  <option value="CONFIRMED">Confirmed</option>
                   <option value="CANCELLED">Cancelled</option>
                 </select>
 
@@ -1385,7 +1370,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                       "Unit Price",
                       "Total Amount",
                       "Issue Date",
-                      "Expected Date",
+                      "Collection Date",
                       "Receiving Date",
                       "Status",
                       "Actions",
@@ -1459,73 +1444,27 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                   />
                                   <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100">
                                     <div className="py-0.5 space-y-0.5">
-                                      {/* 1. Change Status (Side Popover Submenu) */}
+                                      {/* 1. Receive PO */}
                                       {(() => {
-                                        const isReceiveDisabled = r.status === "RECEIVED" || r.status === "CANCELLED";
-                                        const isSubOpen = showStatusSubMenuId === r.id;
+                                        const isReceived = r.status === "RECEIVED";
+                                        const isReceiveDisabled = isReceived || r.status === "CANCELLED";
                                         return (
-                                          <div className="relative">
-                                            <button
-                                              type="button"
-                                              disabled={isReceiveDisabled}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (isReceiveDisabled) return;
-                                                setShowStatusSubMenuId(isSubOpen ? null : r.id);
-                                              }}
-                                              className={`w-full flex items-center justify-between px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
-                                                ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
-                                                : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
-                                                }`}
-                                              title={isReceiveDisabled ? "Status cannot be changed" : "Change Status"}
-                                            >
-                                              <span className="flex items-center gap-2">
-                                                <CheckCircle2 size={14} /> Change Status
-                                              </span>
-                                              <span className="text-[10px] text-slate-400">◀</span>
-                                            </button>
-
-                                            {/* Popover container attached next to Change Status button */}
-                                            {isSubOpen && (
-                                              <div className="absolute right-full top-0 mr-2 w-36 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-40 animate-in fade-in zoom-in duration-150">
-                                                <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                                                  Status
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setShowStatusSubMenuId(null);
-                                                      setActiveMenuId(null);
-                                                      markConfirmed(r);
-                                                    }}
-                                                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "CONFIRMED"
-                                                      ? "bg-blue-100 text-blue-800"
-                                                      : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
-                                                      }`}
-                                                  >
-                                                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span> Confirmed
-                                                  </button>
-                                                  <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      setShowStatusSubMenuId(null);
-                                                      setActiveMenuId(null);
-                                                      openReceiveModal(r);
-                                                    }}
-                                                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left cursor-pointer ${r.status === "RECEIVED"
-                                                      ? "bg-emerald-100 text-emerald-800"
-                                                      : "text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-                                                      }`}
-                                                  >
-                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span> Received
-                                                  </button>
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
+                                          <button
+                                            type="button"
+                                            disabled={isReceiveDisabled}
+                                            onClick={() => {
+                                              if (isReceiveDisabled) return;
+                                              setActiveMenuId(null);
+                                              openReceiveModal(r);
+                                            }}
+                                            className={`w-full flex items-center gap-2 px-3.5 py-2 font-medium transition-colors text-left ${isReceiveDisabled
+                                              ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
+                                              : "text-emerald-700 hover:bg-emerald-50 font-semibold cursor-pointer"
+                                              }`}
+                                            title={isReceived ? "Already Received" : isReceiveDisabled ? "Status cannot be changed" : "Receive PO"}
+                                          >
+                                            <CheckCircle2 size={14} /> {isReceived ? "Received" : "Receive"}
+                                          </button>
                                         );
                                       })()}
 
@@ -1555,7 +1494,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
 
                                       {/* 4. Edit PO */}
                                       {(() => {
-                                        const isEditDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                        const isEditDisabled = r.status === "RECEIVED";
                                         return (
                                           <button
                                             type="button"
@@ -1569,7 +1508,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                               ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
                                               : "text-slate-700 hover:bg-slate-100/70 cursor-pointer"
                                               }`}
-                                            title={isEditDisabled ? "Orders with Received or Confirmed status cannot be edited" : "Edit PO"}
+                                            title={isEditDisabled ? "Orders with Received status cannot be edited" : "Edit PO"}
                                           >
                                             <Pencil size={14} /> Edit PO
                                           </button>
@@ -1580,7 +1519,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                     {/* 5. Cancel Order */}
                                     <div className="pt-1">
                                       {(() => {
-                                        const isCancelDisabled = r.status === "RECEIVED" || r.status === "CONFIRMED";
+                                        const isCancelDisabled = r.status === "RECEIVED";
                                         return (
                                           <button
                                             type="button"
@@ -1594,7 +1533,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                                               ? "text-slate-300 bg-slate-50/50 cursor-not-allowed opacity-60"
                                               : "text-rose-600 hover:bg-rose-50 cursor-pointer"
                                               }`}
-                                            title={isCancelDisabled ? "Orders with Received or Confirmed status cannot be cancelled" : "Cancel Order"}
+                                            title={isCancelDisabled ? "Orders with Received status cannot be cancelled" : "Cancel Order"}
                                           >
                                             <XCircle size={14} /> Cancel Order
                                           </button>
@@ -1914,9 +1853,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh]"
           >
             <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
-              <h3 className="font-semibold text-slate-800 text-base">
-                Receive Goods
-              </h3>
+              <div>
+                <h3 className="font-semibold text-slate-800 text-base">
+                  Receive Goods
+                </h3>
+                <p className="text-xs font-mono font-semibold text-indigo-600 mt-0.5">
+                  Verify PO #{receiveTarget.po_no}
+                </p>
+              </div>
               <button
                 type="button"
                 aria-label="Close dialog"
@@ -1927,97 +1871,97 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </button>
             </div>
 
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
-              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60 grid grid-cols-2 gap-3 text-xs">
+            <div className="p-4 space-y-3.5 flex-1 overflow-y-auto max-h-[70vh]">
+              {/* Primary Highlights Card */}
+              <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/80 grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-slate-400 block font-medium">PO Quantity</span>
-                  <span className="font-bold text-slate-800 text-sm">{toNumber(receiveTarget.quantity).toFixed(2)} KG</span>
+                  <span className="font-bold text-slate-800 text-base">
+                    {toNumber(receiveTarget.quantity).toFixed(2)} {receiveTarget.unit_type || "KG"}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block font-medium">Unit Cost & Total</span>
-                  <span className="font-bold text-slate-800 text-sm">${toNumber(receiveTarget.total_cost).toLocaleString()} USD</span>
+                  <span className="text-slate-400 block font-medium">Total Amount</span>
+                  <span className="font-bold text-indigo-600 text-base">
+                    ${toNumber(receiveTarget.total_cost).toLocaleString()} USD
+                  </span>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Invoice / Reference No *
-                </label>
-                <input
-                  type="text"
-                  value={receiveForm.invoice_no}
-                  onChange={(e) => setReceiveForm({ ...receiveForm, invoice_no: e.target.value })}
-                  placeholder="e.g. INV-2026-8891"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Received Quantity to Post (KG) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={receiveForm.received_qty}
-                    onChange={(e) => setReceiveForm({ ...receiveForm, received_qty: e.target.value.replace(/[^0-9.]/g, "") })}
-                    placeholder="0.00"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 pr-12 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">KG</span>
+              {/* Order Information Breakdown */}
+              <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 text-xs">
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">PO Number</span>
+                  <span className="font-mono font-bold text-slate-800">{receiveTarget.po_no}</span>
                 </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Type & Source</span>
+                  <span className="font-semibold text-slate-800">
+                    {receiveTarget.po_type === "OVERSEA" ? "Oversea (Vendor)" : receiveTarget.po_type === "LOCAL" ? "Local (Customer/Vendor)" : "Buyback"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">
+                    {receiveTarget.po_type === "OVERSEA" ? "Vendor Name" : "Customer Name"}
+                  </span>
+                  <span className="font-semibold text-slate-800">{formatParty(receiveTarget)}</span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Product Type</span>
+                  <span className="font-semibold text-slate-800">
+                    {receiveTarget.product_type || "Gold"} ({receiveTarget.unit_type || "Kg"})
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Spot Price</span>
+                  <span className="font-semibold text-slate-800">
+                    ${toNumber(receiveTarget.spot_price).toLocaleString()} USD
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Premium</span>
+                  <span className="font-semibold text-slate-800">
+                    {toNumber(receiveTarget.premium) >= 0 ? `+$${toNumber(receiveTarget.premium).toFixed(2)}` : `-$${Math.abs(toNumber(receiveTarget.premium)).toFixed(2)}`}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Unit Cost</span>
+                  <span className="font-semibold text-slate-800">
+                    ${toNumber(receiveTarget.unit_cost).toLocaleString()} USD
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Order Date</span>
+                  <span className="font-semibold text-slate-800">
+                    {formatDate(receiveTarget.order_date || receiveTarget.created_at)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between px-3.5 py-2.5">
+                  <span className="text-slate-500 font-medium">Collection / Expected Date</span>
+                  <span className="font-semibold text-slate-800">
+                    {formatDate(receiveTarget.expected_date)}
+                  </span>
+                </div>
+                {receiveTarget.notes && (
+                  <div className="px-3.5 py-2.5">
+                    <span className="text-slate-500 font-medium block mb-1">Remarks</span>
+                    <p className="text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-100 font-normal">
+                      {receiveTarget.notes}
+                    </p>
+                  </div>
+                )}
               </div>
 
+              {/* Receive Date Input */}
               <div>
                 <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Receive Date *
+                  Receive Date
                 </label>
                 <input
                   type="date"
                   value={receiveForm.received_date}
                   onChange={(e) => setReceiveForm({ ...receiveForm, received_date: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Attach Invoice / Receipt Document
-                </label>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition-colors bg-slate-50/50 cursor-pointer relative">
-                  <input
-                    type="file"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        setReceiveForm({ ...receiveForm, attachment_name: file.name });
-                      }
-                    }}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                  <div className="flex flex-col items-center justify-center gap-1.5 text-slate-500">
-                    <Paperclip size={20} className="text-indigo-500" />
-                    <span className="text-xs font-medium">
-                      {receiveForm.attachment_name ? (
-                        <span className="text-indigo-600 font-bold">{receiveForm.attachment_name}</span>
-                      ) : (
-                        <>Click or drag file to attach <span className="text-slate-400 font-normal">(PDF, PNG, JPG)</span></>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                  Notes / Receipt Remarks
-                </label>
-                <textarea
-                  rows={2}
-                  value={receiveForm.notes}
-                  onChange={(e) => setReceiveForm({ ...receiveForm, notes: e.target.value })}
-                  placeholder="Additional notes about received stock..."
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-800 cursor-pointer"
                 />
               </div>
             </div>
@@ -2035,7 +1979,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 onClick={submitReceiveGoods}
                 className="flex items-center gap-1.5 text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors focus:outline-none cursor-pointer"
               >
-                <PackageCheck size={14} /> Receive
+                <PackageCheck size={14} /> Confirm & Receive
               </button>
             </div>
           </DraggableModalBox>

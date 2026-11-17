@@ -841,15 +841,6 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
     """
     Retrieve matrix row configurations from SystemSetting or initialize defaults.
     """
-    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
-    if setting and setting.value:
-        try:
-            stored = json.loads(setting.value)
-            if isinstance(stored, list) and len(stored) > 0:
-                return stored
-        except Exception:
-            pass
-
     default_rows = [
         {
             "key": "available",
@@ -865,7 +856,7 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         {
             "key": "import",
             "title": "Import Stock",
-            "subtitle": "Incoming goods",
+            "subtitle": "Manual stock import",
             "row_type": "import",
             "header_bg": "bg-[#eff6ff]",
             "cell_bg": "bg-[#eff6ff]",
@@ -876,7 +867,7 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         {
             "key": "physical_sell",
             "title": "Physical Sell",
-            "subtitle": "In-store sell",
+            "subtitle": "Sell to customer",
             "row_type": "sell",
             "header_bg": "bg-[#f0f9ff]",
             "cell_bg": "bg-[#f0f9ff]",
@@ -887,7 +878,7 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         {
             "key": "bot_sell",
             "title": "Bot Sell",
-            "subtitle": "Online / Bot sell",
+            "subtitle": "Sell to customer",
             "row_type": "sell",
             "header_bg": "bg-[#f0f9ff]",
             "cell_bg": "bg-[#f0f9ff]",
@@ -898,7 +889,7 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         {
             "key": "physical_buy",
             "title": "Physical Buy",
-            "subtitle": "In-store buy",
+            "subtitle": "Buy from customer",
             "row_type": "buy",
             "header_bg": "bg-[#ecfeff]",
             "cell_bg": "bg-[#ecfeff]",
@@ -909,7 +900,7 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         {
             "key": "bot_buy",
             "title": "Bot Buy",
-            "subtitle": "Online / Bot buy",
+            "subtitle": "Buy from customer",
             "row_type": "buy",
             "header_bg": "bg-[#ecfeff]",
             "cell_bg": "bg-[#ecfeff]",
@@ -918,6 +909,30 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
             "custom_values": {},
         },
     ]
+
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "stock_matrix_rows").first()
+    if setting and setting.value:
+        try:
+            stored = json.loads(setting.value)
+            if isinstance(stored, list) and len(stored) > 0:
+                # Synchronize updated system subtitles while preserving custom rows and custom_values
+                subtitles_map = {
+                    "available": "Ready to sell",
+                    "import": "Manual stock import",
+                    "physical_sell": "Sell to customer",
+                    "bot_sell": "Sell to customer",
+                    "physical_buy": "Buy from customer",
+                    "bot_buy": "Buy from customer",
+                }
+                for r in stored:
+                    k = r.get("key")
+                    if k in subtitles_map:
+                        r["subtitle"] = subtitles_map[k]
+                setting.value = json.dumps(stored)
+                db.commit()
+                return stored
+        except Exception:
+            pass
 
     if not setting:
         setting = SystemSetting(key="stock_matrix_rows", value=json.dumps(default_rows))
@@ -1144,8 +1159,9 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
         brand = cfg["brand"].lower()
         t_date = cfg["target_date"]
 
-        # Matching POs (Gold In / Import stock strictly for this date)
-        matching_pos = []
+        # Matching POs: separate manual stock imports from actual vendor/customer purchases
+        matching_import_pos = []
+        matching_purchase_pos = []
         for po in all_pos:
             if _resolve_po_brand(po) != brand:
                 continue
@@ -1155,15 +1171,24 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                 continue
 
             if t_date and po_d == t_date:
-                matching_pos.append(po)
+                po_t = (getattr(po, "po_type", None) or "").upper()
+                is_import = (
+                    po_t == "IMPORT"
+                    or (getattr(po, "notes", None) and "[MANUAL_IMPORT]" in getattr(po, "notes", ""))
+                    or (getattr(po, "supplier_name", None) and "manual import" in getattr(po, "supplier_name", "").lower())
+                )
+                if is_import:
+                    matching_import_pos.append(po)
+                else:
+                    matching_purchase_pos.append(po)
 
-        import_stock = sum(float(p.quantity or 0) for p in matching_pos)
+        import_stock = sum(float(p.quantity or 0) for p in matching_import_pos)
 
-        # BUY orders (Customer buybacks / Inward inventory)
+        # BUY orders & POs (Customer buybacks / Vendor purchases - Gold In)
         physical_buy_orders = []
         bot_buy_orders = []
         trade_in_orders = []
-        # Matching customer SELL orders (Deductions)
+        # Matching customer SELL orders (Deductions - Gold Out)
         physical_orders = []
         bot_orders = []
         matching_sell_orders = []
@@ -1192,25 +1217,71 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
                 else:
                     physical_orders.append(o)
 
-        trade_in_qty = sum(float(o.quantity or 0) for o in trade_in_orders)
-        physical_buy_qty = sum(float(o.quantity or 0) for o in physical_buy_orders)
-        bot_buy_qty = sum(float(o.quantity or 0) for o in bot_buy_orders)
+        # Distribute actual purchase orders (Gold In) into physical or bot buy
+        physical_buy_pos = []
+        bot_buy_pos = []
+        for po in matching_purchase_pos:
+            supp = (getattr(po, "supplier_name", None) or "").upper()
+            notes = (getattr(po, "notes", None) or "").upper()
+            if "TELEGRAM" in supp or "BOT" in supp or "PLATFORM" in supp or "TELEGRAM" in notes:
+                bot_buy_pos.append(po)
+            else:
+                physical_buy_pos.append(po)
+
+        trade_in_qty = (
+            sum(float(o.quantity or 0) for o in trade_in_orders)
+            + sum(float(p.quantity or 0) for p in matching_purchase_pos)
+        )
+        physical_buy_qty = (
+            sum(float(o.quantity or 0) for o in physical_buy_orders)
+            + sum(float(p.quantity or 0) for p in physical_buy_pos)
+        )
+        bot_buy_qty = (
+            sum(float(o.quantity or 0) for o in bot_buy_orders)
+            + sum(float(p.quantity or 0) for p in bot_buy_pos)
+        )
         physical_qty = -sum(abs(float(o.quantity or 0)) for o in physical_orders)
         bot_qty = -sum(abs(float(o.quantity or 0)) for o in bot_orders)
 
+        first_trade_in_id = (
+            trade_in_orders[0].id if trade_in_orders
+            else (matching_purchase_pos[0].id if matching_purchase_pos else None)
+        )
+        first_trade_in_no = (
+            trade_in_orders[0].order_no if trade_in_orders
+            else (matching_purchase_pos[0].po_no if matching_purchase_pos else None)
+        )
         trade_in_cell = (
-            StockMatrixCell(value=trade_in_qty, order_id=trade_in_orders[0].id, order_no=trade_in_orders[0].order_no)
-            if trade_in_orders
+            StockMatrixCell(value=trade_in_qty, order_id=first_trade_in_id, order_no=first_trade_in_no)
+            if (trade_in_orders or matching_purchase_pos)
             else None
+        )
+
+        first_pbuy_id = (
+            physical_buy_orders[0].id if physical_buy_orders
+            else (physical_buy_pos[0].id if physical_buy_pos else None)
+        )
+        first_pbuy_no = (
+            physical_buy_orders[0].order_no if physical_buy_orders
+            else (physical_buy_pos[0].po_no if physical_buy_pos else None)
         )
         physical_buy_cell = (
-            StockMatrixCell(value=physical_buy_qty, order_id=physical_buy_orders[0].id, order_no=physical_buy_orders[0].order_no)
-            if physical_buy_orders
+            StockMatrixCell(value=physical_buy_qty, order_id=first_pbuy_id, order_no=first_pbuy_no)
+            if (physical_buy_orders or physical_buy_pos)
             else None
         )
+
+        first_bbuy_id = (
+            bot_buy_orders[0].id if bot_buy_orders
+            else (bot_buy_pos[0].id if bot_buy_pos else None)
+        )
+        first_bbuy_no = (
+            bot_buy_orders[0].order_no if bot_buy_orders
+            else (bot_buy_pos[0].po_no if bot_buy_pos else None)
+        )
         bot_buy_cell = (
-            StockMatrixCell(value=bot_buy_qty, order_id=bot_buy_orders[0].id, order_no=bot_buy_orders[0].order_no)
-            if bot_buy_orders
+            StockMatrixCell(value=bot_buy_qty, order_id=first_bbuy_id, order_no=first_bbuy_no)
+            if (bot_buy_orders or bot_buy_pos)
             else None
         )
         physical_cell = (
@@ -1665,7 +1736,7 @@ def update_stock_matrix_import(db: Session, brand: str, date_str: str, quantity:
     target_d = _parse_matrix_date(date_str)
 
     pos = db.query(PurchaseOrder).filter(
-        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
+        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"]),
     ).all()
 
     existing_po = None
@@ -1674,19 +1745,16 @@ def update_stock_matrix_import(db: Session, brand: str, date_str: str, quantity:
         if po_d != target_d:
             continue
 
-        pt = (getattr(po, "product_type", None) or "").lower()
-        supp = (getattr(po, "supplier_name", None) or "").lower()
         po_t = (getattr(po, "po_type", None) or "").upper()
+        is_import = (
+            po_t == "IMPORT"
+            or (getattr(po, "notes", None) and "[MANUAL_IMPORT]" in getattr(po, "notes", ""))
+            or (getattr(po, "supplier_name", None) and "manual import" in getattr(po, "supplier_name", "").lower())
+        )
+        if not is_import:
+            continue
 
-        match = False
-        if brand_lower in pt or brand_lower in supp:
-            match = True
-        elif brand_lower == "db" and po_t == "BUYBACK":
-            match = True
-        elif brand_lower == "swiss" and (not pt or "swiss" in pt) and po_t != "BUYBACK":
-            match = True
-
-        if match:
+        if _resolve_po_brand(po) == brand_lower:
             existing_po = po
             break
 
@@ -1698,8 +1766,8 @@ def update_stock_matrix_import(db: Session, brand: str, date_str: str, quantity:
         db.refresh(existing_po)
         return existing_po
     else:
-        po_type = "BUYBACK" if brand_lower == "db" else "LOCAL"
-        po_no = generate_po_no(po_type)
+        po_type = "IMPORT"
+        po_no = generate_po_no("IMPORT")
         existing = db.query(PurchaseOrder).filter(PurchaseOrder.po_no == po_no).first()
         if existing:
             po_no = f"{po_no}-{uuid4().hex[:4].upper()}"
@@ -1720,7 +1788,8 @@ def update_stock_matrix_import(db: Session, brand: str, date_str: str, quantity:
             status="CONFIRMED",
             order_date=target_d,
             expected_date=target_d,
-            supplier_name=f"{brand.upper()} Supplier",
+            supplier_name="Manual Import",
+            notes="Manual stock import via modal",
         )
         db.add(new_po)
         db.commit()

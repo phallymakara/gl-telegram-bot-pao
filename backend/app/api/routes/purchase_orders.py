@@ -176,6 +176,9 @@ def list_purchase_orders(
     )
     if po_type and po_type.upper() != "ALL":
         q = q.filter(PurchaseOrder.po_type == po_type.upper())
+    else:
+        # Exclude manual stock imports from general supplier/customer purchase orders list unless explicitly requested
+        q = q.filter(PurchaseOrder.po_type != "IMPORT")
     if status_filter and status_filter.upper() != "ALL":
         q = q.filter(PurchaseOrder.status == status_filter.upper())
     if search:
@@ -198,10 +201,10 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
     Generates unique PO number (PO-L, PO-O, PO-B) and calculates unit cost and total cost.
     """
     po_type = body.po_type.upper()
-    if po_type not in ("LOCAL", "OVERSEA", "BUYBACK"):
+    if po_type not in ("LOCAL", "OVERSEA", "BUYBACK", "IMPORT"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="po_type must be LOCAL, OVERSEA, or BUYBACK",
+            detail="po_type must be LOCAL, OVERSEA, BUYBACK, or IMPORT",
         )
 
     # Assign default slot table if not specified

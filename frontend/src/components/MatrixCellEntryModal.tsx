@@ -154,35 +154,35 @@ function getRowMetadata(rowKey: ClickableMatrixRowKey) {
         isImport: true,
         transactionType: "PO" as const,
         channel: "PO" as const,
-        channelLabel: "Purchase Order",
+        channelLabel: "Import Stock (Manual)",
       };
     case "physical_sell":
       return {
         isImport: false,
         transactionType: "SELL" as const,
         channel: "WALK_IN" as const,
-        channelLabel: "Physical (In-store Sell)",
+        channelLabel: "Physical (Sell to Customer)",
       };
     case "bot_sell":
       return {
         isImport: false,
         transactionType: "SELL" as const,
         channel: "PLATFORM" as const,
-        channelLabel: "Bot / Online Sell",
+        channelLabel: "Bot / Online (Sell to Customer)",
       };
     case "physical_buy":
       return {
         isImport: false,
         transactionType: "BUY" as const,
         channel: "WALK_IN" as const,
-        channelLabel: "Physical (In-store Buy)",
+        channelLabel: "Physical (Buy from Customer)",
       };
     case "bot_buy":
       return {
         isImport: false,
         transactionType: "BUY" as const,
         channel: "PLATFORM" as const,
-        channelLabel: "Bot / Online Buy",
+        channelLabel: "Bot / Online (Buy from Customer)",
       };
   }
 }
@@ -470,10 +470,8 @@ export default function MatrixCellEntryModal({
     if (!target) return;
 
     const errors: Record<string, string> = {};
-    if (!partyName.trim()) {
-      errors.partyName = meta.isImport
-        ? (poType === "OVERSEA" ? "Please select or enter a vendor name" : "Please select or enter a customer name")
-        : "Please select or enter a customer name";
+    if (!meta.isImport && !partyName.trim()) {
+      errors.partyName = "Please select or enter a customer name";
     }
     if (!productType.trim()) {
       errors.productType = "Please select a product type";
@@ -509,8 +507,8 @@ export default function MatrixCellEntryModal({
         const unitCost =
           spotNum !== undefined && spotNum > 0 ? spotNum * factor + premNum : undefined;
         await purchaseOrdersApi.createPurchaseOrder({
-          po_type: poType,
-          supplier_name: partyName.trim(),
+          po_type: "IMPORT",
+          supplier_name: partyName.trim() || "Manual Import",
           product_type: productType.trim(),
           unit_type: unitType || "Kg",
           quantity: qtyNum,
@@ -520,9 +518,9 @@ export default function MatrixCellEntryModal({
           currency: "USD",
           order_date: dateValue.trim(),
           expected_date: dateValue.trim(),
-          notes: notes.trim() || null,
+          notes: notes.trim() || "Manual stock import via modal",
         } as any);
-        notify?.(`${target.rowTitle} purchase order created`, "success");
+        notify?.("Import stock saved successfully", "success");
       } else {
         const computedTotal =
           totalNum > 0
@@ -645,7 +643,7 @@ export default function MatrixCellEntryModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                {meta.isImport ? (poType === "OVERSEA" ? "Vendor *" : "Customer *") : "Customer *"}
+                {meta.isImport ? "Source / Remark (Optional)" : "Customer *"}
               </label>
               <SearchableComboInput
                 value={partyName}
@@ -658,12 +656,12 @@ export default function MatrixCellEntryModal({
                 options={partyOptions}
                 placeholder={
                   meta.isImport
-                    ? (poType === "OVERSEA" ? "Search or enter vendor..." : "Search or enter customer...")
+                    ? "Optional source or remark..."
                     : "Search or enter customer..."
                 }
                 emptyText={
                   meta.isImport
-                    ? (poType === "OVERSEA" ? "No matching vendor — typed name will be used" : "No matching customer — typed name will be used")
+                    ? "Typed text will be used as source"
                     : "No matching customer — typed name will be used"
                 }
                 hasError={Boolean(fieldErrors.partyName)}

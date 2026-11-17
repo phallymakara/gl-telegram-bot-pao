@@ -26,7 +26,16 @@ def generate_po_no(po_type: str) -> str:
     BUYBACK -> PO-B-XXXXXXXX
     """
     ptype = po_type.upper()
-    prefix = "PO-L" if ptype == "LOCAL" else ("PO-O" if ptype == "OVERSEA" else "PO-B")
+    if ptype == "LOCAL":
+        prefix = "PO-L"
+    elif ptype == "OVERSEA":
+        prefix = "PO-O"
+    elif ptype == "BUYBACK":
+        prefix = "PO-B"
+    elif ptype == "IMPORT":
+        prefix = "IMP"
+    else:
+        prefix = "PO-B"
     return f"{prefix}-{uuid4().hex[:8].upper()}"
 
 

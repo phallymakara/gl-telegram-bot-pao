@@ -68,7 +68,7 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
   {
     key: "import",
     title: "Import Stock",
-    subtitle: "Incoming goods",
+    subtitle: "Manual stock import",
     header_bg: "bg-[#eff6ff]",
     cell_bg: "bg-[#eff6ff]",
     badge_bg: "bg-[#3b82f6]",
@@ -77,7 +77,7 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
   {
     key: "physical_sell",
     title: "Physical Sell",
-    subtitle: "In-store sell",
+    subtitle: "Sell to customer",
     header_bg: "bg-[#f0f9ff]",
     cell_bg: "bg-[#f0f9ff]",
     badge_bg: "bg-[#0284c7]",
@@ -86,7 +86,7 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
   {
     key: "bot_sell",
     title: "Bot Sell",
-    subtitle: "Online / Bot sell",
+    subtitle: "Sell to customer",
     header_bg: "bg-[#f0f9ff]",
     cell_bg: "bg-[#f0f9ff]",
     badge_bg: "bg-[#0284c7]",
@@ -95,7 +95,7 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
   {
     key: "physical_buy",
     title: "Physical Buy",
-    subtitle: "In-store buy",
+    subtitle: "Buy from customer",
     header_bg: "bg-[#ecfeff]",
     cell_bg: "bg-[#ecfeff]",
     badge_bg: "bg-[#06b6d4]",
@@ -104,7 +104,7 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
   {
     key: "bot_buy",
     title: "Bot Buy",
-    subtitle: "Online / Bot buy",
+    subtitle: "Buy from customer",
     header_bg: "bg-[#ecfeff]",
     cell_bg: "bg-[#ecfeff]",
     badge_bg: "bg-[#06b6d4]",

@@ -29,6 +29,7 @@ export interface PurchaseOrderData {
   po_type: string;
   supplier_id?: number | null;
   supplier_name: string | null;
+  product_type?: string | null;
   slot_table_id?: number;
   slot_table_name?: string | null;
   quantity: number;
