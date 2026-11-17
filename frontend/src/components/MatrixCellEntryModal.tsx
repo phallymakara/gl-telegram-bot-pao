@@ -329,23 +329,21 @@ export default function MatrixCellEntryModal({
   const partyOptions = useMemo<SelectOption[]>(() => {
     if (!target) return [];
     if (target.rowKey === "import") {
-      const seen = new Set<string>();
-      const combined: SelectOption[] = [];
-      for (const v of vendors) {
-        if (!v.name || seen.has(v.name.toLowerCase())) continue;
-        seen.add(v.name.toLowerCase());
-        combined.push({
-          label: v.name,
-          meta: v.vendor_code || v.supplier_type || undefined,
-        });
+      if (poType === "OVERSEA") {
+        return vendors
+          .filter((v) => Boolean(v.name))
+          .map((v) => ({
+            label: v.name,
+            meta: v.vendor_code || v.supplier_type || undefined,
+          }));
+      } else {
+        return customers
+          .map((c) => ({
+            label: c.name || c.display_name || c.username || "",
+            meta: c.customer_code || undefined,
+          }))
+          .filter((opt) => Boolean(opt.label));
       }
-      for (const c of customers) {
-        const label = c.name || c.display_name || "";
-        if (!label || seen.has(label.toLowerCase())) continue;
-        seen.add(label.toLowerCase());
-        combined.push({ label, meta: c.customer_code || undefined });
-      }
-      return combined;
     }
 
     return customers
@@ -354,7 +352,7 @@ export default function MatrixCellEntryModal({
         meta: c.customer_code || undefined,
       }))
       .filter((opt) => Boolean(opt.label));
-  }, [target, customers, vendors]);
+  }, [target, customers, vendors, poType]);
 
   const productOptions = useMemo<SelectOption[]>(
     () =>
@@ -474,7 +472,7 @@ export default function MatrixCellEntryModal({
     const errors: Record<string, string> = {};
     if (!partyName.trim()) {
       errors.partyName = meta.isImport
-        ? "Please select or enter a vendor name"
+        ? (poType === "OVERSEA" ? "Please select or enter a vendor name" : "Please select or enter a customer name")
         : "Please select or enter a customer name";
     }
     if (!productType.trim()) {
@@ -647,7 +645,7 @@ export default function MatrixCellEntryModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                {meta.isImport ? "Vendor / Supplier *" : "Customer *"}
+                {meta.isImport ? (poType === "OVERSEA" ? "Vendor *" : "Customer *") : "Customer *"}
               </label>
               <SearchableComboInput
                 value={partyName}
@@ -660,12 +658,12 @@ export default function MatrixCellEntryModal({
                 options={partyOptions}
                 placeholder={
                   meta.isImport
-                    ? "Search or enter vendor..."
+                    ? (poType === "OVERSEA" ? "Search or enter vendor..." : "Search or enter customer...")
                     : "Search or enter customer..."
                 }
                 emptyText={
                   meta.isImport
-                    ? "No matching vendor — typed name will be used"
+                    ? (poType === "OVERSEA" ? "No matching vendor — typed name will be used" : "No matching customer — typed name will be used")
                     : "No matching customer — typed name will be used"
                 }
                 hasError={Boolean(fieldErrors.partyName)}

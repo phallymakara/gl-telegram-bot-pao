@@ -66,10 +66,12 @@ function SearchablePartySelect({
   value,
   onChange,
   options,
+  placeholder,
 }: {
   value: string;
   onChange: (val: string) => void;
   options: PartyOption[];
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -112,7 +114,7 @@ function SearchablePartySelect({
             onChange(e.target.value);
             setOpen(true);
           }}
-          placeholder="Search by code or name..."
+          placeholder={placeholder || "Search by code or name..."}
           className="w-full text-sm border border-slate-200 rounded-lg pl-3 pr-8 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
         />
         <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -1700,6 +1702,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     }
                   }}
                   options={form.purchase_source === "LOCAL" ? customerList : vendorList}
+                  placeholder={form.purchase_source === "LOCAL" ? "Search customer by code or name..." : "Search vendor by code or name..."}
                 />
               </div>
 
