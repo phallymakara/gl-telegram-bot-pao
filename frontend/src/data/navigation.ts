@@ -45,17 +45,10 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "customers", label: "Customers", icon: Users },
       { id: "vendors", label: "Vendors", icon: Store },
       { id: "products", label: "Products", icon: Package },
-      { id: "sales-persons", label: "Sales Person", icon: UserCheck },
     ]
   },
   { id: "user-management", label: "User Management", icon: User },
   { id: "audit-logs", label: "Activity Logs", icon: Shield },
-  {
-    id: "alert-center", label: "Alert Center", icon: Bell, children: [
-      { id: "low-stock-alerts", label: "Low Stock Alert", icon: Package },
-      { id: "discount-promotions", label: "Discount Promotion", icon: Tag },
-    ]
-  },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -161,10 +154,7 @@ export const ALL_MODULES: ModuleDefinition[] = [
   { id: "customers", label: "Customers", category: "Master Data", description: "Customer whitelist and trading profiles" },
   { id: "vendors", label: "Vendors", category: "Master Data", description: "Gold suppliers and refinery master records" },
   { id: "products", label: "Products", category: "Master Data", description: "Gold bars, coins, and physical inventory catalog" },
-  { id: "sales-persons", label: "Sales Person", category: "Master Data", description: "Account executives and staff assignments" },
   { id: "user-management", label: "User Management", category: "Administration", description: "Manage user accounts, roles, and access permissions" },
-  { id: "low-stock-alerts", label: "Low Stock Alert", category: "Alert Center", description: "Inventory threshold alerts and notifications" },
-  { id: "discount-promotions", label: "Discount Promotion", category: "Alert Center", description: "Customer promotional broadcast messages" },
   { id: "settings", label: "Settings", category: "Administration", description: "System configuration, bot parameters, and security" },
 ];
 

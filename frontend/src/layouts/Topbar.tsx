@@ -28,9 +28,6 @@ const breadcrumbPageMap: Record<string, string> = {
   "Reports": "reports",
   "Analytics": "analytics",
   "User Management": "user-management",
-  "Alert Center": "low-stock-alerts",
-  "Low Stock Alert": "low-stock-alerts",
-  "Discount Promotion": "discount-promotions",
   "Settings": "settings"
 };
 

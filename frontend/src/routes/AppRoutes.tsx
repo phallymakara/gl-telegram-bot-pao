@@ -218,14 +218,7 @@ export default function AppRoutes({ notify }: AppRoutesProps) {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/sales-persons"
-        element={
-          <ProtectedRoute module="sales-persons">
-            <SalesPersonsPage notify={notify} />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/sales-persons" element={<Navigate to="/dashboard" replace />} />
 
       {/* Reports */}
       <Route
@@ -237,23 +230,9 @@ export default function AppRoutes({ notify }: AppRoutesProps) {
         }
       />
 
-      {/* Alert Center */}
-      <Route
-        path="/low-stock-alerts"
-        element={
-          <ProtectedRoute module="low-stock-alerts">
-            <AlertsPage mode="stock" notify={notify} />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/discount-promotions"
-        element={
-          <ProtectedRoute module="discount-promotions">
-            <AlertsPage mode="promo" notify={notify} />
-          </ProtectedRoute>
-        }
-      />
+      {/* Alert Center (Removed) */}
+      <Route path="/low-stock-alerts" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/discount-promotions" element={<Navigate to="/dashboard" replace />} />
 
       {/* Administration & Settings */}
       <Route

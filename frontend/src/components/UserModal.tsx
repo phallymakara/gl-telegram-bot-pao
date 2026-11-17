@@ -114,11 +114,11 @@ export default function UserModal({
         setRole("Admin");
         break;
       case "sales":
-        setAllowedModules(["dashboard", "sell-orders", "deposits", "customers", "sales-persons"]);
+        setAllowedModules(["dashboard", "sell-orders", "deposits", "customers"]);
         setRole("Staff");
         break;
       case "inventory":
-        setAllowedModules(["dashboard", "purchase", "products", "vendors", "low-stock-alerts"]);
+        setAllowedModules(["dashboard", "purchase", "products", "vendors"]);
         setRole("Staff");
         break;
       case "finance":
