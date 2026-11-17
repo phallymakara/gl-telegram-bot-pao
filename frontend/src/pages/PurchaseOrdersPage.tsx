@@ -1039,8 +1039,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
       supplierName = form.customer_name;
     }
 
-    if (!form.received_date) {
-      notify("Please select Expected Received Date");
+    if (!form.expected_date) {
+      notify("Please select Collection Date");
       return;
     }
 
