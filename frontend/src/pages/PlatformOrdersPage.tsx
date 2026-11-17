@@ -376,9 +376,11 @@ function ExportSellOrdersDropdown({
 
   function handleExportExcel() {
     setOpen(false);
-    const headers = ["Order No", "Customer Name", "Sales Person", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Status"];
+    const headers = ["Order No", "Issue Date", "Collection Date", "Customer Name", "Sales Person", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Status"];
     const exportRows = rows.map((r) => [
       `"${(r.order_no || "").replace(/"/g, '""')}"`,
+      `"${(r.slot_date_str || r.order_date || r.created_at || "").replace(/"/g, '""')}"`,
+      `"${(r.collection_date || (r.status === "COLLECTED" || r.status === "COMPLETED" ? r.created_at : "") || "").replace(/"/g, '""')}"`,
       `"${(r.customer_name || "").replace(/"/g, '""')}"`,
       `"${(r.sales_person || "").replace(/"/g, '""')}"`,
       `"${(r.order_source || r.channel || "Standard Gold").replace(/"/g, '""')}"`,
@@ -386,7 +388,6 @@ function ExportSellOrdersDropdown({
       `"${toNumber(r.total_amount).toFixed(2)}"`,
       `"${toNumber(r.spot_price).toFixed(2)}"`,
       `"${toNumber(r.premium).toFixed(2)}"`,
-      `"${(r.order_date || r.created_at || "").replace(/"/g, '""')}"`,
       `"${(r.status || "").replace(/"/g, '""')}"`,
     ]);
 
@@ -568,6 +569,7 @@ export default function PlatformOrdersPage({
     premium: "",
     total_amount: "",
     slot_date_str: new Date().toISOString().split("T")[0],
+    collection_date: "",
     notes: "",
   });
 
@@ -1012,6 +1014,7 @@ export default function PlatformOrdersPage({
         premium: "",
         total_amount: "",
         slot_date_str: new Date().toISOString().split("T")[0],
+        collection_date: "",
         notes: "",
       });
       setIsNewOrderModalOpen(false);
@@ -1043,6 +1046,7 @@ export default function PlatformOrdersPage({
           total_amount: totalAmount,
           transaction_type: "SELL",
           slot_date_str: newOrderForm.slot_date_str,
+          collection_date: newOrderForm.collection_date || null,
           product_type: newOrderForm.product_type || null,
           unit_type: newOrderForm.unit_type || "Kg",
         })
@@ -1070,6 +1074,7 @@ export default function PlatformOrdersPage({
           total_amount: totalAmount,
           status: "CONFIRMED",
           slot_date_str: newOrderForm.slot_date_str,
+          collection_date: newOrderForm.collection_date || null,
           product_type: newOrderForm.product_type || null,
           unit_type: newOrderForm.unit_type || "Kg",
         })
@@ -1142,63 +1147,9 @@ export default function PlatformOrdersPage({
 
   return (
     <div
-      className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3 min-h-0 h-full"
+      className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col min-h-0 h-full"
       onClick={() => setActiveMenuId(null)}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 flex-shrink-0">
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <Globe size={15} className="text-slate-500 shrink-0" />
-            <span>Oversea</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {Number.isInteger(sellStats.oversea) ? sellStats.oversea.toFixed(0) : sellStats.oversea.toFixed(1)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <Send size={15} className="text-slate-500 shrink-0" />
-            <span>Local-Platform</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {Number.isInteger(sellStats.localPlatform) ? sellStats.localPlatform.toFixed(0) : sellStats.localPlatform.toFixed(1)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <Store size={15} className="text-slate-500 shrink-0" />
-            <span>Local-Physical</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {Number.isInteger(sellStats.localPhysical) ? sellStats.localPhysical.toFixed(0) : sellStats.localPhysical.toFixed(1)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <ShoppingCart size={15} className="text-slate-500 shrink-0" />
-            <span>Total Sold</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {Number.isInteger(sellStats.totalSold) ? sellStats.totalSold.toFixed(0) : sellStats.totalSold.toFixed(1)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-      </div>
-
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden h-full">
         <div className="p-4 flex flex-col sm:flex-row items-center gap-3 border-b border-slate-100 flex-shrink-0">
           <div className="w-full sm:w-80 md:w-96 shrink-0">
@@ -1241,6 +1192,7 @@ export default function PlatformOrdersPage({
                   premium: "",
                   total_amount: "",
                   slot_date_str: new Date().toISOString().split("T")[0],
+                  collection_date: "",
                   notes: "",
                 });
                 setIsNewOrderModalOpen(true);
@@ -1267,7 +1219,8 @@ export default function PlatformOrdersPage({
                   <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                     {[
                       "Order No",
-                      "Order Date",
+                      "Issue Date",
+                      "Collection Date",
                       "Customer",
                       "Sales Person",
                       "Channel",
@@ -1290,7 +1243,7 @@ export default function PlatformOrdersPage({
                 <tbody>
                   {filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-5 py-12 text-center text-slate-400">
+                      <td colSpan={11} className="px-5 py-12 text-center text-slate-400">
                         No sell orders found matching criteria.
                       </td>
                     </tr>
@@ -1319,6 +1272,15 @@ export default function PlatformOrdersPage({
                     </td>
                     <td className="px-5 py-2 text-slate-500 font-medium whitespace-nowrap text-xs">
                       {r.slot_date_str || r.order_date || (r.created_at ? r.created_at.split("T")[0] : "—")}
+                    </td>
+                    <td className="px-5 py-2 text-slate-500 font-medium whitespace-nowrap text-xs">
+                      {r.collection_date ? (
+                        r.collection_date
+                      ) : r.status === "COLLECTED" || r.status === "COMPLETED" ? (
+                        r.created_at ? r.created_at.split("T")[0] : "—"
+                      ) : (
+                        <span className="text-slate-400 italic">Pending</span>
+                      )}
                     </td>
                     <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
                       {r.customer_name || "—"}
@@ -1433,6 +1395,7 @@ export default function PlatformOrdersPage({
                                     premium: String(r.premium),
                                     total_amount: String(r.total_amount || ""),
                                     slot_date_str: (r as any).slot_date_str || new Date().toISOString().split("T")[0],
+                                    collection_date: r.collection_date || "",
                                     notes: "",
                                   });
                                   setIsNewOrderModalOpen(true);
@@ -1471,7 +1434,7 @@ export default function PlatformOrdersPage({
                 );
               }))}
               {isLoadingMore && (
-                <TableLoader colSpan={10} text="Loading more sell orders..." position="bottom" size="sm" />
+                <TableLoader colSpan={11} text="Loading more sell orders..." position="bottom" size="sm" />
               )}
             </tbody>
           </table>
@@ -1610,14 +1573,25 @@ export default function PlatformOrdersPage({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
-                <input
-                  type="date"
-                  value={newOrderForm.slot_date_str || new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setNewOrderForm({ ...newOrderForm, slot_date_str: e.target.value })}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Issue Date *</label>
+                  <input
+                    type="date"
+                    value={newOrderForm.slot_date_str || new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, slot_date_str: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Collection Date</label>
+                  <input
+                    type="date"
+                    value={newOrderForm.collection_date || ""}
+                    onChange={(e) => setNewOrderForm({ ...newOrderForm, collection_date: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
               <div>

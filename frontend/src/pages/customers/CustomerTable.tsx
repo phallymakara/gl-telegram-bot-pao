@@ -49,9 +49,10 @@ function ExportDropdown({
 
   function handleExportExcel() {
     setOpen(false);
-    const headers = ["Customer Code", "Customer Name", "Contact", "Sex", "DOB", "Nation", "Address", "Status"];
+    const headers = ["Customer Code", "Customer Type", "Customer Name", "Contact", "Sex", "DOB", "Nation", "Address", "Status"];
     const rows = customers.map((c, i) => [
       `"${(c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`).replace(/"/g, '""')}"`,
+      `"${(c.customer_type || "Individual").replace(/"/g, '""')}"`,
       `"${(c.name || "").replace(/"/g, '""')}"`,
       `"${(c.contact || "").replace(/"/g, '""')}"`,
       `"${(c.sex || "").replace(/"/g, '""')}"`,
@@ -359,6 +360,7 @@ export default function CustomerTable({
               <thead className="sticky top-0 z-10 bg-slate-50">
                 <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
                   <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Code</th>
+                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Type</th>
                   <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Name</th>
                   <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact</th>
                   <th className="py-2.5 px-3 font-semibold bg-slate-50">Sex</th>
@@ -374,6 +376,17 @@ export default function CustomerTable({
                   <tr key={c.id} className="hover:bg-slate-100 transition-colors">
                     <td className="py-2 px-3 font-mono text-xs font-normal text-slate-800 whitespace-nowrap">
                       {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
+                    </td>
+                    <td className="py-2 px-3 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                          c.customer_type === "Enterprise"
+                            ? "bg-purple-50 text-purple-700"
+                            : "bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        {c.customer_type || "Individual"}
+                      </span>
                     </td>
                     <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                       {c.name}
@@ -414,7 +427,7 @@ export default function CustomerTable({
                   </tr>
                 ))}
                 {isLoadingMore && (
-                  <TableLoader colSpan={9} text="Loading more customers..." position="bottom" size="sm" />
+                  <TableLoader colSpan={10} text="Loading more customers..." position="bottom" size="sm" />
                 )}
               </tbody>
             </table>

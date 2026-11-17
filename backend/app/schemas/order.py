@@ -19,6 +19,7 @@ class OrderCreate(BaseModel):
     product_type: str | None = None
     unit_type: str | None = "Kg"
     slot_date_str: str | None = None
+    collection_date: date | None = None
     channel: str | None = "TELEGRAM"
     region: str | None = "LOCAL"
     status: str | None = "CONFIRMED"
@@ -40,6 +41,7 @@ class OrderUpdate(BaseModel):
     channel: str | None = None
     region: str | None = None
     slot_date_str: str | None = None
+    collection_date: date | None = None
     spot_price: Decimal | None = None
     total_amount: Decimal | None = None
 
@@ -55,6 +57,7 @@ class OrderResponse(BaseModel):
     group_name: str | None = None
     slot_date: date | None = None
     slot_date_str: str | None = None
+    collection_date: date | None = None
     quantity: Decimal
     premium: Decimal
     premium_amount: Decimal

@@ -21,6 +21,7 @@ class Customer(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
 
     customer_code: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    customer_type: Mapped[str | None] = mapped_column(String(50), nullable=True, default="Individual")
     name: Mapped[str | None] = mapped_column(String(150), nullable=True)
     contact: Mapped[str | None] = mapped_column(String(150), nullable=True)
     sex: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -18,6 +18,7 @@ export interface OrderData {
   group_name: string | null;
   slot_date: string | null;
   slot_date_str?: string | null;
+  collection_date?: string | null;
   quantity: number;
   premium: number;
   premium_amount: number;

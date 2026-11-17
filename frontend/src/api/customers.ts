@@ -11,6 +11,7 @@ import { api } from "./client";
 export interface CustomerData {
   id: number;
   customer_code?: string;
+  customer_type?: "Individual" | "Enterprise" | string;
   name?: string;
   contact?: string;
   sex?: string | null;

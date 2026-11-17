@@ -19,6 +19,7 @@ router = APIRouter()
 class CustomerCreate(BaseModel):
     """Schema for adding a new customer master data record or whitelist entry."""
     customer_code: str | None = None
+    customer_type: str | None = "Individual"
     name: str | None = None
     contact: str | None = None
     sex: str | None = None
@@ -34,6 +35,7 @@ class CustomerCreate(BaseModel):
 class CustomerUpdate(BaseModel):
     """Schema for updating an existing customer record."""
     customer_code: str | None = None
+    customer_type: str | None = None
     name: str | None = None
     contact: str | None = None
     sex: str | None = None
@@ -50,6 +52,7 @@ class CustomerResponse(BaseModel):
     """Schema representing customer master data."""
     id: int
     customer_code: str | None = None
+    customer_type: str | None = "Individual"
     name: str | None = None
     contact: str | None = None
     sex: str | None = None
@@ -105,6 +108,7 @@ def create_customer(body: CustomerCreate, db: Session = Depends(get_db)):
 
     customer = Customer(
         customer_code=body.customer_code,
+        customer_type=body.customer_type or "Individual",
         name=customer_name,
         contact=body.contact,
         sex=body.sex,
@@ -142,6 +146,8 @@ def update_customer(customer_id: int, body: CustomerUpdate, db: Session = Depend
 
     if body.customer_code is not None:
         customer.customer_code = body.customer_code
+    if body.customer_type is not None:
+        customer.customer_type = body.customer_type
     if body.name is not None:
         customer.name = body.name
     if body.contact is not None:

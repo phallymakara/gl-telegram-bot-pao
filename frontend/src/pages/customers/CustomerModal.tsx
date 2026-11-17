@@ -12,6 +12,7 @@ interface CustomerModalProps {
   onClose: () => void;
   form: {
     customer_code: string;
+    customer_type: string;
     name: string;
     contact: string;
     sex: string;
@@ -23,6 +24,7 @@ interface CustomerModalProps {
   setForm: React.Dispatch<
     React.SetStateAction<{
       customer_code: string;
+      customer_type: string;
       name: string;
       contact: string;
       sex: string;
@@ -74,22 +76,55 @@ export default function CustomerModal({
           </button>
         </div>
         <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-600">Customer Type *</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, customer_type: "Individual" }))}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-colors cursor-pointer text-center ${
+                  form.customer_type !== "Enterprise"
+                    ? "bg-indigo-50 border-indigo-400 text-indigo-700"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Individual
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, customer_type: "Enterprise" }))}
+                className={`py-2 px-3 text-xs font-semibold rounded-lg border transition-colors cursor-pointer text-center ${
+                  form.customer_type === "Enterprise"
+                    ? "bg-purple-50 border-purple-400 text-purple-700"
+                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                Enterprise
+              </button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Customer Code *</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-600">Customer Code *</label>
+                <span className="text-[10px] text-slate-400">Auto or type</span>
+              </div>
               <input
                 type="text"
-                placeholder="Customer code"
+                placeholder="e.g. CUST-001"
                 value={form.customer_code}
                 onChange={(e) => setForm((f) => ({ ...f, customer_code: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Customer Name *</label>
+              <label className="text-xs font-semibold text-slate-600">
+                {form.customer_type === "Enterprise" ? "Enterprise / Company Name *" : "Customer Name *"}
+              </label>
               <input
                 type="text"
-                placeholder="Enter customer name"
+                placeholder={form.customer_type === "Enterprise" ? "Enter company name" : "Enter customer name"}
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
@@ -99,7 +134,9 @@ export default function CustomerModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Contact (Phone / Email)</label>
+              <label className="text-xs font-semibold text-slate-600">
+                {form.customer_type === "Enterprise" ? "Contact Person / Phone / Email" : "Contact (Phone / Email)"}
+              </label>
               <input
                 type="text"
                 placeholder="Phone number or email address"
@@ -109,41 +146,55 @@ export default function CustomerModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Sex / Gender</label>
-              <select
-                value={form.sex}
-                onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="">Select Sex</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
+              <label className="text-xs font-semibold text-slate-600">
+                {form.customer_type === "Enterprise" ? "Nation / Origin" : "Sex / Gender"}
+              </label>
+              {form.customer_type === "Enterprise" ? (
+                <input
+                  type="text"
+                  placeholder="Country or nation"
+                  value={form.nation}
+                  onChange={(e) => setForm((f) => ({ ...f, nation: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              ) : (
+                <select
+                  value={form.sex}
+                  onChange={(e) => setForm((f) => ({ ...f, sex: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                >
+                  <option value="">Select Sex</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Date of Birth (DOB)</label>
-              <input
-                type="date"
-                value={form.dob}
-                onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
+          {form.customer_type !== "Enterprise" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Date of Birth (DOB)</label>
+                <input
+                  type="date"
+                  value={form.dob}
+                  onChange={(e) => setForm((f) => ({ ...f, dob: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-600">Nation / Nationality</label>
+                <input
+                  type="text"
+                  placeholder="Country or nationality"
+                  value={form.nation}
+                  onChange={(e) => setForm((f) => ({ ...f, nation: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-600">Nation / Nationality</label>
-              <input
-                type="text"
-                placeholder="Country or nationality"
-                value={form.nation}
-                onChange={(e) => setForm((f) => ({ ...f, nation: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              />
-            </div>
-          </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600">Address / Location</label>

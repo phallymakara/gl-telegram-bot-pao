@@ -49,6 +49,7 @@ def _to_order_response(o: Order) -> OrderResponse:
         group_name=o.group.group_name if o.group else None,
         slot_date=o.slot.slot_date if o.slot else None,
         slot_date_str=o.slot_date_str or (o.created_at.strftime("%Y-%m-%d") if o.created_at else None),
+        collection_date=o.collection_date,
         quantity=o.quantity,
         premium=o.premium,
         premium_amount=o.premium_amount,
@@ -123,6 +124,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         total_amount=total_amount,
         username=body.customer_name,
         slot_date_str=body.slot_date_str,
+        collection_date=body.collection_date,
     )
     db.add(order)
     db.commit()
@@ -267,6 +269,11 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
         o.region = "OVERSEAS"
     if body.slot_date_str is not None:
         o.slot_date_str = body.slot_date_str
+    if body.collection_date is not None:
+        o.collection_date = body.collection_date
+    elif newly_collected and not o.collection_date:
+        from datetime import date as dt_date
+        o.collection_date = dt_date.today()
     if body.product_type is not None:
         o.product_type = body.product_type
     if body.unit_type is not None:

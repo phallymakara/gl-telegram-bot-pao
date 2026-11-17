@@ -2,10 +2,10 @@
 Customer Order Database Model Entity.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -46,6 +46,7 @@ class Order(Base):
     telegram_user_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     username: Mapped[str | None] = mapped_column(String(100), nullable=True)
     slot_date_str: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    collection_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -18,9 +18,6 @@ export { default as PhysicalOrdersPage } from "./PhysicalOrdersPage";
 // Slots & Price Tables (Route: "buy-back-slots", "sell-slots-premium", "slots")
 export { default as SlotsPage } from "./SlotsPage";
 
-// Inventory Stock Ledger (Route: "inventory-ledger", "inventory")
-export { default as InventoryPage } from "./InventoryPage";
-
 // Customers Master Data (Route: "customers")
 export { default as CustomersPage } from "./CustomersPage";
 
@@ -32,9 +29,6 @@ export { default as ProductsPage } from "./ProductsPage";
 
 // Sales Persons Master Data (Route: "sales-persons")
 export { default as SalesPersonsPage } from "./SalesPersonsPage";
-
-// Delivery Notes (Route: "delivery-notes")
-export { default as DeliveryNotesPage } from "./DeliveryNotesPage";
 
 // Customer Deposits & Slips (Route: "deposits")
 export { default as DepositsPage } from "./DepositsPage";

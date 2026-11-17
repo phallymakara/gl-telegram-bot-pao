@@ -4,9 +4,9 @@
  */
 
 import {
-  Home, ShoppingCart, Calendar, TrendingUp, Archive, Users, FileText,
+  Home, ShoppingCart, Calendar, TrendingUp, Users, FileText,
   BarChart3, Send, User, UserCheck, Shield, Bell, Settings as SettingsIcon, Cloud, Store, Monitor, Package, Tag,
-  ArrowDownLeft, ArrowUpRight, ShoppingBag, FileCheck, Truck, Layers, Wallet
+  ArrowDownLeft, ArrowUpRight, ShoppingBag, FileCheck, Layers, Wallet
 } from "lucide-react";
 import React from "react";
 
@@ -37,7 +37,6 @@ export const NAV_ITEMS: NavItem[] = [
   {
     id: "gold-out", label: "Gold Out (Selling)", icon: ArrowUpRight, children: [
       { id: "sell-orders", label: "Sell Orders", icon: ShoppingCart },
-      { id: "delivery-notes", label: "Delivery Notes", icon: Truck },
     ]
   },
   { id: "deposits", label: "Deposits & Withdrawals", icon: Wallet },
@@ -47,7 +46,6 @@ export const NAV_ITEMS: NavItem[] = [
       { id: "vendors", label: "Vendors", icon: Store },
       { id: "products", label: "Products", icon: Package },
       { id: "sales-persons", label: "Sales Person", icon: UserCheck },
-      { id: "inventory-ledger", label: "Inventory Ledger", icon: Archive },
     ]
   },
   { id: "user-management", label: "User Management", icon: User },
@@ -68,10 +66,8 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "buy-back-slots": ["Dashboard", "Slots"],
   "gold-out": ["Dashboard", "Gold Out (Selling)"],
   "sell-orders": ["Dashboard", "Gold Out (Selling)", "Sell Orders"],
-  "delivery-notes": ["Dashboard", "Gold Out (Selling)", "Delivery Notes"],
   "deposits": ["Dashboard", "Deposits & Withdrawals"],
   "master-data": ["Dashboard", "Master Data"],
-  "inventory-ledger": ["Dashboard", "Master Data", "Inventory Ledger"],
   "customers": ["Dashboard", "Master Data", "Customers"],
   "vendors": ["Dashboard", "Master Data", "Vendors"],
   "products": ["Dashboard", "Master Data", "Products"],
@@ -82,7 +78,6 @@ export const BREADCRUMBS: Record<string, string[]> = {
   "po-oversea": ["Dashboard", "Purchase Orders", "Oversea PO"],
   "slots": ["Dashboard", "Slots"],
   "gold-prices": ["Dashboard", "Gold Prices"],
-  "inventory": ["Dashboard", "Inventory"],
   "telegram-bot": ["Dashboard", "Telegram Bot"],
   "user-management": ["Dashboard", "User Management"],
   "audit-logs": ["Dashboard", "Audit Logs"],
@@ -102,8 +97,6 @@ export const TOPBAR_ICON: Record<string, any> = {
   "sell-slots-premium": "menu",
   "sell-orders": "menu",
   "invoice": "menu",
-  "delivery-notes": "menu",
-  "inventory-ledger": "menu",
   "platform-orders": "menu",
   "physical-orders": "menu",
   "po-local": "menu",
@@ -111,7 +104,6 @@ export const TOPBAR_ICON: Record<string, any> = {
   "slots": "menu",
   "user-management": "menu",
   "gold-prices": "menu",
-  "inventory": "menu",
   "customers": "menu",
   "vendors": "menu",
   "products": "menu",
@@ -130,16 +122,13 @@ export const PAGE_TITLE: Record<string, string> = {
   "purchase": "Purchase Orders",
   "buy-back-slots": "Slots Management",
   "sell-orders": "Sell Orders",
-  "delivery-notes": "Delivery Notes",
   "deposits": "Deposits & Withdrawals",
-  "inventory-ledger": "Inventory Ledger",
   "platform-orders": "Platform Orders",
   "physical-orders": "Physical Orders",
   "po-local": "Local Purchase Orders",
   "po-oversea": "Oversea Purchase Orders",
   "slots": "Slots Management",
   "gold-prices": "Gold Prices",
-  "inventory": "Inventory",
   "customers": "Customers Master Data",
   "vendors": "Vendors Master Data",
   "products": "Products Master Data",
@@ -168,13 +157,11 @@ export const ALL_MODULES: ModuleDefinition[] = [
   { id: "buy-back-slots", label: "Slots Management", category: "General", description: "Trading slot quotas and price schedules" },
   { id: "purchase", label: "Purchase (Gold In)", category: "Gold In (Buying)", description: "Manage local and overseas gold purchase orders" },
   { id: "sell-orders", label: "Sell Orders", category: "Gold Out (Selling)", description: "Manage customer gold sales orders" },
-  { id: "delivery-notes", label: "Delivery Notes", category: "Gold Out (Selling)", description: "Delivery tracking, notes, and collection status" },
   { id: "deposits", label: "Deposits & Withdrawals", category: "Finance", description: "Review, verify slips, and approve customer deposits & withdrawals" },
   { id: "customers", label: "Customers", category: "Master Data", description: "Customer whitelist and trading profiles" },
   { id: "vendors", label: "Vendors", category: "Master Data", description: "Gold suppliers and refinery master records" },
   { id: "products", label: "Products", category: "Master Data", description: "Gold bars, coins, and physical inventory catalog" },
   { id: "sales-persons", label: "Sales Person", category: "Master Data", description: "Account executives and staff assignments" },
-  { id: "inventory-ledger", label: "Inventory Ledger", category: "Master Data", description: "Stock balance and audit movement transactions" },
   { id: "user-management", label: "User Management", category: "Administration", description: "Manage user accounts, roles, and access permissions" },
   { id: "low-stock-alerts", label: "Low Stock Alert", category: "Alert Center", description: "Inventory threshold alerts and notifications" },
   { id: "discount-promotions", label: "Discount Promotion", category: "Alert Center", description: "Customer promotional broadcast messages" },

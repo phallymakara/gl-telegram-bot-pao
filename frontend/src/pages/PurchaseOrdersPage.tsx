@@ -1006,7 +1006,10 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     setForm({
       ...emptyForm,
       purchase_source: source,
+      vendor_name: source === "OVERSEA" ? (vendorList[0]?.name || "") : "",
+      customer_name: source === "LOCAL" ? (customerList[0]?.name || "") : "",
       order_date: new Date().toISOString().split("T")[0],
+      expected_date: new Date().toISOString().split("T")[0],
       received_date: "",
     });
     setIsOpen(true);
@@ -1015,13 +1018,17 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   function save() {
     let supplierName = "";
     if (form.purchase_source === "OVERSEA") {
-      supplierName = form.vendor_type || "Swiss";
-    } else if (form.purchase_source === "LOCAL") {
-      if (!form.vendor_name) {
-        notify("Please enter Vendor Name");
+      if (!form.vendor_name && !form.customer_name) {
+        notify("Please select Vendor Name");
         return;
       }
-      supplierName = form.vendor_name;
+      supplierName = form.vendor_name || form.customer_name;
+    } else if (form.purchase_source === "LOCAL") {
+      if (!form.customer_name && !form.vendor_name) {
+        notify("Please select Customer Name");
+        return;
+      }
+      supplierName = form.customer_name || form.vendor_name;
     } else {
       if (!form.customer_name) {
         notify("Please enter Customer Name");
@@ -1054,6 +1061,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           premium: premium,
           unit_cost: unitCost,
           order_date: form.order_date,
+          expected_date: form.expected_date || null,
           received_date: form.received_date || null,
           notes: form.notes || null,
         })
@@ -1080,6 +1088,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
           unit_cost: unitCost,
           currency: "USD",
           order_date: form.order_date || new Date().toISOString().split("T")[0],
+          expected_date: form.expected_date || null,
           received_date: form.received_date || null,
           notes: form.notes || null,
         })
@@ -1276,59 +1285,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const label = poType === "LOCAL" ? "Local" : "Oversea";
 
   return (
-    <div className="flex-1 pt-2 px-3.5 pb-2 sm:pt-2 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col space-y-2 min-h-0">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 flex-shrink-0">
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <Globe size={15} className="text-slate-500 shrink-0" />
-            <span>Oversea</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {toNumber(stats?.gold_in_overseas ?? 0).toFixed(0)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <MapPin size={15} className="text-slate-500 shrink-0" />
-            <span>Local</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {toNumber(stats?.gold_in_local ?? 0).toFixed(0)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <RotateCcw size={15} className="text-slate-500 shrink-0" />
-            <span>Physical</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {toNumber(stats?.gold_in_local_physical ?? 0).toFixed(0)}
-            </span>
-            <span className="ml-1 text-xs font-semibold text-slate-400">KG</span>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-3.5 flex flex-col justify-between">
-          <div className="flex items-center gap-2 text-slate-600 text-xs font-medium">
-            <Truck size={15} className="text-slate-500 shrink-0" />
-            <span>Incoming PO</span>
-          </div>
-          <div className="mt-2 flex items-baseline">
-            <span className="text-2xl font-bold text-slate-800">
-              {toNumber(stats?.incoming_po ?? 0).toFixed(0)}
-            </span>
-          </div>
-        </div>
-      </div>
+    <div className="flex-1 pt-2 px-3.5 pb-2 sm:pt-2 sm:px-5 sm:pb-2 min-w-0 overflow-hidden w-full flex flex-col min-h-0">
       <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="px-3.5 py-2.5 border-b border-slate-100 flex-shrink-0">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -1419,14 +1376,15 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     {[
                       "PO No",
                       "Type",
-                      "Vendor",
+                      typeFilter === "LOCAL" ? "Customer" : typeFilter === "OVERSEA" ? "Vendor" : "Vendor / Customer",
                       "QTY",
                       "Spot Price (oz)",
                       "Premium ( Kg/USD)",
                       "Unit Price",
                       "Total Amount",
-                      "Order Date",
-                      "Expected Receive Date",
+                      "Issue Date",
+                      "Expected Date",
+                      "Receiving Date",
                       "Status",
                       "Actions",
                     ].map((h) => (
@@ -1439,7 +1397,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 <tbody>
                   {filteredNumericRows.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="px-5 py-12 text-center text-sm text-slate-400">
+                      <td colSpan={13} className="px-5 py-12 text-center text-sm text-slate-400">
                         No purchase orders found for the selected source filter.
                       </td>
                     </tr>
@@ -1468,7 +1426,14 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                           {r.total_cost.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                         </td>
                         <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
-                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.received_date || r.expected_date)}</td>
+                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.expected_date)}</td>
+                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap font-medium">
+                          {r.received_date ? (
+                            formatDate(r.received_date)
+                          ) : (
+                            <span className="text-slate-400 font-normal italic">Pending</span>
+                          )}
+                        </td>
                         <td className="px-5 py-2.5 whitespace-nowrap">
                           <StatusBadge status={titleCase(r.status)} />
                         </td>
@@ -1643,7 +1608,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                       </tr>
                     )))}
                   {isLoadingMore && (
-                    <TableLoader colSpan={12} text="Loading more purchase orders..." position="bottom" size="sm" />
+                    <TableLoader colSpan={13} text="Loading more purchase orders..." position="bottom" size="sm" />
                   )}
                 </tbody>
               </table>
@@ -1693,32 +1658,48 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-full border border-slate-200/80 w-full">
                 <button
                   type="button"
-                  onClick={() => setForm({ ...form, purchase_source: "OVERSEA" })}
+                  onClick={() => setForm((prev) => ({
+                    ...prev,
+                    purchase_source: "OVERSEA",
+                    vendor_name: prev.vendor_name || vendorList[0]?.name || "",
+                  }))}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${form.purchase_source === "OVERSEA"
                     ? "bg-white text-indigo-600 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Oversea
+                  Oversea (Vendor)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setForm({ ...form, purchase_source: "LOCAL" })}
+                  onClick={() => setForm((prev) => ({
+                    ...prev,
+                    purchase_source: "LOCAL",
+                    customer_name: prev.customer_name || customerList[0]?.name || "",
+                  }))}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-full transition-all cursor-pointer ${form.purchase_source === "LOCAL"
                     ? "bg-white text-indigo-600 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Local
+                  Local (Customer)
                 </button>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Vendor *</label>
+                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                  {form.purchase_source === "LOCAL" ? "Customer *" : "Vendor *"}
+                </label>
                 <SearchablePartySelect
-                  value={form.vendor_name || form.customer_name || ""}
-                  onChange={(val) => setForm({ ...form, vendor_name: val, customer_name: val })}
-                  options={combinedPartyOptions}
+                  value={form.purchase_source === "LOCAL" ? (form.customer_name || form.vendor_name || "") : (form.vendor_name || form.customer_name || "")}
+                  onChange={(val) => {
+                    if (form.purchase_source === "LOCAL") {
+                      setForm({ ...form, customer_name: val, vendor_name: val });
+                    } else {
+                      setForm({ ...form, vendor_name: val, customer_name: val });
+                    }
+                  }}
+                  options={form.purchase_source === "LOCAL" ? customerList : vendorList}
                 />
               </div>
 
@@ -1745,10 +1726,10 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </div>
               </div>
 
-              {/* Order Date & Expected Received Date in 2 columns */}
+              {/* Issue Date & Expected Date in 2 columns */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Order Date *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Issue Date *</label>
                   <input
                     type="date"
                     value={form.order_date}
@@ -1757,11 +1738,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Expected Received Date *</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Collection Date *</label>
                   <input
                     type="date"
-                    value={form.received_date}
-                    onChange={(e) => setForm({ ...form, received_date: e.target.value })}
+                    value={form.expected_date}
+                    onChange={(e) => setForm({ ...form, expected_date: e.target.value })}
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>

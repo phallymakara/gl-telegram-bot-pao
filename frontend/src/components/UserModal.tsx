@@ -77,7 +77,7 @@ export default function UserModal({
         setRole("Staff");
         setIsActive(true);
         // Default modules for new Staff
-        setAllowedModules(["dashboard", "purchase", "sell-orders", "delivery-notes", "customers"]);
+        setAllowedModules(["dashboard", "purchase", "sell-orders", "customers"]);
       }
     }
   }, [isOpen, userToEdit]);
@@ -114,11 +114,11 @@ export default function UserModal({
         setRole("Admin");
         break;
       case "sales":
-        setAllowedModules(["dashboard", "sell-orders", "delivery-notes", "deposits", "customers", "sales-persons"]);
+        setAllowedModules(["dashboard", "sell-orders", "deposits", "customers", "sales-persons"]);
         setRole("Staff");
         break;
       case "inventory":
-        setAllowedModules(["dashboard", "purchase", "inventory-ledger", "products", "vendors", "low-stock-alerts"]);
+        setAllowedModules(["dashboard", "purchase", "products", "vendors", "low-stock-alerts"]);
         setRole("Staff");
         break;
       case "finance":
@@ -126,7 +126,7 @@ export default function UserModal({
         setRole("Staff");
         break;
       case "viewer":
-        setAllowedModules(["dashboard", "buy-back-slots", "sell-orders", "delivery-notes", "deposits", "products"]);
+        setAllowedModules(["dashboard", "buy-back-slots", "sell-orders", "deposits", "products"]);
         break;
     }
   };

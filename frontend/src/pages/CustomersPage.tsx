@@ -14,6 +14,22 @@ interface CustomersPageProps {
   notify: (msg: string) => void;
 }
 
+function getNextCustomerCode(list: CustomerData[]): string {
+  let maxNum = 0;
+  for (const c of list) {
+    if (c.customer_code) {
+      const match = c.customer_code.match(/CUST-?(\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      }
+    }
+  }
+  return `CUST-${String(maxNum + 1).padStart(3, "0")}`;
+}
+
 /**
  * Master Data Customers page component.
  */
@@ -25,6 +41,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
 
   const [form, setForm] = useState({
     customer_code: "",
+    customer_type: "Individual",
     name: "",
     contact: "",
     sex: "",
@@ -69,7 +86,8 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
   function openCreateModal() {
     setEditingCustomer(null);
     setForm({
-      customer_code: `CUST-${String(customers.length + 1).padStart(3, "0")}`,
+      customer_code: getNextCustomerCode(customers),
+      customer_type: "Individual",
       name: "",
       contact: "",
       sex: "",
@@ -85,6 +103,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
     setEditingCustomer(c);
     setForm({
       customer_code: c.customer_code || `CUST-${c.id}`,
+      customer_type: c.customer_type || "Individual",
       name: c.name || "",
       contact: c.contact || "",
       sex: c.sex || "",
@@ -121,10 +140,11 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
       customersApi
         .updateCustomer(editingCustomer.id, {
           customer_code: form.customer_code,
+          customer_type: form.customer_type,
           name: form.name,
           contact: form.contact,
-          sex: form.sex,
-          dob: form.dob,
+          sex: form.customer_type === "Enterprise" ? null : form.sex,
+          dob: form.customer_type === "Enterprise" ? null : form.dob,
           nation: form.nation,
           address: form.address,
           is_active: form.is_active,
@@ -139,10 +159,11 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
       customersApi
         .createCustomer({
           customer_code: form.customer_code,
+          customer_type: form.customer_type,
           name: form.name,
           contact: form.contact,
-          sex: form.sex,
-          dob: form.dob,
+          sex: form.customer_type === "Enterprise" ? null : form.sex,
+          dob: form.customer_type === "Enterprise" ? null : form.dob,
           nation: form.nation,
           address: form.address,
           is_active: form.is_active,
@@ -170,7 +191,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
     <div className="flex-1 px-3.5 sm:px-5 py-3 min-w-0 overflow-hidden w-full flex flex-col space-y-3.5 min-h-0">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 flex-shrink-0">
         <StatCard
-          label="Total Master Customers"
+          label="Total Customers"
           value={customers.length}
           valueClassName="text-lg font-bold text-slate-800"
         />
