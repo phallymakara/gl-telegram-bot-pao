@@ -122,10 +122,21 @@ def _place_order_sync(
         tier_info = None
         # Section 3: Calculate order totals (with multi-table tiered price support for both SELL stock and BUY limit)
         if store_txn_type == "SELL":
+            from app.services.dashboard_service import get_product_available_stock
+            avail_stock = get_product_available_stock(
+                session,
+                product_type="DB",
+                slot_date=slot_date,
+                channel="TELEGRAM",
+            )
+            if avail_stock <= 0 or avail_stock < quantity:
+                logger.warning("Order failed: No stock available for slot_date=%s, requested=%.2f, available=%.2f", slot_date, quantity, avail_stock)
+                raise InsufficientStockError("No stock available")
+
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
             if not tier_info.get("is_sufficient"):
                 logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("Insufficient stock")
+                raise InsufficientStockError("No stock available")
         else:
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "SELL", session=session)
             if not tier_info.get("is_sufficient"):
@@ -149,6 +160,9 @@ def _place_order_sync(
             transaction_type=store_txn_type,
             status="CONFIRMED",
             channel="TELEGRAM",
+            region="LOCAL",
+            product_type="DB",
+            unit_type="Kg",
             customer_name=customer.display_name or username,
             spot_price=spot_price_dec,
             total_amount=total_amt,
@@ -178,7 +192,7 @@ def _place_order_sync(
                 session.delete(order)
                 session.commit()
                 logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("Insufficient stock")
+                raise InsufficientStockError("No stock available")
         elif store_txn_type == "BUY":
             from datetime import date
             from app.models.purchase_order import PurchaseOrder

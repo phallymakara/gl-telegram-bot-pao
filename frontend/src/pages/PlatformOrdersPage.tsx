@@ -1021,15 +1021,13 @@ export default function PlatformOrdersPage({
       setIsNewOrderModalOpen(false);
     }
 
-    // Friendlier phrasing for the most common failure: not enough physical gold to cover the sale.
+    // Friendlier phrasing for stock validation failure
     function describeError(e: Error): string {
+      if (/no stock available/i.test(e.message)) {
+        return "No stock available";
+      }
       if (/insufficient stock/i.test(e.message)) {
-        const match = e.message.match(/available\s+([\d.]+)kg.*requested\s+([\d.]+)kg/i);
-        if (match) {
-          const [, available, requested] = match;
-          return `Not enough gold in stock: only ${Number(available).toLocaleString()}kg available, but this order needs ${Number(requested).toLocaleString()}kg. Lower the quantity or receive more stock first.`;
-        }
-        return "Not enough gold in stock to cover this sell order.";
+        return "No stock available";
       }
       return e.message || "Failed to save order";
     }

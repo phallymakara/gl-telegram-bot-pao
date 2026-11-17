@@ -21,11 +21,11 @@ import DraggableModalBox from "../components/DraggableModalBox";
  * @description Physical Gold Orders page component for recording over-the-counter and physical store transactions.
  */
 
-import { api, DashboardStatsData, OrderData, toNumber } from "../api";
+import { api, DashboardStatsData, OrderData, ProductData, productsApi, toNumber } from "../api";
 
 interface PhysicalOrdersPageProps {
   /** Toast notification trigger callback */
-  notify: (msg: string) => void;
+  notify: (msg: string, type?: "success" | "error") => void;
 }
 
 /**
@@ -45,12 +45,14 @@ export default function PhysicalOrdersPage({
   const [rows, setRows] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
+  const [productList, setProductList] = useState<ProductData[]>([]);
   const [form, setForm] = useState({
     customer_name: "",
     date: "",
     type: "",
     qty: "",
     premium: "",
+    product_type: "DB",
   });
   const [isOpen, setIsOpen] = useState(false);
 
@@ -69,6 +71,12 @@ export default function PhysicalOrdersPage({
       .get<DashboardStatsData>("/api/dashboard/stats")
       .then(setStats)
       .catch(() => {});
+    productsApi
+      .getProducts()
+      .then((data) => {
+        setProductList(data.filter((p) => p.is_active !== false));
+      })
+      .catch(() => {});
   }, []);
 
   function save() {
@@ -84,7 +92,7 @@ export default function PhysicalOrdersPage({
       customer_name: form.customer_name,
       channel: "Walk-in",
       region: "LOCAL",
-      product_type: "DB",
+      product_type: form.product_type || "DB",
       slot_date_str: form.date || getLocalDateString(),
       status: "CONFIRMED",
     };
@@ -98,12 +106,13 @@ export default function PhysicalOrdersPage({
           type: "",
           qty: "",
           premium: "",
+          product_type: "DB",
         });
         setIsOpen(false);
         notify("Order saved");
         window.dispatchEvent(new CustomEvent("stock-update"));
       })
-      .catch(() => notify("Failed to create order"));
+      .catch((e: any) => notify(e?.message || "Failed to create order", "error"));
   }
 
   function cancelOrder(o: OrderData) {
@@ -360,6 +369,44 @@ export default function PhysicalOrdersPage({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    Product
+                  </label>
+                  <select
+                    aria-label="Product brand"
+                    value={form.product_type}
+                    onChange={(e) => setForm({ ...form, product_type: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  >
+                    {productList.length > 0 ? (
+                      productList.map((p) => (
+                        <option key={p.id} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="DB">DB</option>
+                        <option value="Swiss">Swiss</option>
+                        <option value="SV">SV</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={form.date || getLocalDateString()}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
                     Type *
                   </label>
                   <select
@@ -417,6 +464,7 @@ export default function PhysicalOrdersPage({
                     type: "",
                     qty: "",
                     premium: "",
+                    product_type: "DB",
                   });
                   setIsOpen(false);
                 }}

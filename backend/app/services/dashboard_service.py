@@ -1427,6 +1427,69 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
     )
 
 
+def get_product_available_stock(
+    db: Session,
+    product_type: str | None = None,
+    slot_date: date | str | None = None,
+    channel: str | None = None,
+) -> float:
+    """
+    Get the real-time Available Stock for a specific product/brand on a given date
+    strictly from the Stock Matrix calculation.
+    Returns 0.0 if the product/date has no available stock or does not exist.
+    """
+    brand_key = "swiss"
+    if product_type and str(product_type).strip():
+        pt_l = str(product_type).strip().lower()
+        if "db" in pt_l:
+            brand_key = "db"
+        elif "sv" in pt_l:
+            brand_key = "sv"
+        elif "swiss" in pt_l:
+            brand_key = "swiss"
+        else:
+            brand_key = pt_l
+    else:
+        ch = (channel or "").upper()
+        if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+            brand_key = "db"
+        else:
+            brand_key = "swiss"
+
+    if isinstance(slot_date, str) and slot_date.strip():
+        try:
+            target_dt = datetime.strptime(slot_date.strip()[:10], "%Y-%m-%d").date()
+        except ValueError:
+            target_dt = get_cambodia_now().date()
+    elif isinstance(slot_date, (datetime, date)):
+        target_dt = slot_date if isinstance(slot_date, date) else slot_date.date()
+    else:
+        target_dt = get_cambodia_now().date()
+
+    target_dt_str = target_dt.strftime("%Y-%m-%d")
+    cambodia_today = get_cambodia_now().date()
+    anchor_dt = min(target_dt, cambodia_today)
+    anchor_str = anchor_dt.strftime("%Y-%m-%d")
+
+    matrix = calculate_stock_matrix(db, target_date=anchor_str)
+    for col in matrix.columns:
+        col_brand = col.brand.strip().lower()
+        if "db" in col_brand:
+            col_b_key = "db"
+        elif "sv" in col_brand:
+            col_b_key = "sv"
+        elif "swiss" in col_brand:
+            col_b_key = "swiss"
+        else:
+            col_b_key = col_brand
+
+        col_date = col.target_date
+        if col_b_key == brand_key and col_date == target_dt_str:
+            return float(col.available_stock)
+
+    return 0.0
+
+
 def create_stock_matrix_deduction(db: Session, data: StockMatrixDeductionCreate) -> Order:
     """
     Persist a real SELL or BUY order to database representing an operational stock deduction or trade-in.
@@ -1457,6 +1520,17 @@ def create_stock_matrix_deduction(db: Session, data: StockMatrixDeductionCreate)
 
     target_d = _parse_matrix_date(data.date)
     slot_date_str = target_d.strftime("%Y-%m-%d")
+
+    # Validate that product-level Available Stock is sufficient for SELL order
+    if txn_type == "SELL":
+        avail_stock = get_product_available_stock(
+            db,
+            product_type=product_type,
+            slot_date=slot_date_str,
+            channel=channel,
+        )
+        if avail_stock <= 0 or avail_stock < qty:
+            raise ValueError("No stock available")
 
     customer_name = data.customer_name or "Matrix Client"
     customer = db.query(Customer).filter(Customer.display_name == customer_name).first()
@@ -1513,6 +1587,17 @@ def update_stock_matrix_deduction(db: Session, order_id: int, quantity: float) -
     old_qty = float(order.quantity or 0)
     qty = abs(float(quantity))
     delta = qty - old_qty
+
+    if order.transaction_type == "SELL":
+        if delta > 0:
+            avail_stock = get_product_available_stock(
+                db,
+                product_type=order.product_type,
+                slot_date=order.slot_date_str,
+                channel=order.channel,
+            )
+            if avail_stock <= 0 or avail_stock < delta:
+                raise ValueError("No stock available")
 
     order.quantity = Decimal(str(qty))
     order.premium_amount = calculate_premium_amount(order.quantity, order.premium or Decimal(0))

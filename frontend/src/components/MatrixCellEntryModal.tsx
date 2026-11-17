@@ -202,13 +202,11 @@ function sanitizeSignedDecimal(raw: string): string {
 
 function getFriendlySubmitError(err: unknown): string {
   const message = err instanceof Error ? err.message : "Failed to save entry";
+  if (/no stock available/i.test(message)) {
+    return "No stock available";
+  }
   if (/insufficient stock/i.test(message)) {
-    const match = message.match(/available\s+([\d.]+)kg.*requested\s+([\d.]+)kg/i);
-    if (match) {
-      const [, available, requested] = match;
-      return `Not enough gold in stock: ${Number(available).toLocaleString()}kg available, requested ${Number(requested).toLocaleString()}kg.`;
-    }
-    return "Not enough gold in stock to complete this sell order.";
+    return "No stock available";
   }
   return message || "Failed to save entry";
 }

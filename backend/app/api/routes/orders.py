@@ -15,6 +15,7 @@ from app.api.schemas import OrderCreate, OrderUpdate, OrderResponse, OrderReturn
 from app.models.customer import Customer
 from app.models.inventory_transaction import InventoryTransaction
 from app.models.order import Order
+from app.services.dashboard_service import get_product_available_stock
 from app.services.order_service import cancel_order_sync, return_order_sync
 from app.services.slot_service import (
     credit_store_stock_sync,
@@ -110,6 +111,20 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     product_type_val = (body.product_type.strip() if body.product_type and body.product_type.strip() else "DB")
     initial_status = (body.status or "CONFIRMED").upper()
 
+    # Validate that product-level Available Stock is sufficient for SELL order
+    if txn_type == "SELL" and body.quantity and not (body.unit_type and body.unit_type.strip().upper() == "TL"):
+        avail_stock = get_product_available_stock(
+            db,
+            product_type=product_type_val,
+            slot_date=effective_slot_date,
+            channel=body.channel,
+        )
+        if avail_stock <= 0 or avail_stock < float(body.quantity):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No stock available",
+            )
+
     order = Order(
         order_no=order_no,
         customer_id=customer.id if customer else None,
@@ -150,12 +165,8 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
             db.delete(order)
             db.commit()
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    f"Insufficient stock: cannot cover {float(body.quantity):.3f}kg for "
-                    f"{effective_slot_date} from incoming PO stock or vault-backed table "
-                    f"stock, net of what's already reserved by other open orders."
-                ),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No stock available",
             )
 
         if initial_status in COLLECTED_STATUSES:
@@ -252,6 +263,22 @@ def update_order(order_id: int, body: OrderUpdate, db: Session = Depends(get_db)
     o = db.query(Order).filter(Order.id == order_id).first()
     if not o:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    # Validate stock availability if increasing quantity on a SELL order
+    if o.transaction_type == "SELL" and body.quantity is not None and not ((body.unit_type or o.unit_type) and str(body.unit_type or o.unit_type).strip().upper() == "TL"):
+        delta = float(body.quantity) - float(o.quantity or 0)
+        if delta > 0:
+            avail_stock = get_product_available_stock(
+                db,
+                product_type=body.product_type or o.product_type,
+                slot_date=body.slot_date_str or o.slot_date_str,
+                channel=body.channel or o.channel,
+            )
+            if avail_stock <= 0 or avail_stock < delta:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No stock available",
+                )
 
     was_collected = o.status in COLLECTED_STATUSES
     newly_collected = (
