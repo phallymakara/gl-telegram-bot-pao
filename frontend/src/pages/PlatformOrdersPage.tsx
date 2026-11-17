@@ -561,14 +561,14 @@ export default function PlatformOrdersPage({
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
     sales_person: "",
-    channel: "Oversea",
+    channel: "Local",
     product_type: "DB",
     unit_type: "Kg",
     spot_price: "",
     quantity: "",
     premium: "",
     total_amount: "",
-    slot_date_str: new Date().toISOString().split("T")[0],
+    slot_date_str: getLocalDateString(),
     collection_date: "",
     notes: "",
   });
@@ -961,6 +961,7 @@ export default function PlatformOrdersPage({
       .then(() => {
         notify(`Order ${order.order_no} status changed to COLLECTED! Stock deducted.`);
         load();
+        window.dispatchEvent(new CustomEvent("stock-update"));
       })
       .catch((e: Error) => notify(e.message || "Failed to update order status"));
   }
@@ -1006,14 +1007,14 @@ export default function PlatformOrdersPage({
       setNewOrderForm({
         customer_name: "",
         sales_person: "",
-        channel: "Oversea",
+        channel: "Local",
         product_type: "DB",
         unit_type: "Kg",
         spot_price: "",
         quantity: "",
         premium: "",
         total_amount: "",
-        slot_date_str: new Date().toISOString().split("T")[0],
+        slot_date_str: getLocalDateString(),
         collection_date: "",
         notes: "",
       });
@@ -1033,6 +1034,8 @@ export default function PlatformOrdersPage({
       return e.message || "Failed to save order";
     }
 
+    const effectiveDate = newOrderForm.slot_date_str || getLocalDateString();
+
     if (editingOrder !== null) {
       api
         .put<OrderData>(`/api/orders/${editingOrder.id}`, {
@@ -1045,7 +1048,7 @@ export default function PlatformOrdersPage({
           premium: prem,
           total_amount: totalAmount,
           transaction_type: "SELL",
-          slot_date_str: newOrderForm.slot_date_str,
+          slot_date_str: effectiveDate,
           collection_date: newOrderForm.collection_date || null,
           product_type: newOrderForm.product_type || null,
           unit_type: newOrderForm.unit_type || "Kg",
@@ -1056,6 +1059,7 @@ export default function PlatformOrdersPage({
           setEditingOrder(null);
           resetFormAndClose();
           load();
+          window.dispatchEvent(new CustomEvent("stock-update"));
         })
         // Keep the modal open with the entered values on failure, so the user can fix and retry
         // instead of losing everything they typed.
@@ -1073,7 +1077,7 @@ export default function PlatformOrdersPage({
           premium: prem,
           total_amount: totalAmount,
           status: "CONFIRMED",
-          slot_date_str: newOrderForm.slot_date_str,
+          slot_date_str: effectiveDate,
           collection_date: newOrderForm.collection_date || null,
           product_type: newOrderForm.product_type || null,
           unit_type: newOrderForm.unit_type || "Kg",
@@ -1083,6 +1087,7 @@ export default function PlatformOrdersPage({
           notify("New sell order created (Confirmed)!");
           resetFormAndClose();
           load();
+          window.dispatchEvent(new CustomEvent("stock-update"));
         })
         .catch((e: Error) => notify(describeError(e), "error"));
     }

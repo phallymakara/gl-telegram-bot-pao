@@ -28,6 +28,8 @@ from app.services.slot_service import (
     compute_sell_reservation_totals_sync,
     compute_vault_stock_sync,
     credit_store_stock_sync,
+    deduct_store_stock_sync,
+    sell_order_lock,
 )
 from app.utils.generators import generate_order_no, generate_po_no
 from app.utils.pricing import (
@@ -980,6 +982,25 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     filtered_cols = []
     needs_save = False
 
+    # Collect dates with active orders or POs on/after anchor so columns with real activity are not wiped out
+    orders_future = db.query(Order).filter(Order.status != "CANCELLED").all()
+    pos_future = db.query(PurchaseOrder).filter(
+        PurchaseOrder.status.in_(["INCOMING", "CONFIRMED", "RECEIVED", "COMPLETED"])
+    ).all()
+
+    dates_with_orders_by_brand: dict[str, set[date]] = {}
+    for o in orders_future:
+        eff_d = get_effective_order_date(o)
+        if eff_d and eff_d >= anchor:
+            b_key = _resolve_order_brand(o)
+            dates_with_orders_by_brand.setdefault(b_key, set()).add(eff_d)
+
+    for po in pos_future:
+        po_d = po.expected_date or po.order_date
+        if po_d and po_d >= anchor:
+            b_key = _resolve_po_brand(po)
+            dates_with_orders_by_brand.setdefault(b_key, set()).add(po_d)
+
     for c in stored_cols:
         b = (c.get("brand") or "").strip().lower()
         if b == "db":
@@ -993,8 +1014,9 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
             elif isinstance(t_d, (date, datetime)):
                 d_obj = t_d if isinstance(t_d, date) else t_d.date()
 
-            # If this DB column's date is not in active user slots, auto-delete it!
-            if d_obj and d_obj not in active_date_set:
+            # If this DB column's date is not in active user slots AND has no active orders/POs, clean it up
+            has_activity = d_obj in dates_with_orders_by_brand.get("db", set()) if d_obj else False
+            if d_obj and d_obj not in active_date_set and not has_activity:
                 needs_save = True
                 continue
         filtered_cols.append(c)
@@ -1005,14 +1027,9 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     db_col_dates = set()
     for c in stored_cols:
         if (c.get("brand") or "").strip().lower() == "db":
-            t_d = c.get("target_date")
-            if isinstance(t_d, str):
-                try:
-                    db_col_dates.add(datetime.strptime(t_d.strip()[:10], "%Y-%m-%d").date())
-                except ValueError:
-                    pass
-            elif isinstance(t_d, (date, datetime)):
-                db_col_dates.add(t_d if isinstance(t_d, date) else t_d.date())
+            t_d = _parse_col_date(c.get("target_date"))
+            if t_d:
+                db_col_dates.add(t_d)
 
     # Auto-add DB columns for any active slot dates that do not exist yet
     for t_date in active_dates:
@@ -1027,6 +1044,29 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
                 "target_date": d_str,
             })
             needs_save = True
+
+    # Also guarantee that any brand that has active orders/POs on or after anchor has a column
+    existing_pairs = set()
+    for c in stored_cols:
+        b_key = (c.get("brand") or "").strip().lower()
+        t_d = _parse_col_date(c.get("target_date"))
+        if t_d:
+            existing_pairs.add((b_key, t_d))
+
+    for b_key, d_set in dates_with_orders_by_brand.items():
+        for act_d in d_set:
+            if (b_key, act_d) not in existing_pairs:
+                d_str = act_d.strftime("%Y-%m-%d")
+                b_label = b_key.upper() if len(b_key) <= 3 else b_key.capitalize()
+                stored_cols.append({
+                    "id": f"{b_key}_{d_str}",
+                    "brand": b_label,
+                    "date_label": f"{act_d.day}-{act_d.strftime('%b')}",
+                    "header_color": _default_header_color(b_label),
+                    "target_date": d_str,
+                })
+                existing_pairs.add((b_key, act_d))
+                needs_save = True
 
     normalized = _normalize_and_sort_matrix_columns(stored_cols)
     if needs_save:
@@ -1446,10 +1486,19 @@ def create_stock_matrix_deduction(db: Session, data: StockMatrixDeductionCreate)
     db.add(new_order)
     db.commit()
     db.refresh(new_order)
-    return new_order
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
+
+    # Automatically deduct from store stock when sell order is created from matrix
+    if txn_type == "SELL" and qty and not is_non_stock_gold(product_type, "Kg"):
+        with sell_order_lock:
+            deduct_store_stock_sync(
+                quantity=float(qty),
+                store_type="SELL",
+                slot_date=slot_date_str,
+                txn_type="ORDER_RESERVE_DEDUCT",
+                remark=f"Reserved for matrix sell order {new_order.order_no}",
+                order_id=new_order.id,
+            )
+
     return new_order
 
 
@@ -1461,7 +1510,10 @@ def update_stock_matrix_deduction(db: Session, order_id: int, quantity: float) -
     if not order:
         raise ValueError(f"Order #{order_id} not found")
 
+    old_qty = float(order.quantity or 0)
     qty = abs(float(quantity))
+    delta = qty - old_qty
+
     order.quantity = Decimal(str(qty))
     order.premium_amount = calculate_premium_amount(order.quantity, order.premium or Decimal(0))
     order.total_amount = calculate_order_total(
@@ -1469,6 +1521,27 @@ def update_stock_matrix_deduction(db: Session, order_id: int, quantity: float) -
     )
     db.commit()
     db.refresh(order)
+
+    if order.transaction_type == "SELL" and not is_non_stock_gold(order.product_type, order.unit_type):
+        if delta > 0:
+            with sell_order_lock:
+                deduct_store_stock_sync(
+                    quantity=delta,
+                    store_type="SELL",
+                    slot_date=order.slot_date_str,
+                    txn_type="ORDER_RESERVE_DEDUCT",
+                    remark=f"Updated matrix sell order {order.order_no} (+{delta}kg)",
+                    order_id=order.id,
+                )
+        elif delta < 0:
+            credit_store_stock_sync(
+                quantity=abs(delta),
+                store_type="SELL",
+                txn_type="ORDER_RESERVE_RELEASE",
+                remark=f"Reduced matrix sell order {order.order_no} ({delta}kg)",
+                order_id=order.id,
+            )
+
     return order
 
 

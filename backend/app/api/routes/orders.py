@@ -106,6 +106,10 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     txn_type = body.transaction_type.upper()
 
     region_val = body.region or ("OVERSEAS" if (body.channel and body.channel.upper() in ("OVERSEA", "OVERSEAS")) else "LOCAL")
+    effective_slot_date = (body.slot_date_str.strip() if body.slot_date_str and body.slot_date_str.strip() else get_cambodia_now().date().isoformat())
+    product_type_val = (body.product_type.strip() if body.product_type and body.product_type.strip() else "DB")
+    initial_status = (body.status or "CONFIRMED").upper()
+
     order = Order(
         order_no=order_no,
         customer_id=customer.id if customer else None,
@@ -113,17 +117,17 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
         premium=body.premium,
         premium_amount=premium_amount,
         transaction_type=txn_type,
-        status=(body.status or "CONFIRMED").upper(),
+        status=initial_status,
         channel=body.channel or "TELEGRAM",
         region=region_val,
         customer_name=body.customer_name,
         sales_person=body.sales_person,
-        product_type=body.product_type,
+        product_type=product_type_val,
         unit_type=body.unit_type or "Kg",
         spot_price=spot_price,
         total_amount=total_amount,
         username=body.customer_name,
-        slot_date_str=body.slot_date_str,
+        slot_date_str=effective_slot_date,
         collection_date=body.collection_date,
     )
     db.add(order)
@@ -132,12 +136,12 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
 
     # SELL orders reserve gold for real, right now: a table's STOCK box drops immediately.
     # Non-stock products/units (TL, SL, SV) do not deduct or reserve stock.
-    if txn_type == "SELL" and body.quantity and not is_non_stock_gold(body.product_type, body.unit_type):
+    if txn_type == "SELL" and body.quantity and not is_non_stock_gold(order.product_type, order.unit_type):
         with sell_order_lock:
             reserved = deduct_store_stock_sync(
                 quantity=float(body.quantity),
                 store_type="SELL",
-                slot_date=body.slot_date_str,
+                slot_date=effective_slot_date,
                 txn_type="ORDER_RESERVE_DEDUCT",
                 remark=f"Reserved for sell order {order.order_no}",
                 order_id=order.id,
@@ -149,10 +153,23 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
                     f"Insufficient stock: cannot cover {float(body.quantity):.3f}kg for "
-                    f"{body.slot_date_str or 'this date'} from incoming PO stock or vault-backed table "
+                    f"{effective_slot_date} from incoming PO stock or vault-backed table "
                     f"stock, net of what's already reserved by other open orders."
                 ),
             )
+
+        if initial_status in COLLECTED_STATUSES:
+            db.add(InventoryTransaction(
+                slot_table_id=None,
+                order_id=order.id,
+                transaction_type="ORDER_COLLECT_DEDUCT",
+                quantity=order.quantity,
+                stock_before=Decimal(0),
+                stock_after=Decimal(0),
+                remark=f"Collected sell order {order.order_no}",
+            ))
+            db.commit()
+            db.refresh(order)
 
     tx_type = (order.transaction_type or "SELL").upper()
     action_name = "SELL_ORDER_CREATED" if tx_type == "SELL" else "BUY_ORDER_CREATED"

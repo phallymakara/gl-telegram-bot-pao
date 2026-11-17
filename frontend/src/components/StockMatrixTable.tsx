@@ -281,9 +281,11 @@ export default function StockMatrixTable({
     const interval = setInterval(loadData, 2000);
     const handleFocus = () => loadData();
     window.addEventListener("focus", handleFocus);
+    window.addEventListener("stock-update", handleFocus);
     return () => {
       clearInterval(interval);
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("stock-update", handleFocus);
     };
   }, [loadData]);
 

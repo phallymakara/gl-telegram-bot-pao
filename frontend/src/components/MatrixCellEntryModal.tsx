@@ -555,6 +555,7 @@ export default function MatrixCellEntryModal({
 
       onSuccess();
       onClose();
+      window.dispatchEvent(new CustomEvent("stock-update"));
     } catch (err) {
       const msg = getFriendlySubmitError(err);
       setSubmitError(msg);

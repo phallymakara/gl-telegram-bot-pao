@@ -31,6 +31,14 @@ interface PhysicalOrdersPageProps {
 /**
  * Physical Gold Orders management page component.
  */
+function getLocalDateString(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function PhysicalOrdersPage({
   notify,
 }: PhysicalOrdersPageProps) {
@@ -70,10 +78,15 @@ export default function PhysicalOrdersPage({
     }
     const body = {
       transaction_type: form.type.toUpperCase(),
-      quantity: form.qty,
-      premium: form.premium,
+      quantity: Number(form.qty),
+      premium: Number(form.premium),
       order_no: `PHY-${Date.now()}`,
       customer_name: form.customer_name,
+      channel: "Walk-in",
+      region: "LOCAL",
+      product_type: "DB",
+      slot_date_str: form.date || getLocalDateString(),
+      status: "CONFIRMED",
     };
     api
       .post<OrderData>("/api/orders/", body)
@@ -88,6 +101,7 @@ export default function PhysicalOrdersPage({
         });
         setIsOpen(false);
         notify("Order saved");
+        window.dispatchEvent(new CustomEvent("stock-update"));
       })
       .catch(() => notify("Failed to create order"));
   }
@@ -98,6 +112,7 @@ export default function PhysicalOrdersPage({
       .then((updated) => {
         setRows((r) => r.map((row) => (row.id === updated.id ? updated : row)));
         notify(`${o.order_no} cancelled`);
+        window.dispatchEvent(new CustomEvent("stock-update"));
       })
       .catch((e: Error) => notify(e.message || "Failed to cancel order"));
   }

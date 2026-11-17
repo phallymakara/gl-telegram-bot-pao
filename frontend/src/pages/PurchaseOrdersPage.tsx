@@ -1668,7 +1668,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Oversea (Vendor)
+                  Oversea
                 </button>
                 <button
                   type="button"
@@ -1682,7 +1682,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                     : "text-slate-500 hover:text-slate-700"
                     }`}
                 >
-                  Local (Customer)
+                  Local
                 </button>
               </div>
 

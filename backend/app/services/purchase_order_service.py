@@ -110,8 +110,18 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
 
     # Move stock from incoming to vault only if stock gold
     if not is_non_stock_gold(po.product_type, po.unit_type):
+        actual_incoming_to_credit = Decimal(str(po.quantity))
         if po.order_date and po.slot_table_id:
             slot_date_str = po.order_date.isoformat() if isinstance(po.order_date, date) else str(po.order_date)
+            # Check remaining incoming in this slot row before clearing (orders may have pre-drawn against it)
+            row = (
+                session.query(SlotRow)
+                .filter(SlotRow.slot_table_id == po.slot_table_id, SlotRow.slot_date == po.order_date)
+                .first()
+            )
+            if row and row.incoming_kg is not None:
+                actual_incoming_to_credit = max(Decimal("0"), min(Decimal(str(po.quantity)), Decimal(str(row.incoming_kg))))
+
             remove_incoming_from_slot_sync(
                 slot_table_id=po.slot_table_id,
                 slot_date_str=slot_date_str,
@@ -121,12 +131,13 @@ def receive_purchase_order_sync(po_id: int) -> PurchaseOrder:
             )
 
         # Credit physical stock to inventory slot table (vault)
-        add_stock_to_table_sync(
-            slot_table_id=po.slot_table_id,
-            quantity=Decimal(po.quantity),
-            txn_type="PO_RECEIVE",
-            remark=f"Received {po.po_type} PO {po.po_no}",
-        )
+        if actual_incoming_to_credit > 0:
+            add_stock_to_table_sync(
+                slot_table_id=po.slot_table_id,
+                quantity=actual_incoming_to_credit,
+                txn_type="PO_RECEIVE",
+                remark=f"Received {po.po_type} PO {po.po_no}",
+            )
     return po
 
 
