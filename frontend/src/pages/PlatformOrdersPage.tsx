@@ -989,17 +989,17 @@ export default function PlatformOrdersPage({
     }
 
     const rawCh = newOrderForm.channel.toUpperCase();
-    let apiChannel = "WALK_IN";
+    let apiChannel = "PLATFORM";
     let apiRegion = "LOCAL";
 
     if (rawCh.includes("OVERSEA")) {
-      apiChannel = "OVERSEA";
+      apiChannel = "PLATFORM";
       apiRegion = "OVERSEAS";
     } else if (rawCh.includes("TELEGRAM")) {
       apiChannel = "TELEGRAM";
       apiRegion = "LOCAL";
     } else {
-      apiChannel = "WALK_IN";
+      apiChannel = "PLATFORM";
       apiRegion = "LOCAL";
     }
 

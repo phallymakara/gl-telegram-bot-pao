@@ -1181,13 +1181,13 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
 
             if txn == "BUY":
                 trade_in_orders.append(o)
-                if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+                if ch in ("TELEGRAM", "WEB", "PLATFORM", "OVERSEA", "OVERSEAS"):
                     bot_buy_orders.append(o)
                 else:
                     physical_buy_orders.append(o)
             elif txn == "SELL":
                 matching_sell_orders.append(o)
-                if ch in ("TELEGRAM", "WEB", "PLATFORM"):
+                if ch in ("TELEGRAM", "WEB", "PLATFORM", "OVERSEA", "OVERSEAS"):
                     bot_orders.append(o)
                 else:
                     physical_orders.append(o)
