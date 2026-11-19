@@ -13,6 +13,7 @@ export interface SlotRowData {
   slot_date: string;
   premium: number;
   qty?: number;
+  is_active?: boolean;
 }
 
 /**
@@ -23,6 +24,9 @@ export interface SlotTableData {
   table_name: string;
   stock: number;
   buy_limit?: number;
+  set_limit?: number;
+  sold?: number;
+  remaining?: number;
   is_active: boolean;
   display_order: number;
   rows: SlotRowData[];

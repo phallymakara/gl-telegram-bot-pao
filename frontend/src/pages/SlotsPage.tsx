@@ -4,10 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Pencil, MoreHorizontal, X, Save, Check } from "lucide-react";
+import { Plus, Trash2, Pencil, MoreHorizontal, X, Save, Check, Copy } from "lucide-react";
 import Card from "../components/Card";
 import DraggableModalBox from "../components/DraggableModalBox";
-import { api, SlotTableData } from "../api";
+import { api, SlotTableData, SlotRowData } from "../api";
 
 interface SlotsPageProps {
   /** Mode ("buyback" for buyback slots, "sell" for sell premium slots) */
@@ -26,12 +26,16 @@ interface SlotRowItem {
   end_date: string;
   premium: string | number;
   qty?: string | number;
+  is_active: boolean;
 }
 
 interface BuyTableItem {
   id: number;
   title: string;
   tableLimit: string;
+  sold: number;
+  remaining: number;
+  is_active: boolean;
   rows: SlotRowItem[];
 }
 
@@ -39,6 +43,9 @@ interface SellTableItem {
   id: number;
   title: string;
   tableStock: string;
+  sold: number;
+  remaining: number;
+  is_active: boolean;
   newRowDate: string;
   rows: SlotRowItem[];
 }
@@ -79,9 +86,12 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     premium: "300.00",
   });
 
+  const [activeDropdownRowId, setActiveDropdownRowId] = useState<number | null>(null);
+
   const [buyDateError, setBuyDateError] = useState("");
   const [sellDateError, setSellDateError] = useState("");
   const focusedLimitTableIdRef = useRef<number | null>(null);
+  const focusedStockTableIdRef = useRef<number | null>(null);
 
   function getLocalDateString(): string {
     const d = new Date();
@@ -131,36 +141,53 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   start_date: r.slot_date,
                   end_date: r.slot_date,
                   premium: r.premium,
+                  is_active: r.is_active !== undefined ? r.is_active : true,
                 }));
                 const existing = prev.find((p) => p.id === t.id);
                 const keepLocalLimit = focusedLimitTableIdRef.current === t.id && existing;
+                const setLimitVal = t.set_limit !== undefined && t.set_limit !== null ? String(t.set_limit) : String(t.buy_limit ?? 0);
+                const soldVal = Number(t.sold || 0);
+                const remainingVal = Number(t.remaining !== undefined && t.remaining !== null ? t.remaining : (Number(setLimitVal) - soldVal));
                 return {
                   id: t.id,
                   title: t.table_name,
-                  tableLimit: keepLocalLimit ? existing.tableLimit : String(t.buy_limit ?? 0),
+                  tableLimit: keepLocalLimit ? existing.tableLimit : setLimitVal,
+                  sold: soldVal,
+                  remaining: remainingVal,
+                  is_active: t.is_active !== undefined ? t.is_active : true,
                   rows: sortSlotRows(rows),
                 };
               })
           );
-          const sellList: SellTableItem[] = tables
-            .filter((t) => t.table_name.toUpperCase().includes("SELL"))
-            .map((t) => {
-              const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
-                id: r.id,
-                start_date: r.slot_date,
-                end_date: r.slot_date,
-                premium: r.premium,
-                qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
-              }));
-              return {
-                id: t.id,
-                title: t.table_name,
-                tableStock: String(t.stock),
-                newRowDate: new Date().toISOString().split("T")[0],
-                rows: sortSlotRows(rows),
-              };
-            });
-          setSellTables(sellList);
+          setSellTables((prev) =>
+            tables
+              .filter((t) => t.table_name.toUpperCase().includes("SELL"))
+              .map((t) => {
+                const rows: SlotRowItem[] = (t.rows || []).map((r) => ({
+                  id: r.id,
+                  start_date: r.slot_date,
+                  end_date: r.slot_date,
+                  premium: r.premium,
+                  qty: r.qty !== undefined && r.qty !== null ? String(r.qty) : "10.00",
+                  is_active: r.is_active !== undefined ? r.is_active : true,
+                }));
+                const existing = prev.find((p) => p.id === t.id);
+                const keepLocalStock = focusedStockTableIdRef.current === t.id && existing;
+                const setStockVal = t.set_limit !== undefined && t.set_limit !== null ? String(t.set_limit) : String(t.stock ?? 0);
+                const soldVal = Number(t.sold || 0);
+                const remainingVal = Number(t.remaining !== undefined && t.remaining !== null ? t.remaining : (Number(setStockVal) - soldVal));
+                return {
+                  id: t.id,
+                  title: t.table_name,
+                  tableStock: keepLocalStock ? existing.tableStock : setStockVal,
+                  sold: soldVal,
+                  remaining: remainingVal,
+                  is_active: t.is_active !== undefined ? t.is_active : true,
+                  newRowDate: new Date().toISOString().split("T")[0],
+                  rows: sortSlotRows(rows),
+                };
+              })
+          );
         }
       })
       .catch(() => { });
@@ -193,19 +220,21 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     const tbl = buyTables.find((t) => t.id === tableId);
     if (!tbl) return;
     const previousLimit = tbl.tableLimit;
+    const numLimit = Number(limitVal) || 0;
 
     setBuyTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, tableLimit: limitVal } : t))
+      prev.map((t) => (t.id === tableId ? { ...t, tableLimit: limitVal, remaining: numLimit - t.sold } : t))
     );
     api
       .put(`/api/slots/${tableId}`, {
         table_name: tbl.title,
-        buy_limit: Number(limitVal) || 0,
+        set_limit: numLimit,
+        buy_limit: numLimit - tbl.sold,
       })
       .then(() => { })
       .catch((e: Error) => {
         setBuyTables((prev) =>
-          prev.map((t) => (t.id === tableId ? { ...t, tableLimit: previousLimit } : t))
+          prev.map((t) => (t.id === tableId ? { ...t, tableLimit: previousLimit, remaining: (Number(previousLimit) || 0) - t.sold } : t))
         );
         notify(e.message || "Failed to update buy limit", "error");
       });
@@ -219,6 +248,36 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
         loadSlots();
       })
       .catch((e: Error) => notify(e.message || "Failed to delete table", "error"));
+  }
+
+  function duplicateTable(tableId: number) {
+    api
+      .post<SlotTableData>(`/api/slots/${tableId}/duplicate`, {})
+      .then((newTbl) => {
+        notify(`Table "${newTbl.table_name}" duplicated successfully!`);
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to duplicate table", "error"));
+  }
+
+  function toggleTable(tableId: number) {
+    api
+      .patch<SlotTableData>(`/api/slots/${tableId}/toggle`, {})
+      .then((updated) => {
+        notify(`Table "${updated.table_name}" is now ${updated.is_active ? "Active" : "Inactive"}`);
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to toggle table", "error"));
+  }
+
+  function toggleRow(tableId: number, rowId: number) {
+    api
+      .patch<SlotRowData>(`/api/slots/${tableId}/rows/${rowId}/toggle`, {})
+      .then((updated) => {
+        notify(`Date ${updated.slot_date} is now ${updated.is_active ? "Active" : "Inactive"}`);
+        loadSlots();
+      })
+      .catch((e: Error) => notify(e.message || "Failed to toggle slot date", "error"));
   }
 
   function openAddBuyRowModal(tableId: number) {
@@ -406,20 +465,22 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
     const tbl = sellTables.find((t) => t.id === tableId);
     if (!tbl) return;
     const previousStock = tbl.tableStock;
+    const numStock = Number(stockVal) || 0;
 
     setSellTables((prev) =>
-      prev.map((t) => (t.id === tableId ? { ...t, tableStock: stockVal } : t))
+      prev.map((t) => (t.id === tableId ? { ...t, tableStock: stockVal, remaining: numStock - t.sold } : t))
     );
     api
       .put(`/api/slots/${tableId}`, {
         table_name: tbl.title,
-        stock: Number(stockVal) || 0,
+        set_limit: numStock,
+        stock: numStock - tbl.sold,
       })
       .then(() => { })
       .catch((e: Error) => {
         // Roll the displayed number back -- the edit was rejected, so it was never actually saved.
         setSellTables((prev) =>
-          prev.map((t) => (t.id === tableId ? { ...t, tableStock: previousStock } : t))
+          prev.map((t) => (t.id === tableId ? { ...t, tableStock: previousStock, remaining: (Number(previousStock) || 0) - t.sold } : t))
         );
         notify(e.message || "Failed to update stock", "error");
       });
@@ -581,10 +642,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   <thead>
                     <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-emerald-200/80">
                       <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap">SLOT DATE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap w-full">SLOT DATE</th>
                       <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">STOCK</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIONS</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT (KG)</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIVE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -600,58 +662,146 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
                           ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
                         </td>
-                        {/* Merged STOCK column spanning all table rows */}
+                        {/* Merged LIMIT / STOCK column spanning all table rows */}
                         {idx === 0 && (
                           <td
                             rowSpan={tbl.rows.length > 0 ? tbl.rows.length : 1}
-                            className="px-4 py-2 text-center align-middle border-x border-emerald-200/70"
+                            className="px-4 py-3 text-center align-middle border-x border-emerald-200/70 bg-emerald-50/30"
                           >
-                            <div className="flex flex-col items-center justify-center py-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                STOCK (KG)
-                              </span>
-                              <input
-                                type="text"
-                                value={tbl.tableStock}
-                                onChange={(e) => updateTableStock(tbl.id, e.target.value)}
-                                placeholder="100.000"
-                                className="w-28 text-base border border-emerald-300/80 rounded-md px-3 py-1.5 bg-transparent text-slate-900 font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                              />
+                            <div className="flex flex-col items-center justify-center py-1 space-y-2">
+                              {/* 1. Set Limit */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                  SET LIMIT
+                                </span>
+                                <input
+                                  type="text"
+                                  value={tbl.tableStock}
+                                  onFocus={() => {
+                                    focusedStockTableIdRef.current = tbl.id;
+                                  }}
+                                  onBlur={() => {
+                                    if (focusedStockTableIdRef.current === tbl.id) {
+                                      focusedStockTableIdRef.current = null;
+                                    }
+                                  }}
+                                  onChange={(e) => updateTableStock(tbl.id, e.target.value)}
+                                  placeholder="0.000"
+                                  className="w-24 text-sm font-bold text-slate-900 border border-emerald-300 rounded-md px-2 py-1 text-center bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                />
+                              </div>
+
+                              <div className="w-20 border-t border-emerald-200/70" />
+
+                              {/* 2. Sold */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  SOLD
+                                </span>
+                                <span className="text-sm font-bold text-slate-800 mt-0.5">
+                                  {tbl.sold.toFixed(3)}
+                                </span>
+                              </div>
+
+                              <div className="w-20 border-t border-emerald-200/70" />
+
+                              {/* 3. Remaining */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  REMAINING
+                                </span>
+                                <span
+                                  className={`text-sm font-bold mt-0.5 ${
+                                    tbl.remaining < 0 ? "text-rose-600" : "text-emerald-700"
+                                  }`}
+                                >
+                                  {tbl.remaining.toFixed(3)}
+                                </span>
+                              </div>
                             </div>
                           </td>
                         )}
-                        <td className="px-4 py-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEditSellRowModal(tbl.id, r)}
-                              className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-                              title="Edit in popup modal"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteRowInSellTable(tbl.id, r.id)}
-                              className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Delete row"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                        {/* ACTIVE Column Toggle Switch */}
+                        <td className="px-4 py-3 text-center align-middle">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={r.is_active}
+                            onClick={() => toggleRow(tbl.id, r.id)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              r.is_active ? "bg-emerald-600" : "bg-slate-300"
+                            }`}
+                            title={r.is_active ? "Date is active. Click to deactivate." : "Date is inactive. Click to activate."}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                                r.is_active ? "translate-x-4" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        {/* ACTIONS Column 3-Dots Dropdown */}
+                        <td className="px-5 py-2 text-right pr-6 align-middle relative w-20">
+                          <div className="flex justify-end items-center">
+                            <div className="relative inline-block text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownRowId(activeDropdownRowId === r.id ? null : r.id);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-emerald-100/60 rounded-md transition-colors cursor-pointer"
+                                title="Actions"
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+
+                              {activeDropdownRowId === r.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setActiveDropdownRowId(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-28 bg-white rounded-lg border border-slate-200 shadow-none z-50 py-1 text-xs text-left">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownRowId(null);
+                                        openEditSellRowModal(tbl.id, r);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                                    >
+                                      <Pencil size={13} className="text-slate-400" /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownRowId(null);
+                                        deleteRowInSellTable(tbl.id, r.id);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-medium cursor-pointer"
+                                    >
+                                      <Trash2 size={13} className="text-rose-500" /> Delete
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
                     ))}
                     {tbl.rows.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
                           No rows in this table. Click "+ Add Row" below to add a row.
                         </td>
                       </tr>
                     )}
-                    {/* Table Footer with Add Row and Save side by side */}
+                    {/* Table Footer with Add Row, Save, and Duplicate Table */}
                     <tr className="border-t border-emerald-200/70">
-                      <td colSpan={5} className="px-5 py-3.5">
+                      <td colSpan={6} className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
@@ -666,6 +816,14 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             className="inline-flex items-center gap-1.5 text-white bg-emerald-600 hover:bg-emerald-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors"
                           >
                             <Save size={15} /> Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => duplicateTable(tbl.id)}
+                            className="inline-flex items-center gap-1.5 text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-300 font-semibold text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-colors"
+                            title="Duplicate table container"
+                          >
+                            <Copy size={14} /> Duplicate Table
                           </button>
                         </div>
                       </td>
@@ -766,10 +924,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                   <thead>
                     <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-rose-200/80">
                       <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap">SLOT DATE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap w-full">SLOT DATE</th>
                       <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIONS</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT (KG)</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIVE</th>
+                      <th className="px-5 py-3 font-bold whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -789,62 +948,142 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         {idx === 0 && (
                           <td
                             rowSpan={tbl.rows.length > 0 ? tbl.rows.length : 1}
-                            className="px-4 py-2 text-center align-middle border-x border-rose-200/70"
+                            className="px-4 py-3 text-center align-middle border-x border-rose-200/70 bg-rose-50/30"
                           >
-                            <div className="flex flex-col items-center justify-center py-1">
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                LIMIT (KG)
-                              </span>
-                              <input
-                                type="text"
-                                value={tbl.tableLimit}
-                                onFocus={() => {
-                                  focusedLimitTableIdRef.current = tbl.id;
-                                }}
-                                onBlur={() => {
-                                  if (focusedLimitTableIdRef.current === tbl.id) {
-                                    focusedLimitTableIdRef.current = null;
-                                  }
-                                }}
-                                onChange={(e) => updateTableLimit(tbl.id, e.target.value)}
-                                placeholder="100.000"
-                                className="w-28 text-base border border-rose-300/80 rounded-md px-3 py-1.5 bg-transparent text-slate-900 font-bold text-center focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
-                              />
+                            <div className="flex flex-col items-center justify-center py-1 space-y-2">
+                              {/* 1. Set Limit */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                                  SET LIMIT
+                                </span>
+                                <input
+                                  type="text"
+                                  value={tbl.tableLimit}
+                                  onFocus={() => {
+                                    focusedLimitTableIdRef.current = tbl.id;
+                                  }}
+                                  onBlur={() => {
+                                    if (focusedLimitTableIdRef.current === tbl.id) {
+                                      focusedLimitTableIdRef.current = null;
+                                    }
+                                  }}
+                                  onChange={(e) => updateTableLimit(tbl.id, e.target.value)}
+                                  placeholder="0.000"
+                                  className="w-24 text-sm font-bold text-slate-900 border border-rose-300 rounded-md px-2 py-1 text-center bg-white focus:outline-none focus:ring-1 focus:ring-rose-500"
+                                />
+                              </div>
+
+                              <div className="w-20 border-t border-rose-200/70" />
+
+                              {/* 2. Bought */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  BOUGHT
+                                </span>
+                                <span className="text-sm font-bold text-slate-800 mt-0.5">
+                                  {tbl.sold.toFixed(3)}
+                                </span>
+                              </div>
+
+                              <div className="w-20 border-t border-rose-200/70" />
+
+                              {/* 3. Remaining */}
+                              <div className="flex flex-col items-center">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                  REMAINING
+                                </span>
+                                <span
+                                  className={`text-sm font-bold mt-0.5 ${
+                                    tbl.remaining < 0 ? "text-rose-600" : "text-rose-700"
+                                  }`}
+                                >
+                                  {tbl.remaining.toFixed(3)}
+                                </span>
+                              </div>
                             </div>
                           </td>
                         )}
-                        <td className="px-4 py-2 text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => openEditBuyRowModal(tbl.id, r)}
-                              className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-                              title="Edit in popup modal"
-                            >
-                              <Pencil size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteRowInBuyTable(tbl.id, r.id)}
-                              className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                              title="Delete row"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                        {/* ACTIVE Column Toggle Switch */}
+                        <td className="px-4 py-3 text-center align-middle">
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={r.is_active}
+                            onClick={() => toggleRow(tbl.id, r.id)}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              r.is_active ? "bg-rose-600" : "bg-slate-300"
+                            }`}
+                            title={r.is_active ? "Date is active. Click to deactivate." : "Date is inactive. Click to activate."}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                                r.is_active ? "translate-x-4" : "translate-x-0"
+                              }`}
+                            />
+                          </button>
+                        </td>
+                        {/* ACTIONS Column 3-Dots Dropdown */}
+                        <td className="px-5 py-2 text-right pr-6 align-middle relative w-20">
+                          <div className="flex justify-end items-center">
+                            <div className="relative inline-block text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownRowId(activeDropdownRowId === r.id ? null : r.id);
+                                }}
+                                className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-rose-100/60 rounded-md transition-colors cursor-pointer"
+                                title="Actions"
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+
+                              {activeDropdownRowId === r.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setActiveDropdownRowId(null)}
+                                  />
+                                  <div className="absolute right-0 mt-1 w-28 bg-white rounded-lg border border-slate-200 shadow-none z-50 py-1 text-xs text-left">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownRowId(null);
+                                        openEditBuyRowModal(tbl.id, r);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 font-medium cursor-pointer"
+                                    >
+                                      <Pencil size={13} className="text-slate-400" /> Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDropdownRowId(null);
+                                        deleteRowInBuyTable(tbl.id, r.id);
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 text-rose-600 hover:bg-rose-50 flex items-center gap-2 font-medium cursor-pointer"
+                                    >
+                                      <Trash2 size={13} className="text-rose-500" /> Delete
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
                     ))}
                     {tbl.rows.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-5 py-8 text-center text-sm text-slate-400">
+                        <td colSpan={6} className="px-5 py-8 text-center text-sm text-slate-400">
                           No rows in this table. Click "+ Add Row" below to add a row.
                         </td>
                       </tr>
                     )}
                     {/* Table Footer with Add Row and Save side by side */}
                     <tr className="border-t border-rose-200/70">
-                      <td colSpan={5} className="px-5 py-3.5">
+                      <td colSpan={6} className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <button
                             type="button"
@@ -859,6 +1098,14 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                             className="inline-flex items-center gap-1.5 text-white bg-rose-600 hover:bg-rose-700 font-semibold text-xs px-4 py-2 rounded-lg cursor-pointer transition-colors"
                           >
                             <Save size={15} /> Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => duplicateTable(tbl.id)}
+                            className="inline-flex items-center gap-1.5 text-rose-700 bg-white hover:bg-rose-50 border border-rose-300 font-semibold text-xs px-3.5 py-2 rounded-lg cursor-pointer transition-colors"
+                            title="Duplicate table container"
+                          >
+                            <Copy size={14} /> Duplicate Table
                           </button>
                         </div>
                       </td>

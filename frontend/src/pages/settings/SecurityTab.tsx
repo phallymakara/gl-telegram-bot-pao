@@ -15,6 +15,8 @@ interface SecurityTabProps {
   setOpenTime: (val: string) => void;
   closeTime: string;
   setCloseTime: (val: string) => void;
+  stockMovementTime: string;
+  setStockMovementTime: (val: string) => void;
   offStoreMessage: string;
   setOffStoreMessage: (val: string) => void;
   offStoreImageUrl?: string;
@@ -39,6 +41,8 @@ export default function SecurityTab({
   setOpenTime,
   closeTime,
   setCloseTime,
+  stockMovementTime,
+  setStockMovementTime,
   offStoreMessage,
   setOffStoreMessage,
   offStoreImageUrls,
@@ -95,13 +99,14 @@ export default function SecurityTab({
   }
 
   function handleScheduleUpdate(
-    patch: { open_time?: string; close_time?: string; off_store_message?: string },
+    patch: { open_time?: string; close_time?: string; stock_movement_time?: string; off_store_message?: string },
     showSuccessToast = false
   ) {
     api
       .put("/api/settings/schedule", {
         open_time: patch.open_time ?? openTime,
         close_time: patch.close_time ?? closeTime,
+        stock_movement_time: patch.stock_movement_time ?? stockMovementTime,
         off_store_message: patch.off_store_message ?? offStoreMessage,
       })
       .then(() => {
@@ -243,10 +248,10 @@ export default function SecurityTab({
       <div id="section-system" className="bg-white rounded-xl border border-slate-200 overflow-hidden scroll-mt-6">
         <div className="p-6 md:p-8 pb-0">
           <h3 className="text-base font-bold text-slate-900">Operating Hours & Schedule</h3>
-          <p className="text-xs text-slate-400 mt-1">Configure trading hours for automatic order acceptance.</p>
+          <p className="text-xs text-slate-400 mt-1">Configure trading hours and daily stock movement cutoff time.</p>
         </div>
         <div className="p-6 md:p-8 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Opening Time</label>
               <input
@@ -271,7 +276,22 @@ export default function SecurityTab({
                 className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               />
             </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Stock Movement Cutoff Time</label>
+              <input
+                type="time"
+                value={stockMovementTime}
+                onChange={(e) => {
+                  setStockMovementTime(e.target.value);
+                  handleScheduleUpdate({ stock_movement_time: e.target.value });
+                }}
+                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              />
+            </div>
           </div>
+          <p className="text-[11px] text-slate-400 -mt-2">
+            Stock Movement Cutoff Time: When this time of day is reached, today's remaining available stock automatically carries forward to the next settlement day.
+          </p>
 
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Off-Store Auto-Reply Message</label>

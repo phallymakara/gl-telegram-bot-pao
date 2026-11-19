@@ -301,32 +301,58 @@ function formatParty(r: PurchaseOrderData): string {
   return r.supplier_name;
 }
 
-function ExportPoDropdown({
+function ExportPoModal({
+  isOpen,
+  onClose,
   rows,
   notify,
 }: {
+  isOpen: boolean;
+  onClose: () => void;
   rows: any[];
   notify?: (msg: string) => void;
+  initialType?: string;
+  initialStatus?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [supplierQuery, setSupplierQuery] = useState("");
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+  const exportRows = useMemo(() => {
+    return rows.filter((r) => {
+      // Date filter
+      const dStr = (r.order_date || r.received_date || r.created_at || "").slice(0, 10);
+      if (startDate && dStr && dStr < startDate) return false;
+      if (endDate && dStr && dStr > endDate) return false;
+
+      // Supplier / Vendor query
+      if (supplierQuery.trim()) {
+        const q = supplierQuery.toLowerCase().trim();
+        const sName = (r.supplier_name || "").toLowerCase();
+        if (!sName.includes(q)) return false;
       }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+
+      return true;
+    });
+  }, [rows, startDate, endDate, supplierQuery]);
 
   function handleExportExcel() {
-    setOpen(false);
-    const headers = ["PO No", "Type", "Vendor", "QTY", "Unit Price", "Total Amount (USD)", "Spot Price", "Premium", "Order Date", "Expected Date", "Status", "Remark"];
-    const exportRows = rows.map((r) => [
+    onClose();
+    const headers = [
+      "PO No",
+      "Type",
+      "Vendor",
+      "QTY",
+      "Unit Price",
+      "Total Amount (USD)",
+      "Spot Price",
+      "Premium",
+      "Order Date",
+      "Expected Date",
+      "Status",
+      "Remark",
+    ];
+    const exportData = exportRows.map((r) => [
       `"${(r.po_no || "").replace(/"/g, '""')}"`,
       `"${(r.po_type || "").replace(/"/g, '""')}"`,
       `"${(r.supplier_name || "").replace(/"/g, '""')}"`,
@@ -341,21 +367,21 @@ function ExportPoDropdown({
       `"${(r.notes || "").replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...exportRows.map((row) => row.join(","))].join("\n");
+    const csvContent = "\uFEFF" + [headers.join(","), ...exportData.map((row) => row.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const dateStr = new Date().toISOString().split("T")[0];
     link.setAttribute("href", url);
-    link.setAttribute("download", `Purchase_Orders_Report_${dateStr}.csv`);
+    link.setAttribute("download", `Purchase_Orders_Report_${startDate ? startDate + "_to_" + (endDate || dateStr) : dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (notify) notify("Exported Purchase Orders to Excel (.csv)");
+    if (notify) notify(`Exported ${exportRows.length} Purchase Orders to Excel (.csv)`);
   }
 
   function handleExportPdf() {
-    setOpen(false);
+    onClose();
     const dateStr = new Date().toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -376,7 +402,7 @@ function ExportPoDropdown({
     const doc = iframe.contentWindow?.document;
     if (!doc) return;
 
-    const tableRowsHtml = rows
+    const tableRowsHtml = exportRows
       .map(
         (r) => `
         <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -395,16 +421,22 @@ function ExportPoDropdown({
       )
       .join("");
 
+    const filterNotes = [
+      startDate || endDate ? `Date Range: ${startDate || "Any"} to ${endDate || "Present"}` : null,
+      supplierQuery ? `Vendor: "${supplierQuery}"` : null,
+    ].filter(Boolean).join(" | ");
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Purchase Orders Report</title>
+        <title>Purchase Orders Summary Report</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; }
           .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
           .title { font-size: 20px; font-weight: bold; color: #1e1b4b; }
           .meta { font-size: 12px; color: #64748b; }
+          .filters { font-size: 11px; color: #4f46e5; margin-top: 4px; font-weight: 500; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
           th { background: #f8fafc; text-align: left; padding: 10px 10px; font-weight: 600; color: #64748b; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 11px; }
           .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; }
@@ -414,7 +446,8 @@ function ExportPoDropdown({
         <div class="header">
           <div>
             <div class="title">Purchase Orders Summary Report</div>
-            <div class="meta">Exported on ${dateStr} | Total Orders: ${rows.length}</div>
+            <div class="meta">Exported on ${dateStr} | Total Filtered Orders: ${exportRows.length} of ${rows.length}</div>
+            ${filterNotes ? `<div class="filters">Applied Filters: ${filterNotes}</div>` : ""}
           </div>
         </div>
         <table>
@@ -453,41 +486,104 @@ function ExportPoDropdown({
       }, 1000);
     }, 300);
 
-    if (notify) notify("Prepared PDF export for print/download");
+    if (notify) notify(`Prepared PDF export for ${exportRows.length} purchase orders`);
   }
 
-  return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
-      >
-        <Download size={13} className="text-slate-500" />
-        <span>Export</span>
-        <ChevronDown size={12} className="text-slate-400" />
-      </button>
+  if (!isOpen) return null;
 
-      {open && (
-        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <DraggableModalBox
+        resetKey={isOpen}
+        className="bg-white rounded-2xl shadow-none border border-slate-300 w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+          <h3 className="font-semibold text-slate-800 text-sm">Export Purchase Orders</h3>
           <button
             type="button"
-            onClick={handleExportExcel}
-            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+            aria-label="Close export dialog"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            <FileSpreadsheet size={14} className="text-emerald-600" />
-            <span>Export as Excel</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
-          >
-            <FileText size={14} className="text-rose-600" />
-            <span>Export as PDF</span>
+            <X size={15} />
           </button>
         </div>
-      )}
+
+        <div className="p-4 space-y-3 overflow-y-auto">
+          {/* 1. Date Range */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-600">Date Range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-0.5">From</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-0.5">To</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Vendor / Supplier Name */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-600">Vendor / Supplier Name</label>
+            <input
+              type="text"
+              placeholder="All vendors (or type name)"
+              value={supplierQuery}
+              onChange={(e) => setSupplierQuery(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between gap-2 bg-slate-50/60 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={exportRows.length === 0}
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileSpreadsheet size={13} />
+              <span>Excel ({exportRows.length})</span>
+            </button>
+            <button
+              type="button"
+              disabled={exportRows.length === 0}
+              onClick={handleExportPdf}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileText size={13} />
+              <span>PDF ({exportRows.length})</span>
+            </button>
+          </div>
+        </div>
+      </DraggableModalBox>
     </div>
   );
 }
@@ -519,6 +615,7 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
   const [typeFilter, setTypeFilter] = useState<"ALL" | "OVERSEA" | "LOCAL" | "BUYBACK">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierData[]>([]);
   const [customerList, setCustomerList] = useState<PartyOption[]>([]);
   const [vendorList, setVendorList] = useState<PartyOption[]>([]);
@@ -1337,7 +1434,20 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
             </div>
 
             <div className="flex items-center gap-2 self-start lg:self-auto">
-              <ExportPoDropdown rows={filteredNumericRows} notify={notify} />
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+              >
+                <Download size={13} className="text-slate-500" />
+                <span>Export</span>
+              </button>
+              <ExportPoModal
+                isOpen={isExportModalOpen}
+                onClose={() => setIsExportModalOpen(false)}
+                rows={rows}
+                notify={notify}
+              />
               <button
                 onClick={openNewPoModal}
                 className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-medium shrink-0 shadow-sm transition-colors focus:outline-none cursor-pointer"

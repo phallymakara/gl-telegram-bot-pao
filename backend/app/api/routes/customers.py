@@ -3,6 +3,7 @@ Customer & Whitelist API routes.
 Provides endpoints for retrieving, creating, updating, and removing customer records.
 """
 
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -66,6 +67,113 @@ class CustomerResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BulkCustomerItem(BaseModel):
+    """Schema for individual customer item in bulk import request."""
+    customer_code: str | None = None
+    customer_type: str | None = "Individual"
+    name: str | None = None
+    contact: str | None = None
+    sex: str | None = None
+    dob: str | None = None
+    nation: str | None = None
+    address: str | None = None
+    is_active: bool = True
+    telegram_user_id: str | None = None
+    username: str | None = None
+    display_name: str | None = None
+
+
+class BulkImportResponse(BaseModel):
+    """Schema for customer bulk import response status."""
+    success: bool
+    imported_count: int
+    skipped_count: int
+    message: str
+
+
+@router.post("/bulk", response_model=BulkImportResponse)
+def bulk_create_customers(items: list[BulkCustomerItem], db: Session = Depends(get_db)):
+    """
+    Bulk import multiple customer master data records.
+    """
+    if not items:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No customer records provided")
+
+    imported = 0
+    skipped = 0
+
+    existing_codes = {c[0] for c in db.query(Customer.customer_code).filter(Customer.customer_code.isnot(None)).all() if c[0]}
+    existing_usernames = {c[0] for c in db.query(Customer.username).filter(Customer.username.isnot(None)).all() if c[0]}
+
+    max_num = 0
+    for code in existing_codes:
+        m = re.search(r"CUST-?(\d+)", code, re.IGNORECASE)
+        if m:
+            val = int(m.group(1))
+            if val > max_num:
+                max_num = val
+
+    new_customers = []
+    for item in items:
+        customer_name = (item.name or item.display_name or item.username or "").strip()
+        if not customer_name:
+            skipped += 1
+            continue
+
+        code = item.customer_code.strip() if item.customer_code else None
+        if not code:
+            max_num += 1
+            code = f"CUST-{max_num:03d}"
+        elif code in existing_codes:
+            skipped += 1
+            continue
+
+        if item.username and item.username in existing_usernames:
+            skipped += 1
+            continue
+
+        existing_codes.add(code)
+        if item.username:
+            existing_usernames.add(item.username)
+
+        customer = Customer(
+            customer_code=code,
+            customer_type=item.customer_type or "Individual",
+            name=customer_name,
+            contact=item.contact,
+            sex=item.sex,
+            dob=item.dob,
+            nation=item.nation,
+            address=item.address,
+            is_active=item.is_active,
+            telegram_user_id=item.telegram_user_id,
+            username=item.username,
+            display_name=item.display_name or customer_name,
+        )
+        new_customers.append(customer)
+        imported += 1
+
+    if new_customers:
+        db.add_all(new_customers)
+        db.commit()
+        log_activity(
+            db,
+            action="CUSTOMER_BULK_IMPORT",
+            category="MASTER_DATA",
+            description=f"Bulk imported {imported} customer records (skipped {skipped})",
+            entity_type="Customer",
+            entity_id=None,
+            details={"imported_count": imported, "skipped_count": skipped},
+        )
+
+    return BulkImportResponse(
+        success=True,
+        imported_count=imported,
+        skipped_count=skipped,
+        message=f"Successfully imported {imported} customer(s)" + (f" ({skipped} skipped)" if skipped else ""),
+    )
 
 
 @router.get("/", response_model=list[CustomerResponse])

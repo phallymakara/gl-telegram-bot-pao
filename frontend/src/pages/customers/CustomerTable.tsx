@@ -5,7 +5,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Download, FileSpreadsheet, FileText, Globe, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, FileText, Globe, MapPin, MoreVertical, Pencil, Plus, RefreshCw, Search, Trash2, Upload, Users } from "lucide-react";
 import Card from "../../components/Card";
 import StatusBadge from "../../components/StatusBadge";
 import LazyTableFooter from "../../components/LazyTableFooter";
@@ -19,6 +19,7 @@ interface CustomerTableProps {
   search: string;
   setSearch: (val: string) => void;
   openCreateModal: () => void;
+  openImportModal?: () => void;
   openEditModal: (c: CustomerData) => void;
   toggleStatus: (c: CustomerData) => void;
   deleteCustomer: (id: number) => void;
@@ -303,6 +304,7 @@ export default function CustomerTable({
   search,
   setSearch,
   openCreateModal,
+  openImportModal,
   openEditModal,
   toggleStatus,
   deleteCustomer,
@@ -330,6 +332,15 @@ export default function CustomerTable({
           />
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          {openImportModal && (
+            <button
+              type="button"
+              onClick={openImportModal}
+              className="flex items-center justify-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3 py-2 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+            >
+              <Upload size={14} className="text-slate-500" /> Import
+            </button>
+          )}
           <ExportDropdown customers={customers} notify={notify} />
           <button
             onClick={openCreateModal}

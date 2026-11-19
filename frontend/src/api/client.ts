@@ -147,6 +147,18 @@ export const api = {
     request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
 
   /**
+   * Executes a typed PATCH request.
+   * @template T Response type.
+   * @param path API endpoint URL.
+   * @param body Optional request payload for partial updates.
+   */
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "PATCH",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    }),
+
+  /**
    * Executes a typed DELETE request.
    * @template T Response type.
    * @param path API endpoint URL.

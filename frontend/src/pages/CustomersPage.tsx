@@ -8,6 +8,7 @@ import StatCard from "../components/StatCard";
 import { CustomerData, customersApi } from "../api";
 import CustomerTable from "./customers/CustomerTable";
 import CustomerModal from "./customers/CustomerModal";
+import ImportCustomerModal from "./customers/ImportCustomerModal";
 
 interface CustomersPageProps {
   /** Toast notification trigger callback */
@@ -37,6 +38,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
   const [customers, setCustomers] = useState<CustomerData[]>([]);
   const [search, setSearch] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<CustomerData | null>(null);
 
   const [form, setForm] = useState({
@@ -213,6 +215,7 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
         search={search}
         setSearch={setSearch}
         openCreateModal={openCreateModal}
+        openImportModal={() => setIsImportOpen(true)}
         openEditModal={openEditModal}
         toggleStatus={toggleStatus}
         deleteCustomer={deleteCustomer}
@@ -226,6 +229,14 @@ export default function CustomersPage({ notify }: CustomersPageProps) {
         setForm={setForm}
         editingCustomer={editingCustomer}
         onSave={handleSave}
+      />
+
+      <ImportCustomerModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onSuccess={loadCustomers}
+        notify={notify}
+        existingCount={customers.length}
       />
     </div>
   );

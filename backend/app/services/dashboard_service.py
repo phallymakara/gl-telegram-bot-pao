@@ -13,6 +13,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.utils.helpers import get_cambodia_now
+from app.services.settings_service import is_past_stock_movement_time
 from app.services.activity_log_service import log_activity
 
 from app.models.customer import Customer
@@ -865,8 +866,8 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
             "custom_values": {},
         },
         {
-            "key": "physical_sell",
-            "title": "Physical Sell",
+            "key": "sell",
+            "title": "Sell",
             "subtitle": "Sell to customer",
             "row_type": "sell",
             "header_bg": "bg-[#f0f9ff]",
@@ -876,30 +877,8 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
             "custom_values": {},
         },
         {
-            "key": "bot_sell",
-            "title": "Bot Sell",
-            "subtitle": "Sell to customer",
-            "row_type": "sell",
-            "header_bg": "bg-[#f0f9ff]",
-            "cell_bg": "bg-[#f0f9ff]",
-            "badge_bg": "bg-[#0284c7]",
-            "is_system": True,
-            "custom_values": {},
-        },
-        {
-            "key": "physical_buy",
-            "title": "Physical Buy",
-            "subtitle": "Buy from customer",
-            "row_type": "buy",
-            "header_bg": "bg-[#ecfeff]",
-            "cell_bg": "bg-[#ecfeff]",
-            "badge_bg": "bg-[#06b6d4]",
-            "is_system": True,
-            "custom_values": {},
-        },
-        {
-            "key": "bot_buy",
-            "title": "Bot Buy",
+            "key": "buy",
+            "title": "Buy",
             "subtitle": "Buy from customer",
             "row_type": "buy",
             "header_bg": "bg-[#ecfeff]",
@@ -915,10 +894,36 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
         try:
             stored = json.loads(setting.value)
             if isinstance(stored, list) and len(stored) > 0:
+                has_legacy = any(
+                    r.get("key") in ("physical_sell", "bot_sell", "physical_buy", "bot_buy")
+                    for r in stored
+                )
+                if has_legacy:
+                    # Migrate legacy rows to new consolidated sell and buy rows while preserving any custom rows
+                    custom_rows = [
+                        r for r in stored
+                        if r.get("key") not in (
+                            "available", "import", "physical_sell", "bot_sell",
+                            "physical_buy", "bot_buy", "sell", "buy"
+                        )
+                    ]
+                    migrated = [
+                        default_rows[0],  # available
+                        default_rows[1],  # import
+                        default_rows[2],  # sell
+                        default_rows[3],  # buy
+                        *custom_rows,
+                    ]
+                    setting.value = json.dumps(migrated)
+                    db.commit()
+                    return migrated
+
                 # Synchronize updated system subtitles while preserving custom rows and custom_values
                 subtitles_map = {
                     "available": "Ready to sell",
                     "import": "Manual stock import",
+                    "sell": "Sell to customer",
+                    "buy": "Buy from customer",
                     "physical_sell": "Sell to customer",
                     "bot_sell": "Sell to customer",
                     "physical_buy": "Buy from customer",
@@ -943,6 +948,24 @@ def get_matrix_rows_config(db: Session) -> list[dict]:
     return default_rows
 
 
+def get_effective_matrix_anchor(db: Session, target_date: str = "") -> date:
+    """
+    Resolve the active matrix anchor date.
+    Respects optional target_date filter.
+    For live view: if current Cambodia time is at or after the configured stock_movement_time,
+    the active anchor advances to tomorrow, rolling today's available stock forward into tomorrow.
+    """
+    cambodia_today = get_cambodia_now().date()
+    if target_date and target_date.strip():
+        try:
+            return datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    if is_past_stock_movement_time(db):
+        return cambodia_today + timedelta(days=1)
+    return cambodia_today
+
+
 def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     """
     Retrieve matrix column configurations from SystemSetting.
@@ -950,7 +973,8 @@ def get_matrix_columns_config(db: Session, anchor: date) -> list[dict]:
     and ensures DB columns are NEVER less than the active slots that user created.
     If no columns stored in SystemSetting, initializes with default Swiss, DB, SV columns.
     """
-    if anchor >= get_cambodia_now().date():
+    cambodia_today = get_cambodia_now().date()
+    if anchor >= cambodia_today:
         rollover_expired_matrix_columns(db, anchor)
 
     active_dates = get_active_slot_dates(db, anchor)
@@ -1116,7 +1140,7 @@ def sync_db_matrix_columns_with_slots(db: Session, anchor: date | None = None) -
     - Automatically deletes DB columns for deleted slot dates.
     """
     if anchor is None:
-        anchor = get_cambodia_now().date()
+        anchor = get_effective_matrix_anchor(db)
     return get_matrix_columns_config(db, anchor)
 
 
@@ -1126,15 +1150,9 @@ def calculate_stock_matrix(db: Session, target_date: str = "") -> StockMatrixDat
     Calculate the brand & settlement date inventory matrix (Swiss, DB, SV) strictly from
     real database records starting from today (or target_date) and forward dates.
     Past dates ("last date") are excluded after rolling their closing Available Stock forward.
+    When stock_movement_time is reached, remaining Available Stock moves forward to tomorrow.
     """
-    cambodia_today = get_cambodia_now().date()
-    if target_date and target_date.strip():
-        try:
-            anchor = datetime.strptime(target_date.strip(), "%Y-%m-%d").date()
-        except ValueError:
-            anchor = cambodia_today
-    else:
-        anchor = cambodia_today
+    anchor = get_effective_matrix_anchor(db, target_date)
 
     columns_config = get_matrix_columns_config(db, anchor)
     # Strictly exclude past dates from calculation
@@ -1807,7 +1825,7 @@ def add_matrix_column(
     """
     Persistently add a column to the stock matrix in SystemSetting.
     """
-    today = get_cambodia_now().date()
+    today = get_effective_matrix_anchor(db)
     current = get_matrix_columns_config(db, today)
     target_d = _parse_matrix_date(date_str)
     if target_d < today:
@@ -1866,7 +1884,7 @@ def delete_matrix_column(db: Session, col_id: str) -> StockMatrixData:
     Persistently remove a column from the stock matrix in SystemSetting.
     Enforces validation: DB columns must not be less than the active slots created by user.
     """
-    today = get_cambodia_now().date()
+    today = get_effective_matrix_anchor(db)
     current = get_matrix_columns_config(db, today)
     target_col = next((c for c in current if c["id"] == col_id), None)
     if not target_col:
@@ -1942,7 +1960,7 @@ def update_matrix_column(
     Persistently update brand, date, or header color for a column in SystemSetting.
     Enforces validation: DB columns must not be less than the active slots created by user.
     """
-    today = get_cambodia_now().date()
+    today = get_effective_matrix_anchor(db)
     current = get_matrix_columns_config(db, today)
     target_col = next((c for c in current if c["id"] == col_id), None)
     if not target_col:
@@ -2098,8 +2116,8 @@ def delete_matrix_row(db: Session, row_key: str) -> StockMatrixData:
     """
     Persistently delete a row from the stock matrix in SystemSetting.
     """
-    if row_key == "available":
-        raise ValueError("Cannot delete 'Available Stock' row as it is required for matrix balance.")
+    if row_key in ("available", "sell", "buy", "import", "physical_sell", "bot_sell", "physical_buy", "bot_buy"):
+        raise ValueError(f"Cannot delete system row '{row_key}'.")
 
     rows = get_matrix_rows_config(db)
     filtered = [r for r in rows if r["key"] != row_key]
@@ -2128,7 +2146,7 @@ def update_matrix_cell(
     - 'physical_buy' / 'bot_buy' -> creates/updates BUY order
     - custom rows -> stores value in row's custom_values for that col_id
     """
-    current_cols = get_matrix_columns_config(db, get_cambodia_now().date())
+    current_cols = get_matrix_columns_config(db, get_effective_matrix_anchor(db))
     target_col = next((c for c in current_cols if c["id"] == col_id), None)
     if not target_col:
         raise ValueError(f"Column '{col_id}' not found in stock matrix.")
@@ -2139,7 +2157,7 @@ def update_matrix_cell(
 
     if row_key == "import":
         update_stock_matrix_import(db, brand, t_date_str, value)
-    elif row_key in ("physical_sell", "bot_sell"):
+    elif row_key in ("sell", "physical_sell", "bot_sell"):
         channel = "PLATFORM" if row_key == "bot_sell" else "WALK_IN"
         create_stock_matrix_deduction(
             db,
@@ -2152,7 +2170,7 @@ def update_matrix_cell(
                 customer_name="Matrix Physical Sell" if channel == "WALK_IN" else "Matrix Bot Sell",
             ),
         )
-    elif row_key in ("physical_buy", "bot_buy"):
+    elif row_key in ("buy", "physical_buy", "bot_buy"):
         channel = "PLATFORM" if row_key == "bot_buy" else "WALK_IN"
         create_stock_matrix_deduction(
             db,

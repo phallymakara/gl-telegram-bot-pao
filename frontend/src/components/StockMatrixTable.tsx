@@ -75,8 +75,8 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
     is_system: true,
   },
   {
-    key: "physical_sell",
-    title: "Physical Sell",
+    key: "sell",
+    title: "Sell",
     subtitle: "Sell to customer",
     header_bg: "bg-[#f0f9ff]",
     cell_bg: "bg-[#f0f9ff]",
@@ -84,26 +84,8 @@ const DEFAULT_ROWS: StockMatrixRowData[] = [
     is_system: true,
   },
   {
-    key: "bot_sell",
-    title: "Bot Sell",
-    subtitle: "Sell to customer",
-    header_bg: "bg-[#f0f9ff]",
-    cell_bg: "bg-[#f0f9ff]",
-    badge_bg: "bg-[#0284c7]",
-    is_system: true,
-  },
-  {
-    key: "physical_buy",
-    title: "Physical Buy",
-    subtitle: "Buy from customer",
-    header_bg: "bg-[#ecfeff]",
-    cell_bg: "bg-[#ecfeff]",
-    badge_bg: "bg-[#06b6d4]",
-    is_system: true,
-  },
-  {
-    key: "bot_buy",
-    title: "Bot Buy",
+    key: "buy",
+    title: "Buy",
     subtitle: "Buy from customer",
     header_bg: "bg-[#ecfeff]",
     cell_bg: "bg-[#ecfeff]",
@@ -121,14 +103,14 @@ function getRowIcon(rowKey: string) {
       return <Package size={16} className="stroke-[2.2]" />;
     case "import":
       return <Truck size={16} className="stroke-[2.2]" />;
+    case "sell":
     case "physical_sell":
-      return <Monitor size={16} className="stroke-[2.2]" />;
     case "bot_sell":
-      return <Laptop size={16} className="stroke-[2.2]" />;
-    case "physical_buy":
       return <Monitor size={16} className="stroke-[2.2]" />;
+    case "buy":
+    case "physical_buy":
     case "bot_buy":
-      return <Laptop size={16} className="stroke-[2.2]" />;
+      return <Layers size={16} className="stroke-[2.2]" />;
     default:
       return <Layers size={16} className="stroke-[2.2]" />;
   }
@@ -152,6 +134,13 @@ export default function StockMatrixTable({
   const [columns, setColumns] = useState<StockMatrixColumnData[]>([]);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [selectedCell, setSelectedCell] = useState<MatrixCellTarget | null>(null);
+  const [hoveredTooltip, setHoveredTooltip] = useState<{
+    x: number;
+    y: number;
+    physical: number;
+    bot: number;
+    isSell: boolean;
+  } | null>(null);
 
   // Column CRUD Modal states
   const [isAddColModalOpen, setIsAddColModalOpen] = useState(false);
@@ -330,6 +319,16 @@ export default function StockMatrixTable({
         return getColAvailableStock(col);
       case "import":
         return col.import_stock ?? 0;
+      case "sell": {
+        const physical = Math.abs(col.physical_sale ?? 0);
+        const bot = Math.abs(col.bot_sale ?? 0);
+        return -(physical + bot);
+      }
+      case "buy": {
+        const physical = col.physical_buy ?? 0;
+        const bot = col.bot_buy ?? 0;
+        return physical + bot;
+      }
       case "physical_sell":
         return col.physical_sale ?? 0;
       case "bot_sell":
@@ -739,8 +738,11 @@ export default function StockMatrixTable({
               {/* Value Cells (Clickable for operational input rows; read-only for Available Stock) */}
               {columns.map((col) => {
                 const val = getCellValue(col, row);
-                const isSell = row.key === "physical_sell" || row.key === "bot_sell";
-                const isRed = isSell;
+                const isSell = row.key === "sell" || row.key === "physical_sell" || row.key === "bot_sell";
+                const isBuy = row.key === "buy" || row.key === "physical_buy" || row.key === "bot_buy";
+                const isAvailable = row.key === "available";
+                const isNegativeAvailable = isAvailable && val < 0;
+                const isRed = isSell || isNegativeAvailable;
                 const isClickable = (CLICKABLE_MATRIX_ROW_KEYS as readonly string[]).includes(
                   row.key
                 );
@@ -749,7 +751,15 @@ export default function StockMatrixTable({
                 if (isSell) {
                   const absVal = Math.abs(val);
                   cellDisplay = absVal > 0 ? `-${absVal.toLocaleString()}` : "0";
+                } else if (isNegativeAvailable) {
+                  const absVal = Math.abs(val);
+                  cellDisplay = absVal > 0 ? `-${absVal.toLocaleString()}` : "0";
                 }
+
+                const hasHoverBreakdown = row.key === "sell" || row.key === "buy";
+                const cellBgStyle = isNegativeAvailable
+                  ? "bg-rose-50/70 border border-rose-200"
+                  : row.cell_bg || "bg-slate-50";
 
                 return (
                   <div
@@ -764,6 +774,35 @@ export default function StockMatrixTable({
                             })
                         : undefined
                     }
+                    onMouseEnter={
+                      hasHoverBreakdown
+                        ? (e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            if (row.key === "sell") {
+                              const physical = Math.abs(col.physical_sale ?? 0);
+                              const bot = Math.abs(col.bot_sale ?? 0);
+                              setHoveredTooltip({
+                                x: rect.left + rect.width / 2,
+                                y: rect.top,
+                                physical,
+                                bot,
+                                isSell: true,
+                              });
+                            } else if (row.key === "buy") {
+                              const physical = col.physical_buy ?? 0;
+                              const bot = col.bot_buy ?? 0;
+                              setHoveredTooltip({
+                                x: rect.left + rect.width / 2,
+                                y: rect.top,
+                                physical,
+                                bot,
+                                isSell: false,
+                              });
+                            }
+                          }
+                        : undefined
+                    }
+                    onMouseLeave={hasHoverBreakdown ? () => setHoveredTooltip(null) : undefined}
                     title={
                       isClickable
                         ? `Click to add ${row.title} entry for ${cleanBrand(col.brand)} (${formatHeaderDate(
@@ -772,21 +811,23 @@ export default function StockMatrixTable({
                           )})`
                         : undefined
                     }
-                    className={`h-[56px] rounded-md ${
-                      row.cell_bg || "bg-slate-50"
-                    } flex flex-col items-center justify-center select-none w-full min-w-0 ${
+                    className={`h-[56px] rounded-md ${cellBgStyle} flex flex-col items-center justify-center select-none w-full min-w-0 ${
                       isClickable ? "cursor-pointer" : "cursor-default"
                     }`}
                   >
                     <div
                       className={`text-sm sm:text-[15px] font-semibold tracking-tight leading-none ${
-                        isRed ? "text-[#ef4444]" : "text-slate-900"
+                        isRed ? "text-rose-600 font-bold" : "text-slate-900"
                       }`}
                     >
                       {cellDisplay}
                     </div>
                     {row.key === "available" && Math.abs(col.carryover_stock ?? 0) > 1e-9 && (
-                      <div className="text-[10px] text-emerald-700 font-medium mt-0.5 leading-none">
+                      <div
+                        className={`text-[10px] font-medium mt-0.5 leading-none ${
+                          (col.carryover_stock ?? 0) < 0 ? "text-rose-600 font-bold" : "text-emerald-700"
+                        }`}
+                      >
                         Prev: {(col.carryover_stock ?? 0) > 0 ? `+${(col.carryover_stock ?? 0).toLocaleString()}` : (col.carryover_stock ?? 0).toLocaleString()}
                       </div>
                     )}
@@ -808,7 +849,9 @@ export default function StockMatrixTable({
               <div className="h-[28px] w-full flex items-center justify-center text-xs font-bold italic tracking-tight bg-[#fed7aa] text-slate-900 border-b border-slate-900/10">
                 <span>Total All Stock</span>
               </div>
-              <div className="h-[28px] w-full bg-[#fed7aa] flex items-center justify-center text-sm font-bold italic text-slate-900">
+              <div className={`h-[28px] w-full bg-[#fed7aa] flex items-center justify-center text-sm font-bold italic ${
+                grandTotalAllStock < 0 ? "text-rose-600" : "text-slate-900"
+              }`}>
                 <span>
                   {grandTotalAllStock < 0
                     ? `-${Math.abs(grandTotalAllStock).toLocaleString()}`
@@ -830,7 +873,9 @@ export default function StockMatrixTable({
                   <span>{pair.label}</span>
                 </div>
                 <div
-                  className={`h-[28px] w-full ${pair.cellBg} flex items-center justify-center text-sm font-bold text-slate-900`}
+                  className={`h-[28px] w-full ${pair.cellBg} flex items-center justify-center text-sm font-bold ${
+                    pair.value < 0 ? "text-rose-600" : "text-slate-900"
+                  }`}
                 >
                   <span>
                     {pair.value < 0
@@ -1000,6 +1045,46 @@ export default function StockMatrixTable({
         onSuccess={loadData}
         notify={notify}
       />
+
+      {/* --- HOVER BREAKDOWN TOOLTIP --- */}
+      {hoveredTooltip && (
+        <div
+          style={{
+            position: "fixed",
+            left: `${hoveredTooltip.x}px`,
+            top: `${hoveredTooltip.y - 10}px`,
+            transform: "translate(-50%, -100%)",
+            zIndex: 9999,
+            pointerEvents: "none",
+          }}
+          className="bg-white rounded-lg px-3.5 py-2.5 border border-slate-300 min-w-[160px] select-none shadow-none animate-in fade-in zoom-in-95 duration-200 transition-all ease-out"
+        >
+          <div className="space-y-1.5 text-xs">
+            <div className="flex items-center justify-between gap-4 text-slate-600">
+              <span className="font-medium text-slate-500">Physical:</span>
+              <span
+                className={`font-mono font-bold text-xs ${
+                  hoveredTooltip.isSell ? "text-rose-600" : "text-slate-900"
+                }`}
+              >
+                {hoveredTooltip.isSell && hoveredTooltip.physical > 0 ? "-" : ""}
+                {hoveredTooltip.physical.toLocaleString()} KG
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 text-slate-600">
+              <span className="font-medium text-slate-500">Bot:</span>
+              <span
+                className={`font-mono font-bold text-xs ${
+                  hoveredTooltip.isSell ? "text-rose-600" : "text-slate-900"
+                }`}
+              >
+                {hoveredTooltip.isSell && hoveredTooltip.bot > 0 ? "-" : ""}
+                {hoveredTooltip.bot.toLocaleString()} KG
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -27,11 +27,13 @@ DEFAULT_SETTINGS = {
         "bot_username": BOT_USERNAME,
         "sales_telegram_username": SALES_TELEGRAM_USERNAME,
         "sales_phone_number": SALES_PHONE_NUMBER,
+        "allowed_group_id": "",
     },
     "security": {"session_timeout": 30, "password_expiry": 90, "two_factor": False},
     "system": {
         "open_time": "08:00",
         "close_time": "21:00",
+        "stock_movement_time": "17:00",
         "off_store_message": "",
         "off_store_image_url": "",
         "off_store_image_urls": [],
@@ -171,6 +173,32 @@ def is_within_operating_hours_sync(session=None) -> Tuple[bool, str, str]:
         return True, open_display, close_display
 
 
+def get_stock_movement_time_sync(session=None) -> str:
+    """
+    Get configured stock movement cutoff time as string (e.g. '17:00').
+    Defaults to '17:00' if not explicitly configured.
+    """
+    settings = get_settings_dict_sync(session)
+    system_cfg = settings.get("system", {})
+    return system_cfg.get("stock_movement_time") or "17:00"
+
+
+def is_past_stock_movement_time(session=None) -> bool:
+    """
+    Check if the current Cambodia time (ICT, UTC+7) is at or after the configured stock movement cutoff time.
+    When True, remaining available stock for today moves forward to the next settlement day.
+    """
+    movement_time_str = get_stock_movement_time_sync(session)
+    try:
+        parts = [int(p) for p in movement_time_str.split(":")]
+        movement_t = time(parts[0], parts[1])
+        current_t = get_cambodia_now().time()
+        return current_t >= movement_t
+    except Exception as e:
+        logger.error("Error evaluating stock movement cutoff time: %s", e)
+        return False
+
+
 def get_off_store_notice_sync(session=None) -> dict:
     """
     Get current operating hours status, formatted displays, custom off-store text, and poster URLs.
@@ -308,4 +336,14 @@ def get_sales_contact_sync(session=None) -> Tuple[str, str, str]:
         phone_display = f"{phone[:3]} {phone[3:6]} {phone[6:]}"
 
     return username, phone, phone_display
+
+
+def get_allowed_group_id_sync(session=None) -> str:
+    """
+    Retrieve configured allowed Telegram Group ID (e.g. '-100xxxxxxxxxx').
+    Empty string if no group constraint is configured.
+    """
+    settings = get_settings_dict_sync(session)
+    return str(settings.get("bot", {}).get("allowed_group_id") or "").strip()
+
 

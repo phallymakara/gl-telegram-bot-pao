@@ -37,6 +37,7 @@ class BotSettings(BaseModel):
     bot_username: str = ""
     sales_telegram_username: str = ""
     sales_phone_number: str = ""
+    allowed_group_id: str = ""
 
 
 class SecuritySettings(BaseModel):
@@ -47,9 +48,10 @@ class SecuritySettings(BaseModel):
 
 
 class SystemSettings(BaseModel):
-    """Schema for trading operating hours and off-store customer auto-reply."""
+    """Schema for trading operating hours, stock movement cutoff, and off-store customer auto-reply."""
     open_time: str = "08:00"
     close_time: str = "21:00"
+    stock_movement_time: str = "17:00"
     off_store_message: str = ""
     off_store_image_url: str = ""
     off_store_image_urls: List[str] = []
@@ -328,13 +330,14 @@ def update_posters(body: UpdatePostersRequest, db: Session = Depends(get_db)):
 class UpdateScheduleRequest(BaseModel):
     open_time: Optional[str] = None
     close_time: Optional[str] = None
+    stock_movement_time: Optional[str] = None
     off_store_message: Optional[str] = None
 
 
 @router.put("/schedule")
 def update_schedule(body: UpdateScheduleRequest, db: Session = Depends(get_db)):
     """
-    Directly update and persist operating hours and off-store message in real time.
+    Directly update and persist operating hours, stock movement cutoff time, and off-store message in real time.
     """
     store = get_settings_dict_sync(db)
     system = store.get("system", {})
@@ -342,6 +345,8 @@ def update_schedule(body: UpdateScheduleRequest, db: Session = Depends(get_db)):
         system["open_time"] = body.open_time
     if body.close_time is not None:
         system["close_time"] = body.close_time
+    if body.stock_movement_time is not None:
+        system["stock_movement_time"] = body.stock_movement_time
     if body.off_store_message is not None:
         system["off_store_message"] = body.off_store_message
     save_settings_dict_sync({"system": system}, db)
@@ -349,10 +354,14 @@ def update_schedule(body: UpdateScheduleRequest, db: Session = Depends(get_db)):
         db,
         action="SCHEDULE_SETTINGS_UPDATED",
         category="SETTINGS",
-        description=f"Updated store schedule ({system.get('open_time')} - {system.get('close_time')})",
+        description=f"Updated store schedule ({system.get('open_time')} - {system.get('close_time')}, stock movement: {system.get('stock_movement_time')})",
         entity_type="SystemSetting",
         entity_id="schedule",
-        details={"open_time": system.get("open_time"), "close_time": system.get("close_time")},
+        details={
+            "open_time": system.get("open_time"),
+            "close_time": system.get("close_time"),
+            "stock_movement_time": system.get("stock_movement_time"),
+        },
     )
     return {"status": "success", "system": system}
 

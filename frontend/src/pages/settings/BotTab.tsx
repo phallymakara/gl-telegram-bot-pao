@@ -3,7 +3,7 @@
  * @description Sub-component rendering Telegram Bot settings and payment method toggles.
  */
 
-import { Eye, EyeOff, Phone, Send, User } from "lucide-react";
+import { Eye, EyeOff, Phone, Send, User, Users } from "lucide-react";
 import { api } from "../../api";
 import Toggle from "../../components/Toggle";
 
@@ -29,6 +29,8 @@ interface BotTabProps {
   setSalesTelegramUsername: (val: string) => void;
   salesPhoneNumber: string;
   setSalesPhoneNumber: (val: string) => void;
+  allowedGroupId: string;
+  setAllowedGroupId: (val: string) => void;
   showToken: boolean;
   setShowToken: (val: boolean) => void;
   paymentMethods: PaymentMethodsState;
@@ -49,6 +51,8 @@ export default function BotTab({
   setSalesTelegramUsername,
   salesPhoneNumber,
   setSalesPhoneNumber,
+  allowedGroupId,
+  setAllowedGroupId,
   showToken,
   setShowToken,
   paymentMethods,
@@ -167,6 +171,25 @@ export default function BotTab({
               className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             />
           </div>
+        </div>
+
+        {/* Allowed Telegram Group ID (Option B: Group + Whitelist) */}
+        <div className="space-y-1.5 md:col-span-2">
+          <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+            Allowed Telegram Group ID (Option B: Group + Whitelist)
+          </label>
+          <div className="relative">
+            <Users size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={allowedGroupId}
+              onChange={(e) => setAllowedGroupId(e.target.value)}
+              placeholder="e.g. -100xxxxxxxxxx (or comma-separated group IDs)"
+              className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono"
+            />
+          </div>
+          <p className="text-[11px] text-slate-400">
+            When configured, only members of this Telegram Group who are also in the Customer Whitelist can trade. Direct / personal (DM) chats are strictly blocked.
+          </p>
         </div>
       </div>
 

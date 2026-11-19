@@ -17,6 +17,7 @@ from app.models.order import Order
 from app.models.slot_row import SlotRow
 from app.models.slot_table import SlotTable
 from app.utils.helpers import get_cambodia_now
+from app.services.settings_service import is_past_stock_movement_time
 
 # Serializes every "check availability, then create/collect a SELL order" critical section across
 # the whole process -- both the admin API and the Telegram bot flow run their sync order logic in
@@ -126,6 +127,8 @@ def rollover_past_slots_sync(session=None) -> int:
     try:
         from datetime import date as date_type, timedelta
         today = get_cambodia_now().date()
+        if is_past_stock_movement_time(session):
+            today = today + timedelta(days=1)
 
         tables = session.query(SlotTable).all()
         updated_count = 0
@@ -183,6 +186,8 @@ def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
             t_stock = float(t.stock)
             t_buy_limit = float(t.buy_limit or 0)
             for row in t.rows:
+                if not getattr(row, "is_active", True):
+                    continue
                 slot = _get_slot_dict(row, t)
                 key = slot["slot_date"]
                 row_incoming = float(row.incoming_kg or 0)
@@ -204,7 +209,11 @@ def get_active_slots_sync(order_type: str = "BUY") -> list[dict]:
         for s in merged.values():
             s.pop("_has_stock", None)
 
-        today_iso = get_cambodia_now().date().isoformat()
+        from datetime import timedelta
+        today_date = get_cambodia_now().date()
+        if is_past_stock_movement_time(session):
+            today_date = today_date + timedelta(days=1)
+        today_iso = today_date.isoformat()
         # Order slots starting from today (now on) into upcoming dates next
         all_slots = list(merged.values())
         upcoming = [s for s in all_slots if s["slot_date"] >= today_iso]
@@ -228,6 +237,8 @@ def _matching_slots_sync(slot_date: str, order_type: str = "BUY") -> list[dict]:
         result = []
         for t in tables:
             for row in t.rows:
+                if not getattr(row, "is_active", True):
+                    continue
                 row_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
                 if row_date == target:
                     result.append(_get_slot_dict(row, t))
@@ -335,6 +346,27 @@ def calculate_slot_tier_breakdown_sync(
                     "is_new_price": is_new_price,
                 })
                 remaining_to_fill -= alloc
+
+        if store_type == "SELL" and remaining_to_fill > 1e-9:
+            fallback_table = tables[0] if tables else None
+            fallback_prem = first_table_premium
+            fallback_name = fallback_table.table_name if fallback_table else "Slot Table"
+            fallback_id = fallback_table.id if fallback_table else 1
+            if fallback_table:
+                for row in fallback_table.rows:
+                    r_date = row.slot_date.isoformat() if hasattr(row.slot_date, "isoformat") else str(row.slot_date)
+                    if r_date == target:
+                        fallback_prem = float(row.premium)
+                        break
+            tiers.append({
+                "table_id": fallback_id,
+                "table_name": fallback_name,
+                "available": 0.0,
+                "quantity": remaining_to_fill,
+                "premium": fallback_prem,
+                "is_new_price": False,
+            })
+            remaining_to_fill = 0.0
 
         is_sufficient = (remaining_to_fill <= 1e-9) and (len(tiers) > 0)
         has_spillover = (len(tiers) > 1)
@@ -557,6 +589,23 @@ def deduct_store_stock_sync(
         # every table's claim) falls back to the oldest remaining eligible incoming_kg.
         if remaining > 0:
             remaining -= draw_incoming(remaining, f"{txn_type}_INCOMING")
+
+        # Pass 3: Over-stock deficit handling for store SELL perspective (customer buying gold).
+        # Allows orders to succeed even if stock is 0 or depleted, drawing table stock into negative balance.
+        if store_type == "SELL" and remaining > 1e-9 and tables:
+            first_t = tables[0]
+            stock_before = first_t.stock
+            first_t.stock = Decimal(str(float(first_t.stock) - remaining))
+            session.add(InventoryTransaction(
+                slot_table_id=first_t.id,
+                order_id=order_id,
+                transaction_type=f"{txn_type}_OVERSTOCK",
+                quantity=Decimal(str(remaining)),
+                stock_before=stock_before,
+                stock_after=first_t.stock,
+                remark=f"{remark} (Over-stock deficit)" if remark else "Over-stock deficit",
+            ))
+            remaining = 0.0
 
         if remaining > 1e-9:
             session.rollback()

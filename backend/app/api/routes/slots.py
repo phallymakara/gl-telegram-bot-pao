@@ -36,6 +36,75 @@ def _raise_if_slot_referenced(db: Session, row_id: int) -> None:
         )
 
 
+def _enrich_slot_tables(db: Session, tables: list[SlotTable]) -> list[SlotTable]:
+    """
+    Computes sold and remaining metrics for each slot table:
+    - Set Limit / Stock: Initial or configured quota.
+    - Sold: Total quantity reserved/ordered by customers so far.
+    - Remaining: Automatically calculated (Set Limit - Sold).
+    """
+    if not tables:
+        return tables
+
+    table_ids = [t.id for t in tables]
+
+    # Deductions by slot_table_id
+    ded_q = (
+        db.query(
+            InventoryTransaction.slot_table_id,
+            func.coalesce(func.sum(InventoryTransaction.quantity), 0),
+        )
+        .filter(
+            InventoryTransaction.slot_table_id.in_(table_ids),
+            InventoryTransaction.transaction_type.in_([
+                "ORDER_RESERVE_DEDUCT",
+                "ORDER_DEDUCT",
+                "ORDER_STOCK_DEDUCT",
+                "ORDER_OVERSTOCK",
+                "ORDER_BUY_LIMIT_DEDUCT",
+            ]),
+        )
+        .group_by(InventoryTransaction.slot_table_id)
+        .all()
+    )
+    ded_map = {row[0]: Decimal(str(row[1])) for row in ded_q}
+
+    # Releases/restocks by slot_table_id
+    rel_q = (
+        db.query(
+            InventoryTransaction.slot_table_id,
+            func.coalesce(func.sum(InventoryTransaction.quantity), 0),
+        )
+        .filter(
+            InventoryTransaction.slot_table_id.in_(table_ids),
+            InventoryTransaction.transaction_type.in_([
+                "ORDER_CANCEL_RESTOCK",
+                "ORDER_DELETE_RESTOCK",
+                "ORDER_RESTOCK",
+                "ORDER_BUY_LIMIT_RELEASE",
+            ]),
+        )
+        .group_by(InventoryTransaction.slot_table_id)
+        .all()
+    )
+    rel_map = {row[0]: Decimal(str(row[1])) for row in rel_q}
+
+    for t in tables:
+        is_sell = "SELL" in t.table_name.upper()
+        ded = ded_map.get(t.id, Decimal(0))
+        rel = rel_map.get(t.id, Decimal(0))
+        net_sold = max(Decimal(0), ded - rel)
+
+        base_val = t.stock if is_sell else (t.buy_limit if t.buy_limit is not None else Decimal(0))
+        if t.set_limit is None or t.set_limit == Decimal(0):
+            t.set_limit = base_val + net_sold
+
+        t.sold = net_sold
+        t.remaining = t.set_limit - t.sold
+
+    return tables
+
+
 @router.get("/", response_model=list[SlotTableResponse])
 def list_tables(db: Session = Depends(get_db)):
     """
@@ -44,7 +113,7 @@ def list_tables(db: Session = Depends(get_db)):
     """
     rollover_past_slots_sync(db)
     tables = db.query(SlotTable).options(joinedload(SlotTable.rows)).order_by(SlotTable.display_order).all()
-    return tables
+    return _enrich_slot_tables(db, tables)
 
 
 @router.post("/", response_model=SlotTableResponse, status_code=status.HTTP_201_CREATED)
@@ -100,7 +169,7 @@ def create_table(body: SlotTableCreate, db: Session = Depends(get_db)):
         entity_id=table.id,
         details={"table_name": table.table_name, "buy_limit": float(table.buy_limit or 0)},
     )
-    return created
+    return _enrich_slot_tables(db, [created])[0]
 
 
 @router.put("/{table_id}", response_model=SlotTableResponse)
@@ -162,6 +231,12 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
 
     table.table_name = body.table_name
 
+    if body.set_limit is not None:
+        table.set_limit = body.set_limit
+
+    if body.is_active is not None:
+        table.is_active = body.is_active
+
     # Only update physical stock when modifying SELL tables or legacy payloads without buy_limit,
     # so editing a BUY table's buy_limit never overwrites stock.
     if "SELL" in table.table_name.upper() or body.buy_limit is None:
@@ -222,7 +297,7 @@ def update_table(table_id: int, body: SlotTableCreate, db: Session = Depends(get
             entity_type="SlotTable",
             entity_id=table.id,
         )
-    return updated
+    return _enrich_slot_tables(db, [updated])[0]
 
 
 @router.delete("/{table_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -259,6 +334,82 @@ def delete_table(table_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/{table_id}/duplicate", response_model=SlotTableResponse, status_code=status.HTTP_201_CREATED)
+def duplicate_table(table_id: int, db: Session = Depends(get_db)):
+    """
+    Duplicate an entire slot table container, cloning all of its rows, dates, and premiums.
+    """
+    source = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source table not found")
+
+    base_name = source.table_name
+    candidate_name = f"{base_name} (Copy)"
+    counter = 2
+    while db.query(SlotTable.id).filter(SlotTable.table_name == candidate_name).first() is not None:
+        candidate_name = f"{base_name} (Copy {counter})"
+        counter += 1
+
+    max_order = db.query(SlotTable.display_order).order_by(SlotTable.display_order.desc()).first()
+    new_order = (max_order[0] + 1) if max_order else 0
+
+    new_table = SlotTable(
+        table_name=candidate_name,
+        stock=source.stock,
+        buy_limit=source.buy_limit,
+        set_limit=source.set_limit or (source.stock if "SELL" in source.table_name.upper() else source.buy_limit),
+        is_active=source.is_active,
+        display_order=new_order,
+    )
+    db.add(new_table)
+    db.flush()
+
+    for r in source.rows:
+        db.add(SlotRow(
+            slot_table_id=new_table.id,
+            slot_date=r.slot_date,
+            premium=r.premium,
+            qty=r.qty,
+            incoming_kg=Decimal(0),
+        ))
+
+    db.commit()
+    created = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == new_table.id).first()
+    from app.services.dashboard_service import sync_db_matrix_columns_with_slots
+    sync_db_matrix_columns_with_slots(db)
+
+    log_activity(
+        db,
+        action="SLOT_TABLE_DUPLICATED",
+        category="STOCK",
+        description=f"Duplicated slot table '{source.table_name}' to '{candidate_name}'",
+        entity_type="SlotTable",
+        entity_id=new_table.id,
+        details={"source_id": source.id, "new_table_name": candidate_name},
+    )
+
+    return _enrich_slot_tables(db, [created])[0]
+
+
+@router.patch("/{table_id}/toggle", response_model=SlotTableResponse)
+def toggle_slot_table(table_id: int, db: Session = Depends(get_db)):
+    """Toggle a slot table container active/inactive."""
+    table = db.query(SlotTable).options(joinedload(SlotTable.rows)).filter(SlotTable.id == table_id).first()
+    if not table:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Table not found")
+    table.is_active = not table.is_active
+    db.commit()
+    log_activity(
+        db,
+        action="SLOT_TABLE_TOGGLED",
+        category="STOCK",
+        description=f"Toggled slot table '{table.table_name}' {'active' if table.is_active else 'inactive'}",
+        entity_type="SlotTable",
+        entity_id=table.id,
+    )
+    return _enrich_slot_tables(db, [table])[0]
+
+
 @router.post("/{table_id}/rows", response_model=SlotRowResponse, status_code=status.HTTP_201_CREATED)
 def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
     """
@@ -286,7 +437,13 @@ def add_row(table_id: int, body: SlotRowCreate, db: Session = Depends(get_db)):
             detail=f"A slot for {body.slot_date} already exists in this table."
         )
 
-    row = SlotRow(slot_table_id=table_id, slot_date=body.slot_date, premium=body.premium, qty=body.qty)
+    row = SlotRow(
+        slot_table_id=table_id,
+        slot_date=body.slot_date,
+        premium=body.premium,
+        qty=body.qty,
+        is_active=body.is_active if body.is_active is not None else True,
+    )
     db.add(row)
 
     # Automatically synchronize all other active slot tables (Buy and Sell) to have the same row date
@@ -353,6 +510,8 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
     row.premium = body.premium
     if body.qty is not None:
         row.qty = body.qty
+    if body.is_active is not None:
+        row.is_active = body.is_active
 
     # If the date changed, synchronize the date across all other slot tables as well
     if old_date != body.slot_date:
@@ -375,6 +534,26 @@ def update_row(table_id: int, row_id: int, body: SlotRowCreate, db: Session = De
         entity_type="SlotRow",
         entity_id=row.id,
         details={"table_id": table_id, "slot_date": str(row.slot_date), "premium": float(row.premium)},
+    )
+    return row
+
+
+@router.patch("/{table_id}/rows/{row_id}/toggle", response_model=SlotRowResponse)
+def toggle_slot_row(table_id: int, row_id: int, db: Session = Depends(get_db)):
+    """Toggle an individual slot date row active/inactive."""
+    row = db.query(SlotRow).filter(SlotRow.id == row_id, SlotRow.slot_table_id == table_id).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Row not found")
+    row.is_active = not row.is_active
+    db.commit()
+    db.refresh(row)
+    log_activity(
+        db,
+        action="SLOT_ROW_TOGGLED",
+        category="STOCK",
+        description=f"Toggled slot date {row.slot_date} {'active' if row.is_active else 'inactive'}",
+        entity_type="SlotRow",
+        entity_id=row.id,
     )
     return row
 

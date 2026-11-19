@@ -256,24 +256,6 @@ async def _finalize_quantity_selection(
         await reply_target.reply_text(t("slot_not_found", lang))
         return False
 
-    if order_type == BUY:
-        from app.core.database import SessionLocal
-        def _check_prod_avail():
-            s = SessionLocal()
-            try:
-                from app.services.dashboard_service import get_product_available_stock
-                return get_product_available_stock(s, "DB", selected_slot, "TELEGRAM")
-            finally:
-                s.close()
-        prod_avail = await asyncio.to_thread(_check_prod_avail)
-        if prod_avail <= 0 or prod_avail < quantity:
-            err_msg = t("slot_out_of_stock", lang)
-            if query is not None:
-                await query.answer(err_msg, show_alert=True)
-            else:
-                await reply_target.reply_text(err_msg)
-            return False
-
     tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, order_type)
     if not tier_info.get("is_sufficient"):
         err_msg = _get_insufficient_msg(order_type, tier_info, lang)

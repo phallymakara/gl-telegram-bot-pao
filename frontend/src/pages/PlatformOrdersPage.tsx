@@ -352,32 +352,74 @@ function formatInvoiceDate(d?: string | null): string {
   return clean;
 }
 
-function ExportSellOrdersDropdown({
-  rows,
+function ExportSellOrdersModal({
+  isOpen,
+  onClose,
+  orders,
   notify,
 }: {
-  rows: OrderData[];
+  isOpen: boolean;
+  onClose: () => void;
+  orders: OrderData[];
   notify?: (msg: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [salesPerson, setSalesPerson] = useState("All");
 
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
+  // Extract unique sales persons from existing orders
+  const salesPersonOptions = useMemo(() => {
+    const s = new Set<string>();
+    orders.forEach((r) => {
+      if (r.sales_person && r.sales_person.trim()) {
+        s.add(r.sales_person.trim());
       }
-    }
-    if (open) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+    });
+    return Array.from(s).sort();
+  }, [orders]);
+
+  // Filtered rows for export
+  const exportRows = useMemo(() => {
+    return orders.filter((r) => {
+      // Date filter
+      const dStr = (r.slot_date_str || r.order_date || r.created_at || "").slice(0, 10);
+      if (startDate && dStr && dStr < startDate) return false;
+      if (endDate && dStr && dStr > endDate) return false;
+
+      // Customer filter
+      if (customerQuery.trim()) {
+        const q = customerQuery.toLowerCase().trim();
+        const cName = (r.customer_name || "").toLowerCase();
+        const uName = (r.username || "").toLowerCase();
+        if (!cName.includes(q) && !uName.includes(q)) return false;
+      }
+
+      // Sales person filter
+      if (salesPerson && salesPerson !== "All") {
+        if ((r.sales_person || "").toLowerCase() !== salesPerson.toLowerCase()) return false;
+      }
+
+      return true;
+    });
+  }, [orders, startDate, endDate, customerQuery, salesPerson]);
 
   function handleExportExcel() {
-    setOpen(false);
-    const headers = ["Order No", "Issue Date", "Collection Date", "Customer Name", "Sales Person", "Channel / Type", "Quantity (KG)", "Total Amount (USD)", "Spot Price", "Premium", "Status"];
-    const exportRows = rows.map((r) => [
+    onClose();
+    const headers = [
+      "Order No",
+      "Issue Date",
+      "Collection Date",
+      "Customer Name",
+      "Sales Person",
+      "Channel / Type",
+      "Quantity (KG)",
+      "Total Amount (USD)",
+      "Spot Price",
+      "Premium",
+      "Status",
+    ];
+    const exportData = exportRows.map((r) => [
       `"${(r.order_no || "").replace(/"/g, '""')}"`,
       `"${(r.slot_date_str || r.order_date || r.created_at || "").replace(/"/g, '""')}"`,
       `"${(r.collection_date || (r.status === "COLLECTED" || r.status === "COMPLETED" ? r.created_at : "") || "").replace(/"/g, '""')}"`,
@@ -391,21 +433,21 @@ function ExportSellOrdersDropdown({
       `"${(r.status || "").replace(/"/g, '""')}"`,
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...exportRows.map((row) => row.join(","))].join("\n");
+    const csvContent = "\uFEFF" + [headers.join(","), ...exportData.map((row) => row.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const dateStr = getLocalDateString();
     link.setAttribute("href", url);
-    link.setAttribute("download", `Sell_Orders_Report_${dateStr}.csv`);
+    link.setAttribute("download", `Sell_Orders_Report_${startDate ? startDate + "_to_" + (endDate || dateStr) : dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    if (notify) notify("Exported Sell Orders list to Excel (.csv)");
+    if (notify) notify(`Exported ${exportRows.length} Sell Orders to Excel (.csv)`);
   }
 
   function handleExportPdf() {
-    setOpen(false);
+    onClose();
     const dateStr = new Date().toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -426,12 +468,13 @@ function ExportSellOrdersDropdown({
     const doc = iframe.contentWindow?.document;
     if (!doc) return;
 
-    const tableRowsHtml = rows
+    const tableRowsHtml = exportRows
       .map(
         (r) => `
         <tr style="border-bottom: 1px solid #e2e8f0;">
           <td style="padding: 8px 10px; font-family: monospace; font-weight: bold; color: #1e293b;">${r.order_no || "—"}</td>
           <td style="padding: 8px 10px; font-weight: 600; color: #0f172a;">${r.customer_name || "—"}</td>
+          <td style="padding: 8px 10px; color: #475569;">${r.sales_person || "—"}</td>
           <td style="padding: 8px 10px; color: #475569;">${r.order_source || r.channel || "—"}</td>
           <td style="padding: 8px 10px; font-family: monospace; font-weight: 600; text-align: right; color: #0f172a;">${toNumber(r.quantity).toFixed(3)} KG</td>
           <td style="padding: 8px 10px; font-family: monospace; font-weight: 700; text-align: right; color: #4338ca;">$${toNumber(r.total_amount).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
@@ -444,6 +487,12 @@ function ExportSellOrdersDropdown({
       )
       .join("");
 
+    const filterNotes = [
+      startDate || endDate ? `Date Range: ${startDate || "Any"} to ${endDate || "Present"}` : null,
+      customerQuery ? `Customer: "${customerQuery}"` : null,
+      salesPerson !== "All" ? `Sales: ${salesPerson}` : null,
+    ].filter(Boolean).join(" | ");
+
     const htmlContent = `
       <!DOCTYPE html>
       <html>
@@ -454,6 +503,7 @@ function ExportSellOrdersDropdown({
           .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366f1; padding-bottom: 12px; margin-bottom: 20px; }
           .title { font-size: 20px; font-weight: bold; color: #1e1b4b; }
           .meta { font-size: 12px; color: #64748b; }
+          .filters { font-size: 11px; color: #4f46e5; margin-top: 4px; font-weight: 500; }
           table { width: 100%; border-collapse: collapse; font-size: 12px; }
           th { background: #f8fafc; text-align: left; padding: 10px 10px; font-weight: 600; color: #64748b; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 11px; }
           .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; }
@@ -463,7 +513,8 @@ function ExportSellOrdersDropdown({
         <div class="header">
           <div>
             <div class="title">Sell Orders Summary Report</div>
-            <div class="meta">Exported on ${dateStr} | Total Orders: ${rows.length}</div>
+            <div class="meta">Exported on ${dateStr} | Total Filtered Orders: ${exportRows.length} of ${orders.length}</div>
+            ${filterNotes ? `<div class="filters">Applied Filters: ${filterNotes}</div>` : ""}
           </div>
         </div>
         <table>
@@ -471,7 +522,8 @@ function ExportSellOrdersDropdown({
             <tr>
               <th>Order No</th>
               <th>Customer Name</th>
-              <th>Product Type</th>
+              <th>Sales Person</th>
+              <th>Channel / Type</th>
               <th style="text-align: right;">Quantity</th>
               <th style="text-align: right;">Total Amount</th>
               <th>Order Date</th>
@@ -501,41 +553,121 @@ function ExportSellOrdersDropdown({
       }, 1000);
     }, 300);
 
-    if (notify) notify("Prepared PDF export for print/download");
+    if (notify) notify(`Prepared PDF export for ${exportRows.length} orders`);
   }
 
-  return (
-    <div className="relative inline-block text-left" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
-      >
-        <Download size={13} className="text-slate-500" />
-        <span>Export</span>
-        <ChevronDown size={12} className="text-slate-400" />
-      </button>
+  if (!isOpen) return null;
 
-      {open && (
-        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <DraggableModalBox
+        resetKey={isOpen}
+        className="bg-white rounded-2xl shadow-none border border-slate-300 w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
+      >
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+          <h3 className="font-semibold text-slate-800 text-sm">Export Sell Orders</h3>
           <button
             type="button"
-            onClick={handleExportExcel}
-            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
+            aria-label="Close export dialog"
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            <FileSpreadsheet size={14} className="text-emerald-600" />
-            <span>Export as Excel</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportPdf}
-            className="w-full px-3 py-1.5 text-xs text-slate-700 hover:bg-rose-50/70 hover:text-rose-700 flex items-center gap-2 transition-colors cursor-pointer font-medium"
-          >
-            <FileText size={14} className="text-rose-600" />
-            <span>Export as PDF</span>
+            <X size={15} />
           </button>
         </div>
-      )}
+
+        <div className="p-4 space-y-3 overflow-y-auto">
+          {/* 1. Date Range */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-600">Date Range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-0.5">From</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 block mb-0.5">To</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Customer Name */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-600">Customer Name</label>
+            <input
+              type="text"
+              placeholder="All customers (or type name)"
+              value={customerQuery}
+              onChange={(e) => setCustomerQuery(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+            />
+          </div>
+
+          {/* 3. Sales Person */}
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold text-slate-600">Sales Person</label>
+            <select
+              value={salesPerson}
+              onChange={(e) => setSalesPerson(e.target.value)}
+              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+            >
+              <option value="All">All Sales</option>
+              {salesPersonOptions.map((sp) => (
+                <option key={sp} value={sp}>
+                  {sp}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between gap-2 bg-slate-50/60 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={exportRows.length === 0}
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileSpreadsheet size={13} />
+              <span>Excel ({exportRows.length})</span>
+            </button>
+            <button
+              type="button"
+              disabled={exportRows.length === 0}
+              onClick={handleExportPdf}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <FileText size={13} />
+              <span>PDF ({exportRows.length})</span>
+            </button>
+          </div>
+        </div>
+      </DraggableModalBox>
     </div>
   );
 }
@@ -554,6 +686,7 @@ export default function PlatformOrdersPage({
   const [returnTarget, setReturnTarget] = useState<OrderData | null>(null);
   const [returnForm, setReturnForm] = useState({ quantity: "", reason: "" });
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<OrderData | null>(null);
   const [activeMenuId, setActiveMenuId] = useState<number | null>(null);
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<OrderData | null>(null);
@@ -1180,7 +1313,20 @@ export default function PlatformOrdersPage({
             ))}
           </select>
           <div className="flex items-center gap-2 sm:ml-auto">
-            <ExportSellOrdersDropdown rows={filteredRows} notify={notify} />
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+            >
+              <Download size={13} className="text-slate-500" />
+              <span>Export</span>
+            </button>
+            <ExportSellOrdersModal
+              isOpen={isExportModalOpen}
+              onClose={() => setIsExportModalOpen(false)}
+              orders={rows}
+              notify={notify}
+            />
             <button
               onClick={() => {
                 setEditingOrder(null);

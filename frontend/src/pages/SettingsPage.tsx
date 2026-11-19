@@ -26,6 +26,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [twoFA, setTwoFA] = useState(false);
   const [openTime, setOpenTime] = useState("08:00");
   const [closeTime, setCloseTime] = useState("21:00");
+  const [stockMovementTime, setStockMovementTime] = useState("17:00");
   const [offStoreMessage, setOffStoreMessage] = useState("");
   const [offStoreImageUrl, setOffStoreImageUrl] = useState("");
   const [offStoreImageUrls, setOffStoreImageUrls] = useState<string[]>([]);
@@ -33,6 +34,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
   const [botToken, setBotToken] = useState("");
   const [salesTelegramUsername, setSalesTelegramUsername] = useState("");
   const [salesPhoneNumber, setSalesPhoneNumber] = useState("");
+  const [allowedGroupId, setAllowedGroupId] = useState("");
   const [sessionTimeout, setSessionTimeout] = useState(30);
   const [passwordExpiry, setPasswordExpiry] = useState(90);
 
@@ -60,6 +62,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     setBotUsername(s.bot?.bot_username ?? "");
     setSalesTelegramUsername(s.bot?.sales_telegram_username ?? "");
     setSalesPhoneNumber(s.bot?.sales_phone_number ?? "");
+    setAllowedGroupId(s.bot?.allowed_group_id ?? "");
     if (s.security) {
       setSessionTimeout(s.security.session_timeout ?? 30);
       setPasswordExpiry(s.security.password_expiry ?? 90);
@@ -68,6 +71,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
     if (s.system) {
       setOpenTime(s.system.open_time || "08:00");
       setCloseTime(s.system.close_time || "21:00");
+      setStockMovementTime(s.system.stock_movement_time || "17:00");
       setOffStoreMessage(s.system.off_store_message || "");
       const rawUrls: string[] = s.system.off_store_image_urls || [];
       const initialUrls = rawUrls.length > 0 ? rawUrls : (s.system.off_store_image_url ? [s.system.off_store_image_url] : []);
@@ -140,6 +144,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           bot_username: botUsername,
           sales_telegram_username: salesTelegramUsername,
           sales_phone_number: salesPhoneNumber,
+          allowed_group_id: allowedGroupId,
         },
         security: {
           session_timeout: sessionTimeout,
@@ -149,6 +154,7 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
         system: {
           open_time: openTime,
           close_time: closeTime,
+          stock_movement_time: stockMovementTime,
           off_store_message: offStoreMessage,
           off_store_image_url: offStoreImageUrls[0] || "",
           off_store_image_urls: offStoreImageUrls,
@@ -260,6 +266,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
             setSalesTelegramUsername={setSalesTelegramUsername}
             salesPhoneNumber={salesPhoneNumber}
             setSalesPhoneNumber={setSalesPhoneNumber}
+            allowedGroupId={allowedGroupId}
+            setAllowedGroupId={setAllowedGroupId}
             showToken={showToken}
             setShowToken={setShowToken}
             paymentMethods={paymentMethods}
@@ -284,6 +292,8 @@ export default function SettingsPage({ notify }: SettingsPageProps) {
           setOpenTime={setOpenTime}
           closeTime={closeTime}
           setCloseTime={setCloseTime}
+          stockMovementTime={stockMovementTime}
+          setStockMovementTime={setStockMovementTime}
           offStoreMessage={offStoreMessage}
           setOffStoreMessage={setOffStoreMessage}
           offStoreImageUrl={offStoreImageUrl}

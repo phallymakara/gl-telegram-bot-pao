@@ -122,21 +122,10 @@ def _place_order_sync(
         tier_info = None
         # Section 3: Calculate order totals (with multi-table tiered price support for both SELL stock and BUY limit)
         if store_txn_type == "SELL":
-            from app.services.dashboard_service import get_product_available_stock
-            avail_stock = get_product_available_stock(
-                session,
-                product_type="DB",
-                slot_date=slot_date,
-                channel="TELEGRAM",
-            )
-            if avail_stock <= 0 or avail_stock < quantity:
-                logger.warning("Order failed: No stock available for slot_date=%s, requested=%.2f, available=%.2f", slot_date, quantity, avail_stock)
-                raise InsufficientStockError("No stock available")
-
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
             if not tier_info.get("is_sufficient"):
-                logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("No stock available")
+                logger.warning("Order failed: Unable to calculate slot price for slot_date=%s, requested=%.2f", slot_date, quantity)
+                raise InsufficientStockError("Unable to calculate price")
         else:
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "SELL", session=session)
             if not tier_info.get("is_sufficient"):

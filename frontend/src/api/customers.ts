@@ -49,6 +49,16 @@ export const customersApi = {
     api.post<CustomerData>("/api/customers/", data),
 
   /**
+   * Bulk import customer master data records.
+   * @param items List of partial customer records.
+   */
+  bulkImportCustomers: (items: Partial<CustomerData>[]) =>
+    api.post<{ success: boolean; imported_count: number; skipped_count: number; message: string }>(
+      "/api/customers/bulk",
+      items
+    ),
+
+  /**
    * Updates an existing customer master record.
    * @param id Target customer ID.
    * @param data Updated customer payload.

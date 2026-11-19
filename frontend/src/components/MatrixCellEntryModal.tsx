@@ -18,6 +18,8 @@ import { ToastType } from "./Toast";
 
 export type ClickableMatrixRowKey =
   | "import"
+  | "sell"
+  | "buy"
   | "physical_sell"
   | "bot_sell"
   | "physical_buy"
@@ -25,6 +27,8 @@ export type ClickableMatrixRowKey =
 
 export const CLICKABLE_MATRIX_ROW_KEYS: readonly ClickableMatrixRowKey[] = [
   "import",
+  "sell",
+  "buy",
   "physical_sell",
   "bot_sell",
   "physical_buy",
@@ -156,6 +160,20 @@ function getRowMetadata(rowKey: ClickableMatrixRowKey) {
         channel: "PO" as const,
         channelLabel: "Import Stock (Manual)",
       };
+    case "sell":
+      return {
+        isImport: false,
+        transactionType: "SELL" as const,
+        channel: "WALK_IN" as const,
+        channelLabel: "Sell to Customer",
+      };
+    case "buy":
+      return {
+        isImport: false,
+        transactionType: "BUY" as const,
+        channel: "WALK_IN" as const,
+        channelLabel: "Buy from Customer",
+      };
     case "physical_sell":
       return {
         isImport: false,
@@ -224,6 +242,7 @@ export default function MatrixCellEntryModal({
 
   const [dateValue, setDateValue] = useState("");
   const [poType, setPoType] = useState<"OVERSEA" | "LOCAL">("OVERSEA");
+  const [orderChannel, setOrderChannel] = useState<"WALK_IN" | "PLATFORM">("WALK_IN");
   const [partyName, setPartyName] = useState("");
   const [productType, setProductType] = useState("");
   const [unitType, setUnitType] = useState("Kg");
@@ -287,6 +306,9 @@ export default function MatrixCellEntryModal({
 
     setDateValue(target.col.target_date || "");
     setPoType(colBrand.toLowerCase().includes("swiss") ? "OVERSEA" : "LOCAL");
+    setOrderChannel(
+      target.rowKey === "bot_sell" || target.rowKey === "bot_buy" ? "PLATFORM" : "WALK_IN"
+    );
     setPartyName("");
     setProductType(matchedBrandProduct ? matchedBrandProduct.name : colBrand);
     setUnitType("Kg");
@@ -533,7 +555,7 @@ export default function MatrixCellEntryModal({
           transaction_type: meta.transactionType,
           customer_name: partyName.trim(),
           sales_person: salesPerson.trim() || undefined,
-          channel: meta.channel,
+          channel: orderChannel,
           region: "LOCAL",
           slot_date_str: dateValue.trim(),
           product_type: productType.trim(),
@@ -612,6 +634,38 @@ export default function MatrixCellEntryModal({
                     {src === "OVERSEA" ? "Oversea" : "Local"}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {!meta.isImport && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Channel *
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setOrderChannel("WALK_IN")}
+                  className={`py-1.5 text-xs font-semibold rounded-md border transition cursor-pointer ${
+                    orderChannel === "WALK_IN"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  Physical (Walk-In)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderChannel("PLATFORM")}
+                  className={`py-1.5 text-xs font-semibold rounded-md border transition cursor-pointer ${
+                    orderChannel === "PLATFORM"
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  Bot / Online
+                </button>
               </div>
             </div>
           )}
