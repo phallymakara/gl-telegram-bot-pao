@@ -35,7 +35,7 @@ export default function ProtectedRoute({ module, children }: ProtectedRouteProps
 
     return (
       <div className="flex-1 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center space-y-4">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-4">
           <div className="h-16 w-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mx-auto">
             <Lock size={28} />
           </div>
@@ -51,7 +51,7 @@ export default function ProtectedRoute({ module, children }: ProtectedRouteProps
           <div className="pt-2">
             <button
               onClick={navigateToFirstAllowed}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm transition-colors cursor-pointer"
             >
               Go to Allowed Module <ArrowRight size={16} />
             </button>

@@ -62,7 +62,7 @@ function ActionMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             onClick={() => {
               setOpen(false);
@@ -123,7 +123,7 @@ export default function ProductTable({
       <div className="flex items-center justify-end gap-3 mb-3.5 flex-shrink-0">
         <button
           onClick={openCreateModal}
-          className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
+          className="w-full sm:w-auto flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-none cursor-pointer"
         >
           <Plus size={15} /> New Product
         </button>
@@ -147,10 +147,10 @@ export default function ProductTable({
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-slate-50">
               <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Product Name</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Conversion Factor</th>
-                <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
-                <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
+                <th className="py-2.5 px-3 font-medium bg-slate-50">Product Name</th>
+                <th className="py-2.5 px-3 font-medium bg-slate-50">Conversion Factor</th>
+                <th className="py-2.5 px-3 font-medium bg-slate-50">Status</th>
+                <th className="py-2.5 px-3 font-medium text-right bg-slate-50">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

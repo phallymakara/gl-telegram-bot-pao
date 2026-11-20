@@ -1610,17 +1610,7 @@ def create_stock_matrix_deduction(db: Session, data: StockMatrixDeductionCreate)
     target_d = _parse_matrix_date(data.date)
     slot_date_str = target_d.strftime("%Y-%m-%d")
 
-    # Validate that product-level Available Stock is sufficient for SELL order
-    if txn_type == "SELL":
-        avail_stock = get_product_available_stock(
-            db,
-            product_type=product_type,
-            slot_date=slot_date_str,
-            channel=channel,
-        )
-        if avail_stock <= 0 or avail_stock < qty:
-            raise ValueError("No stock available")
-
+    # Over-stock enabled: allow SELL orders even if stock in the system is not enough
     customer_name = data.customer_name or "Matrix Client"
     customer = db.query(Customer).filter(Customer.display_name == customer_name).first()
     if not customer:
@@ -1676,17 +1666,6 @@ def update_stock_matrix_deduction(db: Session, order_id: int, quantity: float) -
     old_qty = float(order.quantity or 0)
     qty = abs(float(quantity))
     delta = qty - old_qty
-
-    if order.transaction_type == "SELL":
-        if delta > 0:
-            avail_stock = get_product_available_stock(
-                db,
-                product_type=order.product_type,
-                slot_date=order.slot_date_str,
-                channel=order.channel,
-            )
-            if avail_stock <= 0 or avail_stock < delta:
-                raise ValueError("No stock available")
 
     order.quantity = Decimal(str(qty))
     order.premium_amount = calculate_premium_amount(order.quantity, order.premium or Decimal(0))

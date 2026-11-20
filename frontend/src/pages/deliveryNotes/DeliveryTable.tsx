@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { DeliveryNoteItem } from "../../api";
 import Card from "../../components/Card";
+import Select from "../../components/Select";
 import { openDeliveryInvoiceInNewTab, printDeliveryInvoiceDirectly } from "../../utils/deliveryInvoice";
 
 interface DeliveryTableProps {
@@ -318,16 +319,18 @@ export default function DeliveryTable({
 
           <div className="flex items-center gap-1.5">
             <Filter size={14} className="text-slate-400" />
-            <select
+            <Select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
-              className="px-2.5 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white text-slate-700 font-medium cursor-pointer"
-            >
-              <option value="">All Payment Statuses</option>
-              <option value="WAITING_PAYMENT">Waiting for Payment</option>
-              <option value="PARTIALLY_PAID">Partially Paid</option>
-              <option value="PAID">Fully Paid</option>
-            </select>
+              onChange={setPaymentFilter}
+              size="sm"
+              className="min-w-[170px]"
+              options={[
+                { value: "", label: "All Payment Statuses" },
+                { value: "WAITING_PAYMENT", label: "Waiting for Payment" },
+                { value: "PARTIALLY_PAID", label: "Partially Paid" },
+                { value: "PAID", label: "Fully Paid" },
+              ]}
+            />
           </div>
         </div>
 
@@ -354,20 +357,20 @@ export default function DeliveryTable({
           </div>
         ) : (
           <table className="w-full text-sm min-w-[1100px] border-collapse text-left">
-            <thead className="sticky top-0 z-10 bg-slate-50/80 border-b border-slate-200/80 shadow-xs">
-              <tr className="text-left text-slate-500 uppercase tracking-wider text-xs font-semibold">
-                <th className="py-3 px-4 font-semibold whitespace-nowrap">Delivery No.</th>
-                <th className="py-3 px-4 font-semibold whitespace-nowrap">Order No.</th>
-                <th className="py-3 px-4 font-semibold whitespace-nowrap">Customer</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Ordered Qty</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Delivered Qty</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Remaining Qty</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Total Amount</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Collected Amount</th>
-                <th className="py-3 px-4 font-semibold text-right whitespace-nowrap">Remaining Amount</th>
-                <th className="py-3 px-4 font-semibold text-center whitespace-nowrap">Status</th>
-                <th className="py-3 px-4 font-semibold whitespace-nowrap">Last Activity</th>
-                <th className="py-3 px-4 font-semibold text-center w-16 whitespace-nowrap">Actions</th>
+            <thead className="sticky top-0 z-10 bg-slate-50">
+              <tr className="text-left text-slate-400 uppercase tracking-wide text-xs border-b border-slate-200 bg-slate-50">
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap bg-slate-50">Delivery No.</th>
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap bg-slate-50">Order No.</th>
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap bg-slate-50">Customer</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Ordered Qty</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Delivered Qty</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Remaining Qty</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Total Amount</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Collected Amount</th>
+                <th className="py-2.5 px-3 font-medium text-right whitespace-nowrap bg-slate-50">Remaining Amount</th>
+                <th className="py-2.5 px-3 font-medium text-center whitespace-nowrap bg-slate-50">Status</th>
+                <th className="py-2.5 px-3 font-medium whitespace-nowrap bg-slate-50">Last Activity</th>
+                <th className="py-2.5 px-3 font-medium text-center w-16 whitespace-nowrap bg-slate-50">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -383,17 +386,17 @@ export default function DeliveryTable({
                 return (
                   <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                     {/* 1. Delivery No. */}
-                    <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                       {item.delivery_no}
                     </td>
 
                     {/* 2. Order No. */}
-                    <td className="px-4 py-3 font-medium text-slate-700 whitespace-nowrap">
+                    <td className="py-2 px-3 font-normal text-slate-700 whitespace-nowrap">
                       {item.order_no}
                     </td>
 
                     {/* 3. Customer */}
-                    <td className="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="py-2 px-3 text-slate-700 font-normal whitespace-nowrap">
                       <div>{item.customer_name || item.recipient_name}</div>
                       {item.recipient_name && item.customer_name && item.recipient_name !== item.customer_name && (
                         <span className="text-[11px] text-slate-400 block font-normal">
@@ -403,42 +406,42 @@ export default function DeliveryTable({
                     </td>
 
                     {/* 4. Ordered Qty */}
-                    <td className="px-4 py-3 text-right font-medium text-slate-700 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-slate-700 whitespace-nowrap">
                       {orderQty.toFixed(3)} KG
                     </td>
 
                     {/* 5. Delivered Qty */}
-                    <td className="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-slate-800 whitespace-nowrap">
                       {deliveredQty.toFixed(3)} KG
                     </td>
 
                     {/* 6. Remaining Qty */}
-                    <td className="px-4 py-3 text-right font-medium text-slate-600 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-slate-600 whitespace-nowrap">
                       {remainQty.toFixed(3)} KG
                     </td>
 
                     {/* 7. Total Amount */}
-                    <td className="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-slate-800 whitespace-nowrap">
                       ${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
                     {/* 8. Collected Amount */}
-                    <td className="px-4 py-3 text-right font-medium text-emerald-700 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-emerald-700 whitespace-nowrap">
                       ${collectedAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
                     {/* 9. Remaining Amount */}
-                    <td className="px-4 py-3 text-right font-medium text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 text-right font-normal text-slate-800 whitespace-nowrap">
                       ${remainingAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
                     {/* 10. Status */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
                       {renderStatusPill(item.payment_status)}
                     </td>
 
                     {/* 11. Last Activity */}
-                    <td className="px-4 py-3 text-slate-600 font-medium whitespace-nowrap text-xs">
+                    <td className="py-2 px-3 text-slate-600 font-normal whitespace-nowrap text-xs">
                       <div>{dateDisplay}</div>
                       {item.created_at && (
                         <span className="text-[11px] text-slate-400 block font-normal">
@@ -448,7 +451,7 @@ export default function DeliveryTable({
                     </td>
 
                     {/* 12. Actions */}
-                    <td className="px-4 py-3 text-center whitespace-nowrap relative">
+                    <td className="py-2 px-3 text-center whitespace-nowrap relative">
                       <div className="relative inline-block text-left">
                         <button
                           type="button"
@@ -463,7 +466,7 @@ export default function DeliveryTable({
                         </button>
 
                         {activeMenuId === item.id && (
-                          <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                          <div className="absolute right-0 mt-1 w-52 bg-white rounded-xl shadow-none border border-slate-200 py-1.5 z-30 text-xs text-left divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
                             <div className="py-0.5 space-y-0.5">
                               {/* 1. View Invoice */}
                               <button

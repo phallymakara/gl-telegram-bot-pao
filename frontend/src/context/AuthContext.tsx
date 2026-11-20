@@ -41,36 +41,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshUsers = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      setCurrentUserState(null);
+      localStorage.removeItem("current_user_id");
+      sessionStorage.removeItem("super_admin_unlocked");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const data = await usersApi.getUsers();
-      setUsers(data);
-
-      const isSuper = (u: UserData) =>
-        u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.name === "Super Admin";
-
-      const savedUserId = localStorage.getItem("current_user_id");
-      if (savedUserId) {
-        const found = data.find((u) => u.id === Number(savedUserId));
-        if (found && found.is_active) {
-          if (!isSuper(found) || sessionStorage.getItem("super_admin_unlocked") === "true") {
-            setCurrentUserState(found);
-            return;
-          }
+      // Validate session with /api/auth/me
+      const me = await api.get<UserData>("/api/auth/me");
+      if (me && me.is_active) {
+        setCurrentUserState(me);
+        localStorage.setItem("current_user_id", String(me.id));
+        if (isSuperAdminUser(me)) {
+          sessionStorage.setItem("super_admin_unlocked", "true");
         }
+      } else {
+        throw new Error("Inactive user account");
       }
 
-      // Default to first active regular user so testing doesn't automatically expose Super Admin
-      const defaultUser =
-        data.find((u) => u.is_active && !isSuper(u)) ||
-        (sessionStorage.getItem("super_admin_unlocked") === "true" ? data[0] : null) ||
-        data[0] ||
-        null;
-      setCurrentUserState(defaultUser);
-      if (defaultUser) {
-        localStorage.setItem("current_user_id", String(defaultUser.id));
+      // Also load all users for admin user management views
+      try {
+        const data = await usersApi.getUsers();
+        setUsers(data);
+      } catch {
+        // Non-fatal if current user lacks permission to list all users
       }
     } catch (err) {
-      console.error("Failed to load users:", err);
+      console.warn("Session expired or invalid token:", err);
+      localStorage.removeItem("token");
+      localStorage.removeItem("current_user_id");
+      sessionStorage.removeItem("super_admin_unlocked");
+      setCurrentUserState(null);
     } finally {
       setIsLoading(false);
     }
@@ -89,24 +94,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const switchUser = useCallback((userId: number) => {
-    const user = users.find((u) => u.id === userId);
-    if (user) {
-      const prevId = currentUser?.id ?? null;
-      localStorage.removeItem("token");
-      setCurrentUser(user);
-      if (prevId !== user.id) {
-        const eventType = isSuperAdminUser(user) ? "SUPER_ADMIN_UNLOCK" : "USER_SWITCH";
-        auditLogsApi
-          .recordAuthEvent({
-            event_type: eventType,
-            target_user_id: user.id,
-            previous_user_id: prevId,
-          })
-          .catch((err) => console.warn("Failed to record auth switch event:", err));
-      }
-    }
-  }, [users, currentUser, setCurrentUser]);
+  const switchUser = useCallback((_userId: number) => {
+    // Isolated user sessions: unauthenticated switching disabled.
+    // Users must authenticate with their own credentials via loginUser.
+  }, []);
 
   const loginUser = useCallback(async (username: string, password: string): Promise<UserData> => {
     const res = await api.post<{ access_token: string; user: UserData }>("/api/auth/login", {
@@ -114,15 +105,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       password,
     });
     localStorage.setItem("token", res.access_token);
+    localStorage.setItem("current_user_id", String(res.user.id));
     if (isSuperAdminUser(res.user)) {
       sessionStorage.setItem("super_admin_unlocked", "true");
     } else {
       sessionStorage.removeItem("super_admin_unlocked");
     }
-    setCurrentUser(res.user);
-    await refreshUsers();
+    setCurrentUserState(res.user);
+    try {
+      const data = await usersApi.getUsers();
+      setUsers(data);
+    } catch {}
     return res.user;
-  }, [setCurrentUser, refreshUsers]);
+  }, []);
 
   const logoutUser = useCallback(async (): Promise<void> => {
     try {
@@ -131,10 +126,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("Failed to record logout event:", err);
     }
     localStorage.removeItem("token");
+    localStorage.removeItem("current_user_id");
     sessionStorage.removeItem("super_admin_unlocked");
-    const fallbackUser = users.find((u) => u.is_active && !isSuperAdminUser(u)) || null;
-    setCurrentUser(fallbackUser);
-  }, [users, setCurrentUser]);
+    setCurrentUserState(null);
+  }, []);
 
   const isAllowed = useCallback((moduleId: string): boolean => {
     if (moduleId === "audit-logs") {

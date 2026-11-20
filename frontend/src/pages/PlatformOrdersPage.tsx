@@ -13,6 +13,8 @@ import LazyTableFooter from "../components/LazyTableFooter";
 import useLazyRecords from "../hooks/useLazyRecords";
 import Loader, { TableLoader } from "../components/Loader";
 import DraggableModalBox from "../components/DraggableModalBox";
+import Select from "../components/Select";
+import { useAuth } from "../context/AuthContext";
 import { api, OrderData, DashboardStatsData, CustomerData, SalesPersonData, salesPersonsApi, productsApi, purchaseOrdersApi, customersApi, toNumber } from "../api";
 
 function SearchableSalesPersonSelect({
@@ -622,18 +624,16 @@ function ExportSellOrdersModal({
           {/* 3. Sales Person */}
           <div className="space-y-1">
             <label className="text-[11px] font-semibold text-slate-600">Sales Person</label>
-            <select
+            <Select
               value={salesPerson}
-              onChange={(e) => setSalesPerson(e.target.value)}
-              className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
-            >
-              <option value="All">All Sales</option>
-              {salesPersonOptions.map((sp) => (
-                <option key={sp} value={sp}>
-                  {sp}
-                </option>
-              ))}
-            </select>
+              onChange={setSalesPerson}
+              fullWidth
+              size="sm"
+              options={[
+                { value: "All", label: "All Sales" },
+                ...salesPersonOptions.map((sp) => ({ value: sp, label: sp })),
+              ]}
+            />
           </div>
         </div>
 
@@ -680,6 +680,8 @@ const isDbOrSwiss = (pType?: string | null) => {
 export default function PlatformOrdersPage({
   notify,
 }: PlatformOrdersPageProps) {
+  const { currentUser } = useAuth();
+  const currentSalesPersonName = currentUser?.name || currentUser?.username || "";
   const [rows, setRows] = useState<OrderData[]>([]);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("Order status");
@@ -693,7 +695,7 @@ export default function PlatformOrdersPage({
   const [productList, setProductList] = useState<ProductOption[]>([]);
   const [newOrderForm, setNewOrderForm] = useState({
     customer_name: "",
-    sales_person: "",
+    sales_person: currentSalesPersonName,
     channel: "Local",
     product_type: "DB",
     unit_type: "Kg",
@@ -1139,7 +1141,7 @@ export default function PlatformOrdersPage({
     function resetFormAndClose() {
       setNewOrderForm({
         customer_name: "",
-        sales_person: "",
+        sales_person: currentSalesPersonName,
         channel: "Local",
         product_type: "DB",
         unit_type: "Kg",
@@ -1297,21 +1299,19 @@ export default function PlatformOrdersPage({
               placeholder="Search order no, customer..."
             />
           </div>
-          <select
+          <Select
             aria-label="Order status filter"
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium focus:outline-none focus:border-indigo-500 shadow-xs cursor-pointer"
-          >
-            {[
-              "Order status",
-              "CONFIRMED",
-              "COLLECTED",
-              "CANCELLED",
-            ].map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
+            onChange={setStatus}
+            size="sm"
+            className="min-w-[130px]"
+            options={[
+              { value: "Order status", label: "All Statuses" },
+              { value: "CONFIRMED", label: "CONFIRMED" },
+              { value: "COLLECTED", label: "COLLECTED" },
+              { value: "CANCELLED", label: "CANCELLED" },
+            ]}
+          />
           <div className="flex items-center gap-2 sm:ml-auto">
             <button
               type="button"
@@ -1332,7 +1332,7 @@ export default function PlatformOrdersPage({
                 setEditingOrder(null);
                 setNewOrderForm({
                   customer_name: "",
-                  sales_person: "",
+                  sales_person: currentSalesPersonName,
                   channel: "Oversea",
                   product_type: "DB",
                   unit_type: "Kg",
@@ -1416,13 +1416,13 @@ export default function PlatformOrdersPage({
                     key={r.id}
                     className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                   >
-                    <td className="px-5 py-2 font-medium text-slate-700 whitespace-nowrap">
+                    <td className="px-5 py-2 font-normal text-slate-700 whitespace-nowrap">
                       {r.order_no}
                     </td>
-                    <td className="px-5 py-2 text-slate-500 font-medium whitespace-nowrap text-xs">
+                    <td className="px-5 py-2 text-slate-500 font-normal whitespace-nowrap text-xs">
                       {r.slot_date_str || r.order_date || (r.created_at ? r.created_at.split("T")[0] : "—")}
                     </td>
-                    <td className="px-5 py-2 text-slate-500 font-medium whitespace-nowrap text-xs">
+                    <td className="px-5 py-2 text-slate-500 font-normal whitespace-nowrap text-xs">
                       {r.collection_date ? (
                         r.collection_date
                       ) : r.status === "COLLECTED" || r.status === "COMPLETED" ? (
@@ -1431,10 +1431,10 @@ export default function PlatformOrdersPage({
                         <span className="text-slate-400 italic">Pending</span>
                       )}
                     </td>
-                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-700 font-normal whitespace-nowrap">
                       {r.customer_name || "—"}
                     </td>
-                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-700 font-normal whitespace-nowrap">
                       {r.sales_person || "—"}
                     </td>
                     <td className="px-5 py-2 text-slate-600 whitespace-nowrap text-xs">
@@ -1444,13 +1444,13 @@ export default function PlatformOrdersPage({
                         ? "Local-Telegram"
                         : "Local-Physical"}
                     </td>
-                    <td className="px-5 py-2 text-slate-700 font-medium whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-700 font-normal whitespace-nowrap">
                       {quantity > 0 ? `-${quantity.toFixed(2)}` : quantity.toFixed(2)} {(r as any).unit_type || "Kg"}
                     </td>
                     <td className="px-5 py-2 text-slate-600 whitespace-nowrap">
                       ${premium.toFixed(2)}
                     </td>
-                    <td className="px-5 py-2 font-medium text-slate-800 whitespace-nowrap">
+                    <td className="px-5 py-2 font-normal text-slate-800 whitespace-nowrap">
                       ${(premiumAmount || (quantity * (2700 + premium))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-5 py-2">
@@ -1751,14 +1751,6 @@ export default function PlatformOrdersPage({
                 />
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Sales Person</label>
-                <SearchableSalesPersonSelect
-                  value={newOrderForm.sales_person}
-                  onChange={(val) => setNewOrderForm({ ...newOrderForm, sales_person: val })}
-                />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Product Type</label>
@@ -1769,17 +1761,17 @@ export default function PlatformOrdersPage({
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
-                  <select
+                  <Select
                     value={isDbOrSwiss(newOrderForm.product_type) ? (newOrderForm.unit_type || "Kg") : "Kg"}
-                    onChange={(e) => updateSellOrderField("unit_type", e.target.value)}
+                    onChange={(val) => updateSellOrderField("unit_type", val)}
                     disabled={!isDbOrSwiss(newOrderForm.product_type)}
-                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
-                      !isDbOrSwiss(newOrderForm.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
-                    }`}
-                  >
-                    <option value="Kg">Kg</option>
-                    {isDbOrSwiss(newOrderForm.product_type) && <option value="TL">TL</option>}
-                  </select>
+                    fullWidth
+                    size="md"
+                    options={[
+                      { value: "Kg", label: "Kg" },
+                      ...(isDbOrSwiss(newOrderForm.product_type) ? [{ value: "TL", label: "TL" }] : []),
+                    ]}
+                  />
                 </div>
               </div>
 

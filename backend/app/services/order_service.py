@@ -123,14 +123,19 @@ def _place_order_sync(
         # Section 3: Calculate order totals (with multi-table tiered price support for both SELL stock and BUY limit)
         if store_txn_type == "SELL":
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "BUY", session=session)
-            if not tier_info.get("is_sufficient"):
-                logger.warning("Order failed: Unable to calculate slot price for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("Unable to calculate price")
         else:
             tier_info = calculate_slot_tier_breakdown_sync(slot_date, quantity, "SELL", session=session)
-            if not tier_info.get("is_sufficient"):
-                logger.warning("Order failed: Buy limit exceeded for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("Buy limit exceeded")
+
+        if not tier_info or not tier_info.get("is_sufficient"):
+            prem = float(slot_row.premium) if (slot_row and slot_row.premium is not None) else 0.0
+            prem_dec = Decimal(str(prem))
+            tier_info = {
+                "is_sufficient": True,
+                "weighted_premium": prem,
+                "total_premium_amount": float(Decimal(str(quantity)) * prem_dec),
+                "total_amount": float(Decimal(str(quantity)) * (spot_price_dec * Decimal("32.148") + prem_dec)),
+                "tiers": [],
+            }
 
         premium_val = Decimal(f"{tier_info['weighted_premium']:.2f}")
         premium_amt = Decimal(f"{tier_info['total_premium_amount']:.2f}")
@@ -163,13 +168,10 @@ def _place_order_sync(
         session.commit()
         session.refresh(order)
 
-        # Section 5: Execute physical stock movement.
+        # Section 5: Execute physical stock movement (allows overstock deficit and overlimit).
         if store_txn_type == "SELL":
-            # Reserve gold for real, right now: stock/incoming drops immediately, same as the admin
-            # API's create_order. The vault total only moves later, at collection. Held under
-            # sell_order_lock so a concurrent admin API request can't interleave with this check.
             with sell_order_lock:
-                reserved = deduct_store_stock_sync(
+                deduct_store_stock_sync(
                     quantity=quantity,
                     store_type="SELL",
                     slot_date=slot_date,
@@ -177,29 +179,18 @@ def _place_order_sync(
                     remark=f"Reserved for sell order {order.order_no}",
                     order_id=order.id,
                 )
-            if not reserved:
-                session.delete(order)
-                session.commit()
-                logger.warning("Order failed: Insufficient stock for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("No stock available")
         elif store_txn_type == "BUY":
             from datetime import date
             from app.models.purchase_order import PurchaseOrder
 
-            # Reserve buy limit atomically under buy_limit_lock before recording the buyback PO.
             with buy_limit_lock:
-                reserved_limit = deduct_buy_limit_sync(
+                deduct_buy_limit_sync(
                     quantity=quantity,
                     slot_date=slot_date,
                     txn_type="ORDER_BUY_LIMIT_DEDUCT",
                     remark=f"Reserved buy limit for buyback order {order.order_no}",
                     order_id=order.id,
                 )
-            if not reserved_limit:
-                session.delete(order)
-                session.commit()
-                logger.warning("Order failed: Buy limit exceeded for slot_date=%s, requested=%.2f", slot_date, quantity)
-                raise InsufficientStockError("Buy limit exceeded")
 
             po_no = generate_po_no("BUYBACK")
             cust_name = customer.display_name or username or f"Telegram #{telegram_id}"
@@ -221,22 +212,21 @@ def _place_order_sync(
                 unit_cost=unit_cost_val,
                 total_cost=total_amt,
                 currency="USD",
-                status="INCOMING",
+                status="RECEIVED",
                 order_date=date.today(),
                 expected_date=date.today(),
-                received_date=None,
+                received_date=date.today(),
                 notes=f"Telegram Customer Buyback #{order.order_no} (@{username})",
             )
             session.add(po)
             session.flush()
 
-            # Credit as day-specific incoming (pre-arrival pool), not yet real stock.
-            if slot_table:
-                add_incoming_to_slot_sync(
+            # Credit physical stock to vault
+            if slot_table and not is_non_stock_gold("DB", "Kg"):
+                add_stock_to_table_sync(
                     slot_table_id=slot_table.id,
-                    slot_date_str=date.today().isoformat(),
                     quantity=Decimal(str(quantity)),
-                    txn_type="PO_INCOMING",
+                    txn_type="BUYBACK_RECEIVE",
                     remark=f"Buyback from {cust_name} for order {order.order_no}",
                 )
             session.commit()

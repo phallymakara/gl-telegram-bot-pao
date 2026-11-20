@@ -15,6 +15,7 @@ import {
 
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
+import Select from "../components/Select";
 import { api, DashboardStatsData, RevenuePointData, toNumber } from "../api";
 
 interface ReportsPageProps {
@@ -53,14 +54,16 @@ export default function ReportsPage({ notify }: ReportsPageProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <select
+          <Select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as "week" | "month")}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700 font-medium focus:outline-none"
-          >
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-          </select>
+            onChange={(val) => setTimeRange(val as "week" | "month")}
+            size="sm"
+            className="min-w-[120px]"
+            options={[
+              { value: "week", label: "This Week" },
+              { value: "month", label: "This Month" },
+            ]}
+          />
           <button
             onClick={() => exportReport("pdf")}
             className="flex items-center gap-1.5 text-xs px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-colors"

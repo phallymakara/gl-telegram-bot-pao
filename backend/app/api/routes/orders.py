@@ -24,6 +24,7 @@ from app.services.slot_service import (
     sell_order_lock,
 )
 from app.utils.generators import generate_order_no
+from app.utils.helpers import get_cambodia_now
 from app.utils.pricing import (
     DEFAULT_SPOT_PRICE,
     calculate_order_total,
@@ -111,20 +112,7 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     product_type_val = (body.product_type.strip() if body.product_type and body.product_type.strip() else "DB")
     initial_status = (body.status or "CONFIRMED").upper()
 
-    # Validate that product-level Available Stock is sufficient for SELL order
-    if txn_type == "SELL" and body.quantity and not (body.unit_type and body.unit_type.strip().upper() == "TL"):
-        avail_stock = get_product_available_stock(
-            db,
-            product_type=product_type_val,
-            slot_date=effective_slot_date,
-            channel=body.channel,
-        )
-        if avail_stock <= 0 or avail_stock < float(body.quantity):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No stock available",
-            )
-
+    # Over-stock enabled: allow SELL orders even if stock in the system is not enough or negative
     order = Order(
         order_no=order_no,
         customer_id=customer.id if customer else None,
@@ -149,24 +137,17 @@ def create_order(body: OrderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(order)
 
-    # SELL orders reserve gold for real, right now: a table's STOCK box drops immediately.
+    # SELL orders reserve gold: a table's STOCK box drops immediately.
     # Non-stock products/units (TL, SL, SV) do not deduct or reserve stock.
     if txn_type == "SELL" and body.quantity and not is_non_stock_gold(order.product_type, order.unit_type):
         with sell_order_lock:
-            reserved = deduct_store_stock_sync(
+            deduct_store_stock_sync(
                 quantity=float(body.quantity),
                 store_type="SELL",
                 slot_date=effective_slot_date,
                 txn_type="ORDER_RESERVE_DEDUCT",
                 remark=f"Reserved for sell order {order.order_no}",
                 order_id=order.id,
-            )
-        if not reserved:
-            db.delete(order)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No stock available",
             )
 
         if initial_status in COLLECTED_STATUSES:

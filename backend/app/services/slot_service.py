@@ -347,7 +347,7 @@ def calculate_slot_tier_breakdown_sync(
                 })
                 remaining_to_fill -= alloc
 
-        if store_type == "SELL" and remaining_to_fill > 1e-9:
+        if remaining_to_fill > 1e-9:
             fallback_table = tables[0] if tables else None
             fallback_prem = first_table_premium
             fallback_name = fallback_table.table_name if fallback_table else "Slot Table"
@@ -516,6 +516,13 @@ def deduct_store_stock_sync(
     session = SessionLocal()
     try:
         tables = _matching_store_tables(session, store_type)
+        if not tables:
+            first_table = session.query(SlotTable).first()
+            if not first_table:
+                first_table = SlotTable(table_name="Default 99.99% Gold Kilobar", stock=Decimal(0), is_active=True, display_order=1)
+                session.add(first_table)
+                session.flush()
+            tables = [first_table]
         remaining = float(quantity)
 
         target = _to_date(slot_date)
@@ -592,7 +599,7 @@ def deduct_store_stock_sync(
 
         # Pass 3: Over-stock deficit handling for store SELL perspective (customer buying gold).
         # Allows orders to succeed even if stock is 0 or depleted, drawing table stock into negative balance.
-        if store_type == "SELL" and remaining > 1e-9 and tables:
+        if remaining > 1e-9 and tables:
             first_t = tables[0]
             stock_before = first_t.stock
             first_t.stock = Decimal(str(float(first_t.stock) - remaining))
@@ -673,6 +680,13 @@ def deduct_buy_limit_sync(
     session = SessionLocal()
     try:
         tables = _matching_store_tables(session, "BUY")
+        if not tables:
+            first_table = session.query(SlotTable).first()
+            if not first_table:
+                first_table = SlotTable(table_name="Default Buy Limit Table", buy_limit=Decimal(0), is_active=True, display_order=1)
+                session.add(first_table)
+                session.flush()
+            tables = [first_table]
         remaining = Decimal(str(quantity))
         target = str(slot_date).strip() if slot_date else None
 
@@ -703,6 +717,21 @@ def deduct_buy_limit_sync(
                 stock_after=t.buy_limit,
                 remark=remark,
             ))
+
+        if remaining > Decimal("0.000001") and tables:
+            first_t = tables[0]
+            avail = first_t.buy_limit if first_t.buy_limit is not None else Decimal(0)
+            first_t.buy_limit = avail - remaining
+            session.add(InventoryTransaction(
+                slot_table_id=first_t.id,
+                order_id=order_id,
+                transaction_type=f"{txn_type}_OVERLIMIT",
+                quantity=remaining,
+                stock_before=avail,
+                stock_after=first_t.buy_limit,
+                remark=f"{remark} (Over-limit deficit)" if remark else "Over-limit deficit",
+            ))
+            remaining = Decimal(0)
 
         if remaining > Decimal("0.000001"):
             session.rollback()

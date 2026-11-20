@@ -125,12 +125,8 @@ def build_slot_keyboard(slots, order_type=BUY, lang="EN") -> InlineKeyboardMarku
             # Over-stock enabled: slot dates remain visible in Telegram menu even if stock <= 0
             pass
         elif order_type == SELL:
-            try:
-                total_available = float(str(slot.get("buy_limit_kg", 0)).strip())
-            except (ValueError, TypeError):
-                total_available = 0.0
-            if total_available <= 0:
-                continue
+            # Over-limit enabled: slot dates remain visible in Telegram menu even if buy limit <= 0
+            pass
 
         raw_premium = slot.get("premium", 0)
         try:
@@ -172,26 +168,8 @@ def build_quantity_keyboard(
       [5 kg]  [Enter Number]
       [Back]
     """
-    if order_type == BUY:
-        # Over-stock enabled: 1kg - 5kg and custom input are always active and selectable
-        max_allowed_qty = 5
-    elif order_type == SELL:
-        total = float(buy_limit_kg) if buy_limit_kg is not None else 0.0
-        if total <= 0:
-            max_allowed_qty = 0
-        else:
-            try:
-                max_allowed_qty = int(total)
-            except (ValueError, TypeError):
-                max_allowed_qty = 0
-    elif incoming_kg is not None and stock is not None:
-        total = float(incoming_kg) + float(stock)
-        max_allowed_qty = int(total) if total > 0 else 0
-    elif stock is not None:
-        total = float(stock)
-        max_allowed_qty = int(total) if total > 0 else 0
-    else:
-        max_allowed_qty = 0
+    # Over-stock enabled: 1kg - 5kg and custom input are always active and selectable
+    max_allowed_qty = 5
 
     logger.info("build_quantity_keyboard | max_allowed_qty=%d", max_allowed_qty)
 

@@ -6,11 +6,9 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Diamond, User, ChevronDown, Check, UserCheck, Shield, LogIn, LogOut, X } from "lucide-react";
+import { Diamond, ChevronDown, LogOut } from "lucide-react";
 import { NAV_ITEMS, NavItem } from "../data/navigation";
 import { useAuth } from "../context/AuthContext";
-import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
-import DraggableModalBox from "../components/DraggableModalBox";
 
 interface SidebarProps {
   /** Active page route key (optional, defaults to current route) */
@@ -50,15 +48,8 @@ export default function Sidebar({
     navigate(`/${targetId}`);
     setMobileOpen(false);
   };
-  const { currentUser, isAllowed, users, switchUser, loginUser, logoutUser } = useAuth();
+  const { currentUser, isAllowed, logoutUser } = useAuth();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const [verifyPasswordOpen, setVerifyPasswordOpen] = useState(false);
-  const [pendingUser, setPendingUser] = useState<any>(null);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [loginUsername, setLoginUsername] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loginSubmitting, setLoginSubmitting] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Close profile dropdown on outside click
@@ -111,7 +102,7 @@ export default function Sidebar({
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setDesktopOpen(!desktopOpen)}
-              className="h-9 w-9 rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-white shrink-0 shadow-sm hover:opacity-90 transition-opacity focus:outline-none cursor-pointer"
+              className="h-9 w-9 rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-white shrink-0 hover:opacity-90 transition-opacity focus:outline-none cursor-pointer"
               title={desktopOpen ? "Collapse Sidebar" : "Expand Sidebar"}
             >
               <Diamond size={18} fill="white" strokeWidth={1} />
@@ -214,245 +205,73 @@ export default function Sidebar({
           )}
         </nav>
 
-        {/* User Profile & Quick Switcher Card */}
+        {/* User Profile Card (Isolated Session) */}
         <div className="p-3 border-t border-slate-100 shrink-0 relative" ref={profileMenuRef}>
-          {/* Dropdown Menu for Switching Users */}
+          {/* Options Popover (Log Out only) */}
           {profileMenuOpen && (
             <div
-              className={`absolute bottom-[72px] z-50 bg-white rounded-xl shadow-xl border border-slate-200 p-2 min-w-[240px] max-h-[300px] overflow-y-auto animate-in fade-in slide-in-from-bottom-2 ${!desktopOpen ? "left-3" : "left-3 right-3"
-                }`}
+              className={`absolute bottom-[72px] z-50 bg-white rounded-2xl border border-slate-200 p-2.5 min-w-[220px] animate-in fade-in slide-in-from-bottom-2 ${
+                !desktopOpen ? "left-3" : "left-3 right-3"
+              }`}
             >
-              <div className="px-3 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 flex items-center justify-between">
-                <span>Switch Active User</span>
-                <span className="text-indigo-600 lowercase font-normal">({users.length} accounts)</span>
+              <div className="px-2 py-1.5 border-b border-slate-100 mb-1">
+                <div className="text-xs font-semibold text-slate-800 truncate">
+                  {currentUser?.name || "Administrator"}
+                </div>
+                <div className="text-[11px] text-slate-400 truncate">
+                  @{currentUser?.username} · {currentUser?.role}
+                </div>
               </div>
-              <div className="py-1 space-y-0.5">
-                {users.map((u) => {
-                  const isSelected = currentUser?.id === u.id;
-                  const isSuper =
-                    u.role === "Super Admin" ||
-                    u.role === "SUPER_ADMIN" ||
-                    u.name === "Super Admin";
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        if (
-                          isSuper &&
-                          currentUser?.id !== u.id &&
-                          sessionStorage.getItem("super_admin_unlocked") !== "true"
-                        ) {
-                          setPendingUser(u);
-                          setProfileMenuOpen(false);
-                          setVerifyPasswordOpen(true);
-                        } else {
-                          switchUser(u.id);
-                          setProfileMenuOpen(false);
-                        }
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer ${isSelected ? "bg-indigo-50 text-indigo-900 font-semibold" : "hover:bg-slate-50 text-slate-700"
-                        }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="h-7 w-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {u.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")
-                            .slice(0, 2)
-                            .toUpperCase()}
-                        </div>
-                        <div className="min-w-0 leading-tight">
-                          <div className="text-xs truncate">{u.name}</div>
-                          <div className="text-[10px] text-slate-400">{u.role}</div>
-                        </div>
-                      </div>
-                      {isSelected && <Check size={14} className="text-indigo-600 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="border-t border-slate-100 mt-1 pt-1.5 flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProfileMenuOpen(false);
-                    setLoginError("");
-                    setLoginUsername(currentUser?.username || "");
-                    setLoginPassword("");
-                    setLoginModalOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
-                >
-                  <LogIn size={14} className="text-indigo-600 shrink-0" />
-                  <span>Sign In with Credentials</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setProfileMenuOpen(false);
-                    await logoutUser();
-                  }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                >
-                  <LogOut size={14} className="shrink-0" />
-                  <span>Log Out</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setProfileMenuOpen(false);
+                  await logoutUser();
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <LogOut size={14} className="shrink-0" />
+                <span>Log Out</span>
+              </button>
             </div>
           )}
 
           {/* Profile Card Button */}
           <div
             onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            className={`flex items-center rounded-lg hover:bg-slate-50 p-2 cursor-pointer transition-all duration-300 select-none ${!desktopOpen ? "lg:justify-center lg:p-1" : "gap-3"
-              } ${profileMenuOpen ? "bg-slate-50" : ""}`}
-            title="Click to switch active user account"
+            className={`flex items-center rounded-lg hover:bg-slate-50 p-2 cursor-pointer transition-all duration-300 select-none ${
+              !desktopOpen ? "lg:justify-center lg:p-1" : "gap-3"
+            } ${profileMenuOpen ? "bg-slate-50" : ""}`}
+            title="User Profile"
           >
-            <div className="h-11 w-11 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 font-bold text-sm shadow-none">
+            <div className="h-10 w-10 rounded-full bg-indigo-600 text-white flex items-center justify-center shrink-0 font-bold text-xs shadow-none">
               {currentUser?.name
                 ? currentUser.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase()
+                    .split(" ")
+                    .map((n) => n[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
                 : "AD"}
             </div>
             <div className={`leading-tight min-w-0 ${!desktopOpen ? "lg:hidden" : "block"}`}>
-              <div className="text-sm font-semibold text-slate-800 truncate">
-                {currentUser?.name || "Super Admin"}
+              <div className="text-xs font-semibold text-slate-800 truncate">
+                {currentUser?.name || "Administrator"}
               </div>
               <div className="text-[11px] text-slate-400 truncate">
-                {currentUser?.role || "Administrator"}
+                {currentUser?.role || "Staff"}
               </div>
             </div>
             <ChevronDown
               size={14}
-              className={`text-slate-400 ml-auto transition-transform ${profileMenuOpen ? "rotate-180" : ""} ${!desktopOpen ? "lg:hidden" : "block"
-                }`}
+              className={`text-slate-400 ml-auto transition-transform ${
+                profileMenuOpen ? "rotate-180" : ""
+              } ${!desktopOpen ? "lg:hidden" : "block"}`}
             />
           </div>
         </div>
       </aside>
 
-      <SuperAdminPasswordModal
-        isOpen={verifyPasswordOpen}
-        onClose={() => {
-          setVerifyPasswordOpen(false);
-          setPendingUser(null);
-        }}
-        onSuccess={() => {
-          if (pendingUser) {
-            switchUser(pendingUser.id);
-            setPendingUser(null);
-          }
-        }}
-        title="Super Admin Verification"
-        description="Enter password to access Super Admin account."
-      />
-
-      {loginModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4"
-          onClick={() => !loginSubmitting && setLoginModalOpen(false)}
-        >
-          <DraggableModalBox
-            resetKey={loginModalOpen}
-            className="bg-white rounded-3xl border border-slate-300 shadow-none w-full max-w-sm overflow-hidden flex flex-col max-h-[85vh]"
-          >
-            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
-              <div className="flex items-center gap-2">
-                <LogIn size={16} className="text-indigo-600" />
-                <h3 className="text-base font-semibold text-slate-800">Sign In</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLoginModalOpen(false)}
-                disabled={loginSubmitting}
-                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                aria-label="Close sign in dialog"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <form
-              className="flex flex-col flex-1 min-h-0"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!loginUsername.trim() || !loginPassword) {
-                  setLoginError("Please enter both username and password.");
-                  return;
-                }
-                setLoginSubmitting(true);
-                setLoginError("");
-                try {
-                  await loginUser(loginUsername.trim(), loginPassword);
-                  setLoginModalOpen(false);
-                } catch {
-                  setLoginError("Invalid username or password.");
-                } finally {
-                  setLoginSubmitting(false);
-                }
-              }}
-            >
-              <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Username</label>
-                  <input
-                    type="text"
-                    value={loginUsername}
-                    onChange={(e) => {
-                      setLoginUsername(e.target.value);
-                      if (loginError) setLoginError("");
-                    }}
-                    placeholder="Enter username"
-                    autoComplete="username"
-                    className={`w-full text-sm px-3 py-2.5 rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
-                      loginError ? "border-rose-500" : "border-slate-200 focus:border-indigo-500"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Password</label>
-                  <input
-                    type="password"
-                    value={loginPassword}
-                    onChange={(e) => {
-                      setLoginPassword(e.target.value);
-                      if (loginError) setLoginError("");
-                    }}
-                    placeholder="Enter password"
-                    autoComplete="current-password"
-                    className={`w-full text-sm px-3 py-2.5 rounded-lg border bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 ${
-                      loginError ? "border-rose-500" : "border-slate-200 focus:border-indigo-500"
-                    }`}
-                  />
-                  {loginError && <p className="mt-1.5 text-xs text-rose-600">{loginError}</p>}
-                </div>
-              </div>
-              <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setLoginModalOpen(false)}
-                  disabled={loginSubmitting}
-                  className="text-xs px-3.5 py-2 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 font-medium transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loginSubmitting}
-                  className="text-xs px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  {loginSubmitting ? "Signing In..." : "Sign In"}
-                </button>
-              </div>
-            </form>
-          </DraggableModalBox>
-        </div>
-      )}
     </>
   );
 }

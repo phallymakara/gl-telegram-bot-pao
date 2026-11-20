@@ -9,6 +9,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import Card from "../components/Card";
 import SearchInput from "../components/SearchInput";
 import StatusBadge from "../components/StatusBadge";
+import Select from "../components/Select";
 import IconBtn from "../components/IconBtn";
 import UserModal from "../components/UserModal";
 import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
@@ -118,14 +119,6 @@ export default function UsersPage({ notify }: UsersPageProps) {
     handleScroll,
   } = useLazyRecords(filtered, { initialCount: 15, batchSize: 15 });
 
-  const roleTint: Record<string, string> = {
-    "Super Admin": "text-violet-700",
-    SUPER_ADMIN: "text-violet-700",
-    Admin: "text-blue-700",
-    Manager: "text-emerald-700",
-    Staff: "text-slate-600",
-  };
-
   const renderModuleBadge = (u: UserData) => {
     const isSuper = u.role === "Super Admin" || u.role === "SUPER_ADMIN" || u.allowed_modules?.includes("*");
     if (isSuper) {
@@ -156,29 +149,19 @@ export default function UsersPage({ notify }: UsersPageProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <select
+            <Select
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              {["All Roles", "Super Admin", "Admin", "Manager", "Staff"].map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
+              onChange={setRole}
+              className="min-w-[130px]"
+              options={["All Roles", "Super Admin", "Admin", "Manager", "Staff"]}
+            />
 
-            <select
+            <Select
               value={statusF}
-              onChange={(e) => setStatusF(e.target.value)}
-              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              {["All Statuses", "Active", "Inactive"].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+              onChange={setStatusF}
+              className="min-w-[130px]"
+              options={["All Statuses", "Active", "Inactive"]}
+            />
 
             {(q || role !== "All Roles" || statusF !== "All Statuses") && (
               <button
@@ -210,8 +193,8 @@ export default function UsersPage({ notify }: UsersPageProps) {
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
               <tr className="text-left text-xs text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                {["#", "User", "USER ID", "Email", "Role", "Status", "Sidebar Module Access", "Last Login", "Actions"].map((h) => (
-                  <th key={h} className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50">
+                {["#", "User", "USER ID", "Email", "Role", "Sidebar Module Access", "Last Login", "Status", "Actions"].map((h) => (
+                  <th key={h} className="px-5 py-2.5 font-medium whitespace-nowrap bg-slate-50">
                     {h}
                   </th>
                 ))}
@@ -233,10 +216,10 @@ export default function UsersPage({ notify }: UsersPageProps) {
                     onClick={() => handleEditOpen(u)}
                     className="border-b border-slate-100 hover:bg-slate-100 transition-colors cursor-pointer"
                   >
-                    <td className="px-5 py-3.5 text-slate-400">{i + 1}</td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-400">{i + 1}</td>
+                    <td className="px-5 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-normal shrink-0">
+                        <div className="h-7 w-7 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-[11px] font-normal shrink-0">
                           {u.name
                             .split(" ")
                             .map((n) => n[0])
@@ -247,32 +230,26 @@ export default function UsersPage({ notify }: UsersPageProps) {
                         <div className="leading-tight">
                           <span className="font-normal text-slate-800 block">{u.name}</span>
                           {currentUser?.id === u.id && (
-                            <span className="text-[10px] text-indigo-600 font-normal">(You)</span>
+                            <span className="text-[10px] text-slate-400 font-normal">(You)</span>
                           )}
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap font-normal text-xs">
+                    <td className="px-5 py-2 text-slate-600 whitespace-nowrap font-normal text-xs">
                       {u.username}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-600 whitespace-nowrap font-normal">{u.email}</td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <span
-                        className={`text-xs font-normal ${
-                          roleTint[u.role] || "text-slate-600"
-                        }`}
-                      >
-                        {u.role}
-                      </span>
+                    <td className="px-5 py-2 text-slate-600 whitespace-nowrap font-normal">{u.email}</td>
+                    <td className="px-5 py-2 whitespace-nowrap text-xs font-normal text-slate-600">
+                      {u.role}
                     </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
-                      <StatusBadge status={u.is_active ? "Active" : "Inactive"} />
-                    </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">{renderModuleBadge(u)}</td>
-                    <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap text-xs">
+                    <td className="px-5 py-2 whitespace-nowrap">{renderModuleBadge(u)}</td>
+                    <td className="px-5 py-2 text-slate-500 whitespace-nowrap text-xs">
                       {u.last_login ? new Date(u.last_login).toLocaleDateString() : "—"}
                     </td>
-                    <td className="px-5 py-3.5 whitespace-nowrap">
+                    <td className="px-5 py-2 whitespace-nowrap">
+                      <StatusBadge status={u.is_active ? "Active" : "Inactive"} />
+                    </td>
+                    <td className="px-5 py-2 whitespace-nowrap">
                       <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                         <IconBtn
                           title="Edit User & Permissions"

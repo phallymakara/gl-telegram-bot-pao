@@ -150,14 +150,14 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                     const isPO = o.source === "PO";
                     return (
                       <tr key={`${o.source}-${o.id}`} className="border-b border-slate-100 last:border-0 hover:bg-slate-100 transition-colors">
-                        <td className="py-1.5 px-2 font-medium text-slate-700">{o.order_no}</td>
+                        <td className="py-1.5 px-2 font-normal text-slate-700">{o.order_no}</td>
                         <td className="py-1.5 px-2">
                           {isPO ? (
-                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-normal bg-amber-100 text-amber-700">
                               PO IN
                             </span>
                           ) : (
-                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-normal ${
                               o.transaction_type === "BUY"
                                 ? "bg-emerald-100 text-emerald-700"
                                 : "bg-indigo-100 text-indigo-700"
@@ -176,7 +176,7 @@ function ExpandedRow({ row }: { row: DailyBreakdownRowData }) {
                               ? "Local-Telegram"
                               : "Local-Physical")}
                         </td>
-                        <td className="py-1.5 px-2 text-right font-medium text-slate-700">
+                        <td className="py-1.5 px-2 text-right font-normal text-slate-700">
                           {o.transaction_type === "SELL" && toNumber(o.quantity) > 0
                             ? `-${fmt(o.quantity)}`
                             : fmt(o.quantity)}
@@ -349,30 +349,30 @@ export default function DailyBreakdownTable() {
                           {isToday && (
                             <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
                           )}
-                          <span className={`font-medium ${isToday ? "text-indigo-700 font-bold" : "text-slate-700"}`}>
+                          <span className={`font-normal ${isToday ? "text-indigo-700 font-normal" : "text-slate-700"}`}>
                             {formatDate(row.date)}
                           </span>
                           {isToday && (
-                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded">TODAY</span>
+                            <span className="text-[10px] font-normal text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded">TODAY</span>
                           )}
                         </span>
                       </td>
                       <td className="text-right py-3 px-4">
-                        <span className="font-semibold text-emerald-700">{fmt(row.gold_in.total)}</span>
+                        <span className="font-normal text-emerald-700">{fmt(row.gold_in.total)}</span>
                         <span className="text-[10px] text-slate-400 ml-1">KG</span>
                       </td>
                       <td className="text-right py-3 px-4">
-                        <span className="font-semibold text-indigo-700">{fmt(row.gold_out.total)}</span>
+                        <span className="font-normal text-indigo-700">{fmt(row.gold_out.total)}</span>
                         <span className="text-[10px] text-slate-400 ml-1">KG</span>
                       </td>
                       <td className="text-right py-3 px-4">
-                        <span className={`font-bold ${row.balance >= 0 ? "text-green-700" : "text-red-600"}`}>
+                        <span className={`font-normal ${row.balance >= 0 ? "text-green-700" : "text-red-600"}`}>
                           {fmt(row.balance)}
                         </span>
                         <span className="text-[10px] text-slate-400 ml-1">KG</span>
                       </td>
                       <td className="text-right py-3 px-4">
-                        <span className="text-slate-500 font-medium">{row.transaction_count}</span>
+                        <span className="text-slate-500 font-normal">{row.transaction_count}</span>
                       </td>
                     </tr>
                     {isExpanded && <ExpandedRow row={row} />}

@@ -242,10 +242,10 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
         unit_cost=unit_cost,
         total_cost=total_cost,
         currency=body.currency,
-        status="INCOMING",
+        status="RECEIVED",
         order_date=body.order_date,
         expected_date=body.received_date or body.expected_date or body.order_date,
-        received_date=None,
+        received_date=body.received_date or body.order_date or get_cambodia_now().date(),
         notes=body.notes,
         shipping_method=body.shipping_method if po_type == "OVERSEA" else None,
         tracking_no=body.tracking_no if po_type == "OVERSEA" else None,
@@ -256,15 +256,13 @@ def create_purchase_order(body: PurchaseOrderCreate, db: Session = Depends(get_d
     db.commit()
     db.refresh(po)
 
-    # Credit day-specific incoming stock to SlotRow for pre-sale availability (skip for non-stock gold)
-    if po.order_date and slot_table_id and not is_non_stock_gold(body.product_type, body.unit_type):
-        slot_date_str = po.order_date.isoformat() if hasattr(po.order_date, "isoformat") else str(po.order_date)
-        add_incoming_to_slot_sync(
+    # Automatically credit physical stock to SlotTable directly upon creation
+    if slot_table_id and not is_non_stock_gold(body.product_type, body.unit_type):
+        add_stock_to_table_sync(
             slot_table_id=slot_table_id,
-            slot_date_str=slot_date_str,
             quantity=Decimal(str(body.quantity)),
-            txn_type="PO_INCOMING",
-            remark=f"Created {po_type} PO {po.po_no}",
+            txn_type="PO_RECEIVE",
+            remark=f"Auto-received {po_type} PO {po.po_no}",
         )
 
     log_activity(

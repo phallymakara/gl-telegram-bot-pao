@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 import { CustomerData, customersApi, productsApi, purchaseOrdersApi, SupplierData, VendorData, vendorsApi } from "../../api";
 
 interface PartyOption {
@@ -414,14 +415,16 @@ export default function PoFormModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Channel</label>
-              <select
+              <Select
                 value={form.purchase_source}
-                onChange={(e) => setForm((f: any) => ({ ...f, purchase_source: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="OVERSEA">Oversea</option>
-                <option value="LOCAL">Local</option>
-              </select>
+                onChange={(val) => setForm((f: any) => ({ ...f, purchase_source: val }))}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "OVERSEA", label: "Oversea" },
+                  { value: "LOCAL", label: "Local" },
+                ]}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Vendor *</label>
@@ -445,17 +448,17 @@ export default function PoFormModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Unit *</label>
-              <select
+              <Select
                 value={isDbOrSwiss(form.product_type) ? (form.unit_type || "Kg") : "Kg"}
-                onChange={(e) => updateFormField("unit_type", e.target.value)}
+                onChange={(val) => updateFormField("unit_type", val)}
                 disabled={!isDbOrSwiss(form.product_type)}
-                className={`w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${
-                  !isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
-                }`}
-              >
-                <option value="Kg">Kg</option>
-                {isDbOrSwiss(form.product_type) && <option value="TL">TL</option>}
-              </select>
+                fullWidth
+                size="md"
+                options={[
+                  { value: "Kg", label: "Kg" },
+                  ...(isDbOrSwiss(form.product_type) ? [{ value: "TL", label: "TL" }] : []),
+                ]}
+              />
             </div>
           </div>
 

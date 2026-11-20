@@ -84,13 +84,13 @@ export default function InvoiceTable({
             <tbody className="divide-y divide-slate-100">
               {invoices.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-100 transition-colors">
-                  <td className="py-3 px-3 font-semibold text-slate-800">{item.invoice_no}</td>
+                  <td className="py-3 px-3 font-normal text-slate-800">{item.invoice_no}</td>
                   <td className="py-3 px-3 text-slate-500 font-mono text-xs">{item.order_no}</td>
-                  <td className="py-3 px-3 font-medium text-slate-700">{item.customer}</td>
-                  <td className="py-3 px-3 text-right font-medium text-slate-700">
+                  <td className="py-3 px-3 font-normal text-slate-700">{item.customer}</td>
+                  <td className="py-3 px-3 text-right font-normal text-slate-700">
                     {item.gold_qty_kg.toFixed(1)} KG
                   </td>
-                  <td className="py-3 px-3 text-right font-bold text-slate-800">
+                  <td className="py-3 px-3 text-right font-normal text-slate-800">
                     ${item.amount_usd.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </td>
                   <td className="py-3 px-3 text-slate-500 text-xs">{item.invoice_date}</td>

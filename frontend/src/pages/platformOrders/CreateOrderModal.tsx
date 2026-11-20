@@ -5,6 +5,7 @@
 
 import { X } from "lucide-react";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -82,30 +83,34 @@ export default function CreateOrderModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Order Channel</label>
-              <select
+              <Select
                 value={form.channel}
-                onChange={(e) => setForm((f) => ({ ...f, channel: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="Telegram">Telegram Bot</option>
-                <option value="Phone Call">Phone Call</option>
-                <option value="Walk In">Walk In / Physical</option>
-                <option value="Web Online">Web Online</option>
-              </select>
+                onChange={(val) => setForm((f) => ({ ...f, channel: val }))}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "Telegram", label: "Telegram Bot" },
+                  { value: "Phone Call", label: "Phone Call" },
+                  { value: "Walk In", label: "Walk In / Physical" },
+                  { value: "Web Online", label: "Web Online" },
+                ]}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Transaction Type</label>
-              <select
+              <Select
                 value={form.transaction_type}
-                onChange={(e) => setForm((f) => ({ ...f, transaction_type: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="SELL">SELL (Customer buys from store)</option>
-                <option value="BUY">BUY (Customer sells to store)</option>
-              </select>
+                onChange={(val) => setForm((f) => ({ ...f, transaction_type: val }))}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "SELL", label: "SELL (Customer buys from store)" },
+                  { value: "BUY", label: "BUY (Customer sells to store)" },
+                ]}
+              />
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Quantity (KG)</label>
@@ -134,15 +139,17 @@ export default function CreateOrderModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600">Initial Status</label>
-              <select
+              <Select
                 value={form.status}
-                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="Pending">Pending</option>
-                <option value="Confirmed">Confirmed</option>
-                <option value="Completed">Completed</option>
-              </select>
+                onChange={(val) => setForm((f) => ({ ...f, status: val }))}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "Pending", label: "Pending" },
+                  { value: "Confirmed", label: "Confirmed" },
+                  { value: "Completed", label: "Completed" },
+                ]}
+              />
             </div>
           </div>
         </div>

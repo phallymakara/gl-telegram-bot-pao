@@ -6,6 +6,7 @@
 import { X } from "lucide-react";
 import { ProductData } from "../../api";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -89,14 +90,16 @@ export default function ProductModal({
 
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600">Status</label>
-            <select
+            <Select
               value={form.is_active ? "active" : "inactive"}
-              onChange={(e) => setForm((f) => ({ ...f, is_active: e.target.value === "active" }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+              onChange={(val) => setForm((f) => ({ ...f, is_active: val === "active" }))}
+              fullWidth
+              size="md"
+              options={[
+                { value: "active", label: "Active" },
+                { value: "inactive", label: "Inactive" },
+              ]}
+            />
           </div>
         </div>
 

@@ -10,4 +10,5 @@ export { default as SearchInput } from "./SearchInput";
 export { default as IconBtn } from "./IconBtn";
 export { default as Toggle } from "./Toggle";
 export { default as Toast } from "./Toast";
+export { default as Select } from "./Select";
 export { default as ComingSoon } from "./ComingSoon";

@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import IconBtn from "../components/IconBtn";
+import Select from "../components/Select";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import LazyTableFooter from "../components/LazyTableFooter";
@@ -1328,10 +1329,8 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
     }
 
     if (statusFilter !== "ALL") {
-      if (statusFilter === "INCOMING") {
-        const isIncoming = r.status === "INCOMING" || (r.status !== "RECEIVED" && r.status !== "CANCELLED");
-        if (!isIncoming) return false;
-      } else if (r.status?.toUpperCase() !== statusFilter.toUpperCase()) {
+      const effectiveStatus = r.status === "CANCELLED" ? "CANCELLED" : "RECEIVED";
+      if (effectiveStatus !== statusFilter.toUpperCase()) {
         return false;
       }
     }
@@ -1387,29 +1386,30 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <Select
                   aria-label="Filter by Type"
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as any)}
-                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50/80 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs cursor-pointer"
-                >
-                  <option value="ALL">All Types</option>
-                  <option value="OVERSEA">Oversea</option>
-                  <option value="LOCAL">Local</option>
-                  <option value="BUYBACK">Platform</option>
-                </select>
+                  onChange={(val) => setTypeFilter(val as any)}
+                  className="min-w-[120px]"
+                  options={[
+                    { value: "ALL", label: "All Types" },
+                    { value: "OVERSEA", label: "Oversea" },
+                    { value: "LOCAL", label: "Local" },
+                    { value: "BUYBACK", label: "Platform" },
+                  ]}
+                />
 
-                <select
+                <Select
                   aria-label="Filter by Status"
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50/80 text-slate-700 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white transition-all shadow-xs cursor-pointer"
-                >
-                  <option value="ALL">All Statuses</option>
-                  <option value="INCOMING">Incoming</option>
-                  <option value="RECEIVED">Received</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
+                  onChange={(val) => setStatusFilter(val)}
+                  className="min-w-[130px]"
+                  options={[
+                    { value: "ALL", label: "All Statuses" },
+                    { value: "RECEIVED", label: "Received" },
+                    { value: "CANCELLED", label: "Cancelled" },
+                  ]}
+                />
 
                 <div className="flex items-center gap-1.5 bg-slate-50/80 border border-slate-200 rounded-full px-3 py-1.5 shrink-0">
                   <input
@@ -1505,18 +1505,18 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                       >
                         <td className="px-5 py-2.5 font-normal text-slate-800 whitespace-nowrap">{r.po_no}</td>
-                        <td className="px-5 py-2.5 text-slate-600 font-medium whitespace-nowrap">
+                        <td className="px-5 py-2.5 text-slate-600 font-normal whitespace-nowrap">
                           {r.po_type === "OVERSEA" ? "Oversea" : r.po_type === "LOCAL" ? "Local" : "Platform"}
                         </td>
-                        <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{formatParty(r)}</td>
-                        <td className="px-5 py-2.5 text-slate-700 font-medium whitespace-nowrap">{toNumber(r.quantity).toFixed(2)} {(r as any).unit_type || "Kg"}</td>
+                        <td className="px-5 py-2.5 text-slate-700 font-normal whitespace-nowrap">{formatParty(r)}</td>
+                        <td className="px-5 py-2.5 text-slate-700 font-normal whitespace-nowrap">{toNumber(r.quantity).toFixed(2)} {(r as any).unit_type || "Kg"}</td>
                         <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                           {r.spot_price ? r.spot_price.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "4,376.2"}
                         </td>
                         <td className="px-5 py-2.5 text-slate-600 whitespace-nowrap">
                           {r.premium !== undefined && r.premium !== null ? r.premium.toLocaleString() : "200"}
                         </td>
-                        <td className="px-5 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                        <td className="px-5 py-2.5 font-normal text-slate-700 whitespace-nowrap">
                           {r.quantity > 0 ? (r.total_cost / r.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
                         </td>
                         <td className="px-5 py-2.5 font-normal text-slate-700 whitespace-nowrap">
@@ -1524,15 +1524,11 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                         </td>
                         <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.order_date)}</td>
                         <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap">{formatDate(r.expected_date)}</td>
-                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap font-medium">
-                          {r.received_date ? (
-                            formatDate(r.received_date)
-                          ) : (
-                            <span className="text-slate-400 font-normal italic">Pending</span>
-                          )}
+                        <td className="px-5 py-2.5 text-slate-500 whitespace-nowrap font-normal">
+                          {formatDate(r.received_date || r.order_date || r.expected_date)}
                         </td>
                         <td className="px-5 py-2.5 whitespace-nowrap">
-                          <StatusBadge status={titleCase(r.status)} />
+                          <StatusBadge status={r.status === "CANCELLED" ? "Cancelled" : "Received"} />
                         </td>
                         <td className="px-5 py-2 text-center">
                           <div className="flex items-center justify-center">
@@ -1765,16 +1761,17 @@ export default function PurchaseOrdersPage({ poType, notify }: PurchaseOrdersPag
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Unit *</label>
-                  <select
+                  <Select
                     value={isDbOrSwiss(form.product_type) ? (form.unit_type || "Kg") : "Kg"}
-                    onChange={(e) => updateFormField("unit_type", e.target.value)}
+                    onChange={(val) => updateFormField("unit_type", val)}
                     disabled={!isDbOrSwiss(form.product_type)}
-                    className={`w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium ${!isDbOrSwiss(form.product_type) ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "cursor-pointer"
-                      }`}
-                  >
-                    <option value="Kg">Kg</option>
-                    {isDbOrSwiss(form.product_type) && <option value="TL">TL</option>}
-                  </select>
+                    fullWidth
+                    size="md"
+                    options={[
+                      { value: "Kg", label: "Kg" },
+                      ...(isDbOrSwiss(form.product_type) ? [{ value: "TL", label: "TL" }] : []),
+                    ]}
+                  />
                 </div>
               </div>
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Loader from "./Loader";
 import DraggableModalBox from "./DraggableModalBox";
+import Select from "./Select";
 import MatrixCellEntryModal, {
   CLICKABLE_MATRIX_ROW_KEYS,
   ClickableMatrixRowKey,
@@ -916,15 +917,17 @@ export default function StockMatrixTable({
               <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Brand</label>
-                  <select
+                  <Select
                     value={newColBrand}
-                    onChange={(e) => handleBrandChange(e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="DB">DB</option>
-                    <option value="Swiss">Swiss</option>
-                    <option value="SV">SV</option>
-                  </select>
+                    onChange={(val) => handleBrandChange(val)}
+                    fullWidth
+                    size="md"
+                    options={[
+                      { value: "DB", label: "DB" },
+                      { value: "Swiss", label: "Swiss" },
+                      { value: "SV", label: "SV" },
+                    ]}
+                  />
                 </div>
 
                 {newColError && <p className="text-xs text-red-500 mt-1">{newColError}</p>}
@@ -977,15 +980,17 @@ export default function StockMatrixTable({
               <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Brand</label>
-                  <select
+                  <Select
                     value={editColBrand}
-                    onChange={(e) => setEditColBrand(e.target.value)}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="DB">DB</option>
-                    <option value="Swiss">Swiss</option>
-                    <option value="SV">SV</option>
-                  </select>
+                    onChange={(val) => setEditColBrand(val)}
+                    fullWidth
+                    size="md"
+                    options={[
+                      { value: "DB", label: "DB" },
+                      { value: "Swiss", label: "Swiss" },
+                      { value: "SV", label: "SV" },
+                    ]}
+                  />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1.5">

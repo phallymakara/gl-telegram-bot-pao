@@ -176,7 +176,7 @@ function ExportDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             type="button"
             onClick={handleExportExcel}
@@ -223,40 +223,41 @@ export default function SalesPersonTable({
   ];
 
   return (
-    <Card className="p-0 overflow-hidden flex flex-col flex-1 min-h-0 border border-slate-200/80 shadow-xs">
-      <div className="p-4 border-b border-slate-200/80 bg-white flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+    <Card className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Action and Search Toolbar */}
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 flex-shrink-0 items-stretch sm:items-center justify-between">
+        <div className="relative flex-1 w-full sm:w-auto max-w-lg">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by code, name, phone, email, address..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           />
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <ExportDropdown salesPersons={salesPersons} notify={notify} />
           <button
             type="button"
             onClick={openCreateModal}
-            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-none cursor-pointer shrink-0"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             <span>Add Sales Person</span>
           </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto flex-1 min-h-0">
+      <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 w-full">
         <table className="w-full text-xs text-left border-collapse">
-          <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold tracking-wider">
-            <tr>
+          <thead className="sticky top-0 z-10 bg-slate-50">
+            <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
               {headers.map((h, i) => (
                 <th
                   key={i}
-                  className={`px-4 py-3 whitespace-nowrap ${
+                  className={`py-2.5 px-3 font-medium bg-slate-50 whitespace-nowrap ${
                     h === "Actions" ? "text-center" : ""
                   }`}
                 >
@@ -268,12 +269,12 @@ export default function SalesPersonTable({
           <tbody className="divide-y divide-slate-100 bg-white">
             {salesPersons.length === 0 ? (
               <tr>
-                <td colSpan={headers.length} className="px-4 py-12 text-center text-slate-400 font-medium">
+                <td colSpan={headers.length} className="px-4 py-12 text-center text-slate-400 font-normal">
                   No sales persons found. Click &quot;Add Sales Person&quot; to create one.
                 </td>
               </tr>
             ) : (
-              salesPersons.map((sp, idx) => {
+              salesPersons.map((sp) => {
                 const isActive = sp.is_active !== false;
                 const menuOpen = activeMenuId === sp.id;
 
@@ -282,33 +283,33 @@ export default function SalesPersonTable({
                     key={sp.id}
                     className="hover:bg-slate-100 transition-colors"
                   >
-                    <td className="px-4 py-3 font-mono font-normal text-indigo-600 whitespace-nowrap">
+                    <td className="py-2 px-3 font-mono text-xs font-normal text-slate-800 whitespace-nowrap">
                       {sp.code || `SP-${String(sp.id).padStart(3, "0")}`}
                     </td>
-                    <td className="px-4 py-3 font-normal text-slate-800 whitespace-nowrap">
+                    <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                       {sp.name}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap font-normal">
+                    <td className="py-2 px-3 text-slate-700 whitespace-nowrap font-normal">
                       {sp.phone || "—"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
                       {sp.email || "—"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                    <td className="py-2 px-3 text-slate-700 whitespace-nowrap">
                       {sp.gender || "—"}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 max-w-xs truncate">
+                    <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
                       {sp.address || "—"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="py-2 px-3 whitespace-nowrap">
                       <StatusBadge status={isActive ? "Active" : "Inactive"} />
                     </td>
-                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                    <td className="py-2 px-3 text-center whitespace-nowrap">
                       <div className="relative inline-block text-left">
                         <button
                           type="button"
                           onClick={() => setActiveMenuId(menuOpen ? null : sp.id)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                         >
                           <MoreVertical size={16} />
                         </button>
@@ -319,7 +320,7 @@ export default function SalesPersonTable({
                               className="fixed inset-0 z-20"
                               onClick={() => setActiveMenuId(null)}
                             />
-                            <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-xl border border-slate-200/90 py-1.5 z-30 text-xs text-left divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 text-xs text-left divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
                               <div className="py-0.5">
                                 <button
                                   type="button"
@@ -327,9 +328,9 @@ export default function SalesPersonTable({
                                     setActiveMenuId(null);
                                     openEditModal(sp);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-100/70 font-medium transition-colors cursor-pointer"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-50 font-normal transition-colors cursor-pointer"
                                 >
-                                  <Pencil size={14} /> Edit
+                                  <Pencil size={13} className="text-slate-400" /> Edit
                                 </button>
                                 <button
                                   type="button"
@@ -337,21 +338,21 @@ export default function SalesPersonTable({
                                     setActiveMenuId(null);
                                     toggleStatus(sp);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-slate-700 hover:bg-slate-100/70 font-medium transition-colors cursor-pointer"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-slate-700 hover:bg-slate-50 font-normal transition-colors cursor-pointer"
                                 >
-                                  <UserCheck size={14} /> {isActive ? "Set Inactive" : "Set Active"}
+                                  <UserCheck size={13} className="text-slate-400" /> {isActive ? "Set Inactive" : "Set Active"}
                                 </button>
                               </div>
-                              <div className="pt-1">
+                              <div className="pt-0.5">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     setActiveMenuId(null);
                                     deleteSalesPerson(sp.id);
                                   }}
-                                  className="w-full flex items-center gap-2 px-3.5 py-2 text-rose-600 hover:bg-rose-50 font-medium transition-colors cursor-pointer"
+                                  className="w-full flex items-center gap-2 px-3 py-1.5 text-rose-600 hover:bg-rose-50 font-normal transition-colors cursor-pointer"
                                 >
-                                  <Trash2 size={14} /> Delete
+                                  <Trash2 size={13} className="text-rose-500" /> Delete
                                 </button>
                               </div>
                             </div>

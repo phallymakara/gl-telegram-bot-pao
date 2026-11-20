@@ -640,13 +640,13 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-emerald-200/80">
-                      <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap w-full">SLOT DATE</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT (KG)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIVE</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
+                    <tr className="text-left text-xs text-slate-500 font-medium uppercase tracking-wide border-b border-emerald-200/80">
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap w-12">#</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap w-full">SLOT DATE</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">PREMIUM (USD)</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">LIMIT (KG)</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">ACTIVE</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -655,11 +655,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         key={r.id}
                         className="border-b border-emerald-200/60 hover:bg-emerald-500/10 transition-colors"
                       >
-                        <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
-                        <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
+                        <td className="px-4 py-2 text-slate-400 font-normal text-left w-12 text-xs">{idx + 1}</td>
+                        <td className="px-5 py-2 text-slate-700 font-normal text-xs whitespace-nowrap">
                           <span>{r.start_date}</span>
                         </td>
-                        <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
+                        <td className="px-5 py-2 text-center text-xs font-normal text-slate-800 whitespace-nowrap">
                           ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
                         </td>
                         {/* Merged LIMIT / STOCK column spanning all table rows */}
@@ -922,13 +922,13 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
               <div className="overflow-x-auto w-full">
                 <table className="w-full text-sm border-collapse">
                   <thead>
-                    <tr className="text-left text-xs text-black font-bold uppercase tracking-wide border-b border-rose-200/80">
-                      <th className="px-5 py-3 font-bold whitespace-nowrap w-12">#</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap w-full">SLOT DATE</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">PREMIUM (USD)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">LIMIT (KG)</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-center">ACTIVE</th>
-                      <th className="px-5 py-3 font-bold whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
+                    <tr className="text-left text-xs text-slate-500 font-medium uppercase tracking-wide border-b border-rose-200/80">
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap w-12">#</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap w-full">SLOT DATE</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">PREMIUM (USD)</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">LIMIT (KG)</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-center">ACTIVE</th>
+                      <th className="px-5 py-2.5 font-medium whitespace-nowrap text-right pr-6 w-20">ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -937,11 +937,11 @@ export default function SlotsPage({ mode = "buyback", notify }: SlotsPageProps) 
                         key={r.id}
                         className="border-b border-rose-200/60 hover:bg-rose-500/10 transition-colors"
                       >
-                        <td className="px-4 py-3 text-slate-400 font-medium text-left w-12 text-xs">{idx + 1}</td>
-                        <td className="px-5 py-3 text-slate-700 font-medium text-xs whitespace-nowrap">
+                        <td className="px-4 py-2 text-slate-400 font-normal text-left w-12 text-xs">{idx + 1}</td>
+                        <td className="px-5 py-2 text-slate-700 font-normal text-xs whitespace-nowrap">
                           <span>{r.start_date}</span>
                         </td>
-                        <td className="px-5 py-3 text-center text-xs font-semibold text-slate-800 whitespace-nowrap">
+                        <td className="px-5 py-2 text-center text-xs font-normal text-slate-800 whitespace-nowrap">
                           ${typeof r.premium === "number" ? r.premium.toLocaleString() : r.premium}
                         </td>
                         {/* Merged LIMIT column spanning all table rows */}

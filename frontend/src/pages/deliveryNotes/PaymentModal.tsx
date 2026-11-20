@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import { X, DollarSign, Calendar, User, CreditCard, FileText, CheckCircle2 } from "lucide-react";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { deliveryNotesApi, DeliveryNoteItem } from "../../api";
 
@@ -232,18 +233,19 @@ export default function PaymentModal({
                 <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
                   <CreditCard size={14} className="text-slate-500" /> Payment Method *
                 </label>
-                <select
+                <Select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
-                  required
-                >
-                  <option value="CASH">Cash (USD)</option>
-                  <option value="BANK_TRANSFER">Bank Wire Transfer</option>
-                  <option value="TELEGRAM">Telegram Pay / Bot</option>
-                  <option value="CHECK">Check</option>
-                  <option value="OTHER">Other / Counter</option>
-                </select>
+                  onChange={setPaymentMethod}
+                  fullWidth
+                  size="md"
+                  options={[
+                    { value: "CASH", label: "Cash (USD)" },
+                    { value: "BANK_TRANSFER", label: "Bank Wire Transfer" },
+                    { value: "TELEGRAM", label: "Telegram Pay / Bot" },
+                    { value: "CHECK", label: "Check" },
+                    { value: "OTHER", label: "Other / Counter" },
+                  ]}
+                />
               </div>
             </div>
 

@@ -18,6 +18,7 @@ import { getFriendlyErrorMessage } from "../utils/errorMessage";
 import { UserData, usersApi } from "../api/users";
 import { ALL_MODULES, ModuleDefinition } from "../data/navigation";
 import DraggableModalBox from "./DraggableModalBox";
+import Select from "./Select";
 
 interface UserModalProps {
   isOpen: boolean;
@@ -366,16 +367,18 @@ export default function UserModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Role</label>
-                  <select
+                  <Select
                     value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="Staff">Staff (Operations)</option>
-                    <option value="Manager">Manager (Supervisory)</option>
-                    <option value="Admin">Admin (Administrator)</option>
-                    <option value="Super Admin">Super Admin (Full System Access)</option>
-                  </select>
+                    onChange={setRole}
+                    fullWidth
+                    size="md"
+                    options={[
+                      { value: "Staff", label: "Staff (Operations)" },
+                      { value: "Manager", label: "Manager (Supervisory)" },
+                      { value: "Admin", label: "Admin (Administrator)" },
+                      { value: "Super Admin", label: "Super Admin (Full System Access)" },
+                    ]}
+                  />
                 </div>
 
                 <div>

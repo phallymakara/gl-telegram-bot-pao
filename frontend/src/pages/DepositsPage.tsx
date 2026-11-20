@@ -15,6 +15,7 @@ import { getFriendlyErrorMessage } from "../utils/errorMessage";
 import Card from "../components/Card";
 import StatCard from "../components/StatCard";
 import SearchInput from "../components/SearchInput";
+import Select from "../components/Select";
 import DepositDetailModal from "./deposits/DepositDetailModal";
 import WithdrawalDetailModal from "./deposits/WithdrawalDetailModal";
 import Loader, { TableLoader } from "../components/Loader";
@@ -330,29 +331,28 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
           </form>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              {["All Statuses", "PENDING", "APPROVED", "REJECTED"].map((s) => (
-                <option key={s} value={s}>
-                  {s === "All Statuses" ? s : s.charAt(0) + s.slice(1).toLowerCase()}
-                </option>
-              ))}
-            </select>
+              onChange={setStatusFilter}
+              className="min-w-[130px]"
+              options={[
+                { value: "All Statuses", label: "All Statuses" },
+                { value: "PENDING", label: "Pending" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "REJECTED", label: "Rejected" },
+              ]}
+            />
 
-            <select
+            <Select
               value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              {["All Methods", "BANK", "CASH"].map((m) => (
-                <option key={m} value={m}>
-                  {m === "All Methods" ? m : m === "BANK" ? "Bank Transfer" : "Cash"}
-                </option>
-              ))}
-            </select>
+              onChange={setMethodFilter}
+              className="min-w-[130px]"
+              options={[
+                { value: "All Methods", label: "All Methods" },
+                { value: "BANK", label: "Bank Transfer" },
+                { value: "CASH", label: "Cash" },
+              ]}
+            />
 
             {(q || statusFilter !== "All Statuses" || methodFilter !== "All Methods") && (
               <button
@@ -427,7 +427,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="leading-tight">
-                          <span className="font-medium text-slate-800 text-xs block">
+                          <span className="font-normal text-slate-800 text-xs block">
                             {d.account_name}
                           </span>
                           <span className="text-[11px] text-slate-400">
@@ -440,7 +440,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                         </div>
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
-                        <span className="text-slate-900 text-xs font-medium">
+                        <span className="text-slate-800 text-xs font-normal">
                           {formatCurrency(d.amount)}
                         </span>
                         <span className="text-[11px] text-slate-400 ml-1">USD</span>
@@ -463,7 +463,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="leading-tight">
-                          <span className="text-slate-700 text-xs font-medium block">
+                          <span className="text-slate-700 text-xs font-normal block">
                             {new Date(d.transaction_date).toLocaleDateString([], {
                               month: "short",
                               day: "numeric",
@@ -561,7 +561,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="leading-tight">
-                          <span className="font-medium text-slate-800 text-xs block">
+                          <span className="font-normal text-slate-800 text-xs block">
                             {w.account_name}
                           </span>
                           <span className="text-[11px] text-slate-400">
@@ -574,7 +574,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                         </div>
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap text-right">
-                        <span className="text-rose-600 text-xs font-medium">
+                        <span className="text-rose-600 text-xs font-normal">
                           -{formatCurrency(w.amount)}
                         </span>
                         <span className="text-[11px] text-rose-500 ml-1">USD</span>
@@ -604,7 +604,7 @@ export default function DepositsPage({ notify }: DepositsPageProps) {
                       </td>
                       <td className="px-4 py-2 whitespace-nowrap">
                         <div className="leading-tight">
-                          <span className="text-slate-700 text-xs font-medium block">
+                          <span className="text-slate-700 text-xs font-normal block">
                             {new Date(w.transaction_date).toLocaleDateString([], {
                               month: "short",
                               day: "numeric",

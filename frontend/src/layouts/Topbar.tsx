@@ -111,7 +111,7 @@ export default function Topbar({
         <div className="flex items-center gap-3.5 min-w-0">
           <button
             onClick={() => setMobileOpen(true)}
-            className="lg:hidden h-9 w-9 rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-white shrink-0 shadow-sm hover:opacity-90 transition-opacity focus:outline-none mr-2"
+            className="lg:hidden h-9 w-9 rounded-lg bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 flex items-center justify-center text-white shrink-0 hover:opacity-90 transition-opacity focus:outline-none mr-2"
             title="Show Sidebar"
           >
             <Diamond size={18} fill="white" strokeWidth={1} />

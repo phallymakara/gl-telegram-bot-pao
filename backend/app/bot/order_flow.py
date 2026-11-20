@@ -132,11 +132,7 @@ async def handle_slot_selection(query, context: ContextTypes.DEFAULT_TYPE):
         total_available,
     )
 
-    if total_available <= 0:
-        err_key = "slot_out_of_stock" if order_type == BUY else "slot_buy_limit_reached"
-        await query.answer(t(err_key, lang), show_alert=True)
-        return
-
+    # Over-stock deficit enabled: allow selling and buying even if available <= 0
     await query.message.reply_text(
         text=msg,
         reply_markup=build_quantity_keyboard(
@@ -258,12 +254,20 @@ async def _finalize_quantity_selection(
 
     tier_info = await asyncio.to_thread(calculate_slot_tier_breakdown_sync, selected_slot, quantity, order_type)
     if not tier_info.get("is_sufficient"):
-        err_msg = _get_insufficient_msg(order_type, tier_info, lang)
-        if query is not None:
-            await query.answer(err_msg, show_alert=True)
-        else:
-            await reply_target.reply_text(err_msg)
-        return False
+        raw_premium = float(str(slot.get("premium", 0)).replace("+", "").strip() or 0)
+        from app.utils.pricing import calculate_order_total, calculate_premium_amount, DEFAULT_SPOT_PRICE
+        from decimal import Decimal
+        prem_amt = calculate_premium_amount(Decimal(str(quantity)), Decimal(str(raw_premium)))
+        total_amt = calculate_order_total(Decimal(str(quantity)), Decimal(str(DEFAULT_SPOT_PRICE)), Decimal(str(raw_premium)))
+        tier_info = {
+            "is_sufficient": True,
+            "weighted_premium": raw_premium,
+            "total_premium_amount": float(prem_amt),
+            "total_amount": float(total_amt),
+            "tiers": [],
+            "has_spillover": False,
+            "is_new_price_involved": False,
+        }
 
     is_new_price = tier_info.get("is_new_price_involved", False) if order_type == BUY else False
     context.user_data["quantity"] = quantity

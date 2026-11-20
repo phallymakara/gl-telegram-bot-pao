@@ -79,6 +79,9 @@ export default function AppRoutes({ notify }: AppRoutesProps) {
         {/* Root redirect to Dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
+        {/* Login route (redirects to dashboard when already authenticated) */}
+        <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+
       {/* Dashboard */}
       <Route
         path="/dashboard"

@@ -16,12 +16,14 @@ import LazyTableFooter from "../components/LazyTableFooter";
 import useLazyRecords from "../hooks/useLazyRecords";
 import { TableLoader } from "../components/Loader";
 import DraggableModalBox from "../components/DraggableModalBox";
+import Select from "../components/Select";
 /**
  * @file PhysicalOrdersPage.tsx
  * @description Physical Gold Orders page component for recording over-the-counter and physical store transactions.
  */
 
 import { api, DashboardStatsData, OrderData, ProductData, productsApi, toNumber } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 interface PhysicalOrdersPageProps {
   /** Toast notification trigger callback */
@@ -42,6 +44,7 @@ function getLocalDateString(): string {
 export default function PhysicalOrdersPage({
   notify,
 }: PhysicalOrdersPageProps) {
+  const { currentUser } = useAuth();
   const [rows, setRows] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStatsData | null>(null);
@@ -90,6 +93,7 @@ export default function PhysicalOrdersPage({
       premium: Number(form.premium),
       order_no: `PHY-${Date.now()}`,
       customer_name: form.customer_name,
+      sales_person: currentUser?.name || currentUser?.username || "",
       channel: "Walk-in",
       region: "LOCAL",
       product_type: form.product_type || "DB",
@@ -241,11 +245,12 @@ export default function PhysicalOrdersPage({
                   "Qty (KG)",
                   "Premium",
                   "Total",
+                  "Sales Person",
                   "Actions",
                 ].map((h) => (
                   <th
                     key={h}
-                    className="px-5 py-3 font-medium whitespace-nowrap bg-slate-50"
+                    className="px-5 py-2.5 font-medium whitespace-nowrap bg-slate-50"
                   >
                     {h}
                   </th>
@@ -254,10 +259,10 @@ export default function PhysicalOrdersPage({
             </thead>
             <tbody>
               {loading && rows.length === 0 ? (
-                <TableLoader colSpan={8} text="Loading physical orders..." />
+                <TableLoader colSpan={9} text="Loading physical orders..." />
               ) : numericRows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                  <td colSpan={9} className="px-5 py-12 text-center text-slate-400">
                     No physical gold orders found.
                   </td>
                 </tr>
@@ -267,32 +272,35 @@ export default function PhysicalOrdersPage({
                     key={r.id}
                     className="border-b border-slate-100 hover:bg-slate-100 transition-colors"
                   >
-                    <td className="px-5 py-3.5 text-slate-400">{idx + 1}</td>
-                  <td className="px-5 py-3.5 font-medium text-slate-700 whitespace-nowrap">
+                    <td className="px-5 py-2 text-slate-400">{idx + 1}</td>
+                  <td className="px-5 py-2 font-normal text-slate-700 whitespace-nowrap">
                     {r.customer_name || "—"}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-500 whitespace-nowrap">
+                  <td className="px-5 py-2 text-slate-500 whitespace-nowrap">
                     {new Date(r.created_at).toLocaleDateString()}
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-2">
                     <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${r.transaction_type === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-normal ${r.transaction_type === "BUY" ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}
                     >
                       {r.transaction_type}
                     </span>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-700">
+                  <td className="px-5 py-2 text-slate-700">
                     {r.transaction_type === "SELL" && r.quantity > 0
                       ? `-${r.quantity.toFixed(3)}`
                       : r.quantity.toFixed(3)}
                   </td>
-                  <td className="px-5 py-3.5 font-medium text-slate-600">
+                  <td className="px-5 py-2 font-normal text-slate-600">
                     ${r.premium.toFixed(2)}
                   </td>
-                  <td className="px-5 py-3.5 font-medium text-slate-800">
+                  <td className="px-5 py-2 font-normal text-slate-800">
                     ${r.premium_amount.toFixed(2)}
                   </td>
-                  <td className="px-5 py-3.5">
+                  <td className="px-5 py-2 font-normal text-slate-600 whitespace-nowrap">
+                    {r.sales_person || "—"}
+                  </td>
+                  <td className="px-5 py-2">
                     <div className="flex items-center gap-1">
                       <IconBtn
                         title="View"
@@ -371,26 +379,23 @@ export default function PhysicalOrdersPage({
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
                     Product
                   </label>
-                  <select
+                  <Select
                     aria-label="Product brand"
                     value={form.product_type}
-                    onChange={(e) => setForm({ ...form, product_type: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    {productList.length > 0 ? (
-                      productList.map((p) => (
-                        <option key={p.id} value={p.name}>
-                          {p.name}
-                        </option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="DB">DB</option>
-                        <option value="Swiss">Swiss</option>
-                        <option value="SV">SV</option>
-                      </>
-                    )}
-                  </select>
+                    onChange={(val) => setForm({ ...form, product_type: val })}
+                    fullWidth
+                    size="md"
+                    placeholder="Select product"
+                    options={
+                      productList.length > 0
+                        ? productList.map((p) => ({ value: p.name, label: p.name }))
+                        : [
+                            { value: "DB", label: "DB" },
+                            { value: "Swiss", label: "Swiss" },
+                            { value: "SV", label: "SV" },
+                          ]
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
@@ -409,16 +414,18 @@ export default function PhysicalOrdersPage({
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">
                     Type *
                   </label>
-                  <select
+                  <Select
                     aria-label="Order type"
                     value={form.type}
-                    onChange={(e) => setForm({ ...form, type: e.target.value })}
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                  >
-                    <option value="">Select type</option>
-                    <option>Buy</option>
-                    <option>Sell</option>
-                  </select>
+                    onChange={(val) => setForm({ ...form, type: val })}
+                    fullWidth
+                    size="md"
+                    placeholder="Select type"
+                    options={[
+                      { value: "Buy", label: "Buy" },
+                      { value: "Sell", label: "Sell" },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="text-xs font-semibold text-slate-500 mb-1.5 block">

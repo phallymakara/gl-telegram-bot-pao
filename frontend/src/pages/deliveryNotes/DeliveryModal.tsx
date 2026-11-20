@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Search, ChevronDown, Check } from "lucide-react";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 import { getFriendlyErrorMessage } from "../../utils/errorMessage";
 import { deliveryNotesApi, EligibleOrder, PartialDeliveryCalculationResponse } from "../../api";
 import { openDeliveryInvoiceInNewTab } from "../../utils/deliveryInvoice";
@@ -489,15 +490,16 @@ export default function DeliveryModal({
               <label className="text-xs font-semibold text-slate-700 block">
                 Partial Type *
               </label>
-              <select
+              <Select
                 value={doType}
-                onChange={(e) => handleTypeChange(e.target.value as DoTrackingType)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white font-medium text-slate-800"
-                required
-              >
-                <option value="BALANCE_GOLD">Outstanding Balance</option>
-                <option value="AMOUNT_USD">Outstanding Amount</option>
-              </select>
+                onChange={(val) => handleTypeChange(val as DoTrackingType)}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "BALANCE_GOLD", label: "Outstanding Balance" },
+                  { value: "AMOUNT_USD", label: "Outstanding Amount" },
+                ]}
+              />
             </div>
 
             {/* Dynamic Breakdown Row: Changes labels based on Partial Type */}

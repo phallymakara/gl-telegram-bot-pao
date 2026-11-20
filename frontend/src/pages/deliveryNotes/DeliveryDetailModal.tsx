@@ -359,15 +359,15 @@ export default function DeliveryDetailModal({
                           <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
                             {p.payment_date}
                           </td>
-                          <td className="py-2.5 px-3 font-bold text-emerald-600 whitespace-nowrap">
+                          <td className="py-2.5 px-3 font-normal text-emerald-600 whitespace-nowrap">
                             +${Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="py-2.5 px-3">
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
+                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-normal bg-slate-100 text-slate-700">
                               {p.payment_method}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-700">{p.collected_by}</td>
+                          <td className="py-2.5 px-3 font-normal text-slate-700">{p.collected_by}</td>
                           <td className="py-2.5 px-3 text-slate-500 max-w-xs truncate">{p.reference_note || "—"}</td>
                         </tr>
                       ))}

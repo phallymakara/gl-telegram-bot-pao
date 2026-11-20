@@ -187,7 +187,7 @@ function ExportDropdown({
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-xs cursor-pointer"
+        className="flex items-center gap-1.5 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs px-3.5 py-2 rounded-lg border border-slate-200 transition-colors shadow-none cursor-pointer"
       >
         <Download size={14} className="text-slate-500" />
         <span>Export</span>
@@ -195,7 +195,7 @@ function ExportDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             type="button"
             onClick={handleExportExcel}
@@ -258,7 +258,7 @@ function ActionMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             onClick={() => {
               setOpen(false);
@@ -344,7 +344,7 @@ export default function CustomerTable({
           <ExportDropdown customers={customers} notify={notify} />
           <button
             onClick={openCreateModal}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-none cursor-pointer"
           >
             <Plus size={15} /> New Customer
           </button>
@@ -370,16 +370,16 @@ export default function CustomerTable({
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10 bg-slate-50">
                 <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Code</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Type</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Customer Name</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Sex</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">DOB</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Nation</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Address</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
-                  <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Customer Code</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Type</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Customer Name</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Contact</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Sex</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">DOB</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Nation</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Address</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Status</th>
+                  <th className="py-2.5 px-3 font-medium text-right bg-slate-50">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -388,16 +388,8 @@ export default function CustomerTable({
                     <td className="py-2 px-3 font-mono text-xs font-normal text-slate-800 whitespace-nowrap">
                       {c.customer_code || `CUST-${String(i + 1).padStart(3, "0")}`}
                     </td>
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          c.customer_type === "Enterprise"
-                            ? "bg-purple-50 text-purple-700"
-                            : "bg-blue-50 text-blue-700"
-                        }`}
-                      >
-                        {c.customer_type || "Individual"}
-                      </span>
+                    <td className="py-2 px-3 whitespace-nowrap text-slate-700 font-normal">
+                      {c.customer_type || "Individual"}
                     </td>
                     <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">
                       {c.name}

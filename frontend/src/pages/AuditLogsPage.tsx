@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { Lock, Shield } from "lucide-react";
 import Card from "../components/Card";
 import SearchInput from "../components/SearchInput";
+import Select from "../components/Select";
 import Pagination from "../components/Pagination";
 import SuperAdminPasswordModal from "../components/SuperAdminPasswordModal";
 import { TableLoader } from "../components/Loader";
@@ -28,18 +29,6 @@ interface AuditLogsPageProps {
 }
 
 const PAGE_SIZE = 25;
-
-const CATEGORY_BADGES: Record<string, string> = {
-  AUTH: "text-indigo-700",
-  ORDERS: "text-emerald-700",
-  STOCK: "text-amber-700",
-  PURCHASING: "text-blue-700",
-  DELIVERY: "text-cyan-700",
-  FINANCE: "text-teal-700",
-  USERS: "text-violet-700",
-  SETTINGS: "text-purple-700",
-  MASTER_DATA: "text-slate-700",
-};
 
 function formatActionLabel(action: string): string {
   return action
@@ -287,67 +276,59 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
             />
           </div>
 
-          <select
+          <Select
             value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
+            onChange={(val) => {
+              setCategoryFilter(val);
               setActionFilter("");
               setPage(1);
             }}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            <option value="">All Categories</option>
-            {(stats?.categories || []).map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+            className="min-w-[130px]"
+            options={[
+              { value: "", label: "All Categories" },
+              ...(stats?.categories || []).map((cat) => ({ value: cat, label: cat })),
+            ]}
+          />
 
-          <select
+          <Select
             value={actionFilter}
-            onChange={(e) => {
-              setActionFilter(e.target.value);
+            onChange={(val) => {
+              setActionFilter(val);
               setPage(1);
             }}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            <option value="">All Actions</option>
-            {(stats?.actions || []).map((act) => (
-              <option key={act} value={act}>
-                {formatActionLabel(act)}
-              </option>
-            ))}
-          </select>
+            className="min-w-[130px]"
+            options={[
+              { value: "", label: "All Actions" },
+              ...(stats?.actions || []).map((act) => ({ value: act, label: formatActionLabel(act) })),
+            ]}
+          />
 
-          <select
+          <Select
             value={userIdFilter}
-            onChange={(e) => {
-              setUserIdFilter(e.target.value);
+            onChange={(val) => {
+              setUserIdFilter(val);
               setPage(1);
             }}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            <option value="">All Users</option>
-            {users.map((u) => (
-              <option key={u.id} value={String(u.id)}>
-                {u.name} (@{u.username})
-              </option>
-            ))}
-          </select>
+            className="min-w-[130px]"
+            options={[
+              { value: "", label: "All Users" },
+              ...users.map((u) => ({ value: String(u.id), label: `${u.name} (@${u.username})` })),
+            ]}
+          />
 
-          <select
+          <Select
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
+            onChange={(val) => {
+              setStatusFilter(val);
               setPage(1);
             }}
-            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-          >
-            <option value="">All Status</option>
-            <option value="SUCCESS">Success</option>
-            <option value="FAILED">Failed</option>
-          </select>
+            className="min-w-[110px]"
+            options={[
+              { value: "", label: "All Status" },
+              { value: "SUCCESS", label: "Success" },
+              { value: "FAILED", label: "Failed" },
+            ]}
+          />
 
           <div className="flex items-center gap-1">
             <input
@@ -420,7 +401,6 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
               ) : (
                 logs.map((log) => {
                   const ts = formatTimestamp(log.created_at);
-                  const catColor = CATEGORY_BADGES[log.category] || "text-slate-700";
                   return (
                     <tr
                       key={log.id}
@@ -435,10 +415,8 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
                       <td className="px-2.5 py-2 whitespace-nowrap text-slate-800">
                         {log.actor_name || log.username || "System"}
                       </td>
-                      <td className="px-2.5 py-2 whitespace-nowrap">
-                        <span className={`text-[11px] font-medium ${catColor}`}>
-                          {log.category}
-                        </span>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-700">
+                        {log.category}
                       </td>
                       <td className="px-2.5 py-2 whitespace-nowrap text-slate-700">
                         {formatActionLabel(log.action)}
@@ -451,16 +429,8 @@ export default function AuditLogsPage(_props: AuditLogsPageProps) {
                       <td className="px-2.5 py-2 text-slate-700 max-w-md whitespace-nowrap truncate" title={log.description}>
                         {log.description}
                       </td>
-                      <td className="px-2.5 py-2 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                            log.status === "FAILED"
-                              ? "bg-rose-50 text-rose-700"
-                              : "bg-emerald-50 text-emerald-700"
-                          }`}
-                        >
-                          {log.status}
-                        </span>
+                      <td className="px-2.5 py-2 whitespace-nowrap text-slate-700 font-normal">
+                        {log.status}
                       </td>
                       <td className="px-2.5 py-2 whitespace-nowrap text-slate-500 font-mono text-[11px]">
                         {log.ip_address || "—"}

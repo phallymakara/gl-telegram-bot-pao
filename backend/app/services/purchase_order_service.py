@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from app.core.database import SessionLocal
 from app.models.purchase_order import PurchaseOrder, StockReturn
+from app.models.slot_row import SlotRow
 from app.services.slot_service import (
     add_incoming_to_slot_sync,
     add_stock_to_table_sync,
@@ -56,10 +57,11 @@ def create_purchase_order_sync(
             total_cost=total_cost,
             order_date=order_date,
             expected_date=expected_date,
+            received_date=order_date if order_date else date.today(),
             product_type=product_type,
             notes=notes,
             created_by=created_by,
-            status="INCOMING",
+            status="RECEIVED",
         )
         session.add(po)
         session.commit()
@@ -70,17 +72,15 @@ def create_purchase_order_sync(
     finally:
         session.close()
 
-    # Credit day-specific incoming stock to SlotRow (skip for non-stock gold)
-    if order_date and slot_table_id and not is_non_stock_gold(product_type, unit_type):
-        slot_date_str = order_date.isoformat() if isinstance(order_date, date) else str(order_date)
-        add_incoming_to_slot_sync(
+    # Automatically credit physical stock to SlotTable
+    if slot_table_id and not is_non_stock_gold(product_type, None):
+        add_stock_to_table_sync(
             slot_table_id=slot_table_id,
-            slot_date_str=slot_date_str,
             quantity=quantity,
-            txn_type="PO_INCOMING",
-            remark=f"Created {po_type} PO {po_no}",
+            txn_type="PO_RECEIVE",
+            remark=f"Auto-received {po_type} PO {po_no}",
         )
-        logger.info("PO %s incoming credited: %.3f kg to slot_date=%s", po_no, float(quantity), slot_date_str)
+        logger.info("PO %s auto-received: %.3f kg to table_id=%s", po_no, float(quantity), slot_table_id)
 
     return po
 

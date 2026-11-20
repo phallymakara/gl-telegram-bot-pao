@@ -82,10 +82,10 @@ export default function ReceiptTable({
             <tbody className="divide-y divide-slate-100">
               {receipts.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-100 transition-colors">
-                  <td className="py-3 px-3 font-semibold text-slate-800">{item.receipt_no}</td>
+                  <td className="py-3 px-3 font-normal text-slate-800">{item.receipt_no}</td>
                   <td className="py-3 px-3 text-slate-500 font-mono text-xs">{item.po_no}</td>
-                  <td className="py-3 px-3 font-medium text-slate-700">{item.supplier}</td>
-                  <td className="py-3 px-3 text-right font-bold text-slate-800">
+                  <td className="py-3 px-3 font-normal text-slate-700">{item.supplier}</td>
+                  <td className="py-3 px-3 text-right font-normal text-slate-800">
                     {item.quantity_kg.toFixed(1)} KG
                   </td>
                   <td className="py-3 px-3 text-slate-500 text-xs">{item.received_date}</td>

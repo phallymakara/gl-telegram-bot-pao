@@ -9,14 +9,17 @@ import { BrowserRouter } from "react-router-dom";
 import Sidebar from "./layouts/Sidebar";
 import Topbar from "./layouts/Topbar";
 import Toast, { ToastType } from "./components/Toast";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import AppRoutes from "./routes/AppRoutes";
+import LoginPage from "./pages/LoginPage";
+import { PageLoader } from "./components/Loader";
 
 /**
  * Shell container holding the responsive sidebar, header topbar, route content, and notifications.
  */
 function AppContent() {
+  const { currentUser, isLoading } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
@@ -30,6 +33,25 @@ function AppContent() {
       clearTimeout(timerRef.current);
     }
     timerRef.current = setTimeout(() => setToast(null), type === "error" ? 4500 : 2200);
+  }
+
+  // Display initial loading indicator while validating session token
+  if (isLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
+        <PageLoader text="Loading session..." />
+      </div>
+    );
+  }
+
+  // If user is not authenticated, display full-screen Login Page
+  if (!currentUser) {
+    return (
+      <>
+        <LoginPage notify={notify} />
+        <Toast toast={toast} type={toastType} />
+      </>
+    );
   }
 
   return (

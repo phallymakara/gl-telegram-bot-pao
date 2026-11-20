@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import DraggableModalBox from "./DraggableModalBox";
+import Select from "./Select";
 import {
   customersApi,
   CustomerData,
@@ -748,19 +749,17 @@ export default function MatrixCellEntryModal({
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Unit *
               </label>
-              <select
+              <Select
                 value={isDbOrSwissProduct(productType) ? unitType : "Kg"}
-                onChange={(e) => handleUnitChange(e.target.value)}
+                onChange={(val) => handleUnitChange(val)}
                 disabled={!isDbOrSwissProduct(productType)}
-                className={`w-full px-2.5 py-2 text-xs border border-slate-300 rounded-md focus:outline-none focus:border-slate-500 ${
-                  !isDbOrSwissProduct(productType)
-                    ? "bg-slate-50 text-slate-500 cursor-not-allowed"
-                    : "bg-white text-slate-800 cursor-pointer"
-                }`}
-              >
-                <option value="Kg">Kg</option>
-                {isDbOrSwissProduct(productType) && <option value="TL">TL</option>}
-              </select>
+                fullWidth
+                size="sm"
+                options={[
+                  { value: "Kg", label: "Kg" },
+                  ...(isDbOrSwissProduct(productType) ? [{ value: "TL", label: "TL" }] : []),
+                ]}
+              />
             </div>
           </div>
 

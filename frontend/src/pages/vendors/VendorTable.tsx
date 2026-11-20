@@ -103,7 +103,8 @@ function ExportVendorDropdown({
           <td style="padding: 8px 12px; font-weight: 600; color: #0f172a;">${v.name || "—"}</td>
           <td style="padding: 8px 12px; color: #475569;">${v.supplier_type || "—"}</td>
           <td style="padding: 8px 12px; color: #475569;">${v.contact_person || "—"}</td>
-          <td style="padding: 8px 12px; color: #475569;">${v.phone || v.email || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${v.phone || "—"}</td>
+          <td style="padding: 8px 12px; color: #475569;">${v.email || "—"}</td>
           <td style="padding: 8px 12px; color: #475569;">${v.address || "—"}</td>
           <td style="padding: 8px 12px;">
             <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; ${
@@ -142,12 +143,13 @@ function ExportVendorDropdown({
         <table>
           <thead>
             <tr>
-              <th>Vendor Code</th>
-              <th>Vendor Name</th>
+              <th>Code</th>
+              <th>Name</th>
               <th>Category</th>
               <th>Contact Person</th>
-              <th>Phone / Email</th>
-              <th>Location</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Address</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -190,7 +192,7 @@ function ExportVendorDropdown({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1.5 w-40 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             type="button"
             onClick={handleExportExcel}
@@ -253,7 +255,7 @@ function ActionMenu({
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-slate-100 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-none border border-slate-200 py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
           <button
             onClick={() => {
               setOpen(false);
@@ -329,7 +331,7 @@ export default function VendorTable({
           <ExportVendorDropdown vendors={vendors} notify={notify} />
           <button
             onClick={openCreateModal}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3.5 py-2 rounded-lg transition-colors shadow-none cursor-pointer"
           >
             <Plus size={15} /> New Vendor
           </button>
@@ -355,14 +357,15 @@ export default function VendorTable({
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10 bg-slate-50">
                 <tr className="text-left text-slate-400 uppercase tracking-wide border-b border-slate-200 bg-slate-50">
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Code</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Vendor Name</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Supplier Category</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Contact Person</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Phone / Email</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Location</th>
-                  <th className="py-2.5 px-3 font-semibold bg-slate-50">Status</th>
-                  <th className="py-2.5 px-3 font-semibold text-right bg-slate-50">Action</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Vendor Code</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Vendor Name</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Supplier Category</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Contact Person</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Phone</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Email</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Location</th>
+                  <th className="py-2.5 px-3 font-medium bg-slate-50">Status</th>
+                  <th className="py-2.5 px-3 font-medium text-right bg-slate-50">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -372,17 +375,17 @@ export default function VendorTable({
                       {v.vendor_code || `VEND-${String(i + 1).padStart(3, "0")}`}
                     </td>
                     <td className="py-2 px-3 font-normal text-slate-800 whitespace-nowrap">{v.name}</td>
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-normal bg-slate-100 text-slate-700">
-                        {v.supplier_type}
-                      </span>
+                    <td className="py-2 px-3 text-slate-700 font-normal whitespace-nowrap">
+                      {v.supplier_type || "—"}
                     </td>
                     <td className="py-2 px-3 text-slate-700 font-normal whitespace-nowrap">
                       {v.contact_person || "—"}
                     </td>
                     <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
-                      <div>{v.phone || "—"}</div>
-                      {v.email && <div className="text-[11px] text-slate-400">{v.email}</div>}
+                      {v.phone || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                      {v.email || "—"}
                     </td>
                     <td className="py-2 px-3 text-slate-500 max-w-xs truncate">
                       {v.address ? (
@@ -408,7 +411,7 @@ export default function VendorTable({
                   </tr>
                 ))}
                 {isLoadingMore && (
-                  <TableLoader colSpan={8} text="Loading more vendors..." position="bottom" size="sm" />
+                  <TableLoader colSpan={9} text="Loading more vendors..." position="bottom" size="sm" />
                 )}
               </tbody>
             </table>

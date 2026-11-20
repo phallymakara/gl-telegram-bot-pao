@@ -5,6 +5,7 @@
 
 import { X } from "lucide-react";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 
 interface AdjustmentModalProps {
   isOpen: boolean;
@@ -63,14 +64,16 @@ export default function AdjustmentModal({
         <div className="p-4 space-y-3 flex-1 overflow-y-auto max-h-[70vh]">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-600">Adjustment Type</label>
-            <select
+            <Select
               value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            >
-              <option value="INFLOW">INFLOW (Stock Received / Added)</option>
-              <option value="OUTFLOW">OUTFLOW (Stock Delivered / Removed)</option>
-            </select>
+              onChange={(val) => setForm((f) => ({ ...f, type: val }))}
+              fullWidth
+              size="md"
+              options={[
+                { value: "INFLOW", label: "INFLOW (Stock Received / Added)" },
+                { value: "OUTFLOW", label: "OUTFLOW (Stock Delivered / Removed)" },
+              ]}
+            />
           </div>
 
           <div className="space-y-1.5">

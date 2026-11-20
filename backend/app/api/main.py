@@ -1,23 +1,28 @@
 import logging
+import os
 import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect as sa_inspect, text
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
 from app.core.database import Base, engine
+from app.core.logging import setup_logging
+from app.services.activity_log_service import (
+    extract_client_ip,
+    reset_request_audit_context,
+    set_request_audit_context,
+)
 
-import os
-
+setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Gold Bot Admin API")
 
 cors_origins_str = os.getenv("CORS_ORIGINS", "*")
 cors_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
-
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
@@ -28,12 +33,63 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-from app.services.activity_log_service import (
-    extract_client_ip,
-    reset_request_audit_context,
-    set_request_audit_context,
+ROUTINE_POLLING_PREFIXES = (
+    "/api/orders",
+    "/api/purchase-orders",
+    "/api/deposits",
+    "/api/withdrawals",
+    "/api/dashboard/stock-matrix",
+    "/api/dashboard/summary",
+    "/health",
 )
+
+
+def _is_routine_polling(path: str) -> bool:
+    clean = path.rstrip("/")
+    return any(clean.startswith(prefix) for prefix in ROUTINE_POLLING_PREFIXES)
+
+
+def _format_http_log(
+    method: str,
+    path: str,
+    status_code: int,
+    duration_ms: float,
+    client_ip: str | None = None,
+) -> str:
+    """Format HTTP request into a concise colorized line."""
+    # Method color
+    if method == "GET":
+        method_str = f"\033[34m{method}\033[0m"       # Blue
+    elif method == "POST":
+        method_str = f"\033[32m{method}\033[0m"      # Green
+    elif method in ("PUT", "PATCH"):
+        method_str = f"\033[33m{method}\033[0m"      # Yellow
+    elif method == "DELETE":
+        method_str = f"\033[31m{method}\033[0m"      # Red
+    else:
+        method_str = method
+
+    # Status code color
+    if status_code < 300:
+        status_str = f"\033[32m{status_code}\033[0m"  # Green (2xx)
+    elif status_code < 400:
+        status_str = f"\033[36m{status_code}\033[0m"  # Cyan (3xx)
+    elif status_code < 500:
+        status_str = f"\033[33m{status_code}\033[0m"  # Yellow (4xx)
+    else:
+        status_str = f"\033[31m{status_code}\033[0m"  # Red (5xx)
+
+    # Duration color
+    formatted_ms = f"{duration_ms:.1f}ms"
+    if duration_ms > 1000:
+        duration_str = f"\033[31m({formatted_ms})\033[0m"  # Red for slow (>1s)
+    elif duration_ms > 300:
+        duration_str = f"\033[33m({formatted_ms})\033[0m"  # Yellow for warning (>300ms)
+    else:
+        duration_str = f"\033[90m({formatted_ms})\033[0m"  # Muted gray
+
+    ip_suffix = f" [ip={client_ip}]" if client_ip and status_code >= 400 else ""
+    return f"{method_str} {path} {status_str} {duration_str}{ip_suffix}"
 
 
 @app.middleware("http")
@@ -44,10 +100,11 @@ async def log_requests(request: Request, call_next):
         if auth_header.lower().startswith("bearer ")
         else None
     )
+    client_ip = extract_client_ip(request)
     ctx_token = set_request_audit_context(
         bearer_token=bearer_token,
         x_user_id=request.headers.get("x-user-id"),
-        ip_address=extract_client_ip(request),
+        ip_address=client_ip,
         user_agent=request.headers.get("user-agent"),
         method=request.method,
         path=request.url.path,
@@ -55,21 +112,42 @@ async def log_requests(request: Request, call_next):
     start_time = time.time()
     try:
         response = await call_next(request)
+    except Exception as exc:
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(
+            "%s %s failed after %.1fms: %s [ip=%s]",
+            request.method,
+            request.url.path,
+            duration_ms,
+            exc,
+            client_ip,
+            exc_info=True,
+        )
+        raise
     finally:
         reset_request_audit_context(ctx_token)
+
     duration_ms = (time.time() - start_time) * 1000
-    logger.info(
-        "HTTP %s %s -> Status %d (%.2fms)",
-        request.method,
-        request.url.path,
-        response.status_code,
-        duration_ms,
-    )
+    status_code = response.status_code
+    log_line = _format_http_log(request.method, request.url.path, status_code, duration_ms, client_ip)
+
+    if status_code >= 500:
+        logger.error(log_line)
+    elif status_code >= 400:
+        logger.warning(log_line)
+    elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        logger.info(log_line)
+    elif _is_routine_polling(request.url.path):
+        logger.debug(log_line)
+    else:
+        logger.info(log_line)
+
     return response
 
 
 @app.on_event("startup")
 def on_startup():
+    setup_logging()
     import app.db.base
     Base.metadata.create_all(bind=engine)
 

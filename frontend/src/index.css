@@ -24,6 +24,24 @@ textarea::placeholder {
   font-family: 'Inter', 'Kantumruy Pro', system-ui, sans-serif !important;
 }
 
+/* System-wide: Default no drop shadows */
+*,
+*::before,
+*::after {
+  box-shadow: none;
+}
+
+/* Subtle soft shadow specifically for the login card when requested */
+.login-card {
+  box-shadow: 0 4px 25px -4px rgba(15, 23, 42, 0.06), 0 2px 8px -2px rgba(15, 23, 42, 0.04) !important;
+}
+
+/* System-wide: Regular font weight across all data table rows (no bold text in rows) */
+table tbody tr td,
+table tbody tr td *:not(button):not(button *):not(.lucide) {
+  font-weight: 400 !important;
+}
+
 
 /* Custom Scrollbar Styles */
 ::-webkit-scrollbar {

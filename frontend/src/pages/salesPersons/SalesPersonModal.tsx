@@ -7,6 +7,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { SalesPersonData } from "../../api";
 import DraggableModalBox from "../../components/DraggableModalBox";
+import Select from "../../components/Select";
 
 interface SalesPersonModalProps {
   isOpen: boolean;
@@ -139,29 +140,33 @@ export default function SalesPersonModal({
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
                 Gender
               </label>
-              <select
+              <Select
                 value={form.gender}
-                onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="">Select Gender</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
+                onChange={(val) => setForm({ ...form, gender: val })}
+                fullWidth
+                size="md"
+                placeholder="Select Gender"
+                options={[
+                  { value: "Male", label: "Male" },
+                  { value: "Female", label: "Female" },
+                  { value: "Other", label: "Other" },
+                ]}
+              />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
                 Status
               </label>
-              <select
+              <Select
                 value={form.is_active ? "active" : "inactive"}
-                onChange={(e) => setForm({ ...form, is_active: e.target.value === "active" })}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-medium"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
+                onChange={(val) => setForm({ ...form, is_active: val === "active" })}
+                fullWidth
+                size="md"
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "inactive", label: "Inactive" },
+                ]}
+              />
             </div>
           </div>
 
